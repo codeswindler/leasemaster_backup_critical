@@ -1,0 +1,304 @@
+/* Clean animations for Admin Quick Actions page only */
+
+/* Pupil Movement Animation - Continuous slow wandering */
+@keyframes pupil-wander {
+  0% { 
+    transform: translate(0px, 0px); 
+  }
+  15% { 
+    transform: translate(-2px, -1.5px); 
+  }
+  30% { 
+    transform: translate(2px, 1px); 
+  }
+  45% { 
+    transform: translate(-1.5px, 2px); 
+  }
+  60% { 
+    transform: translate(1.5px, -1px); 
+  }
+  75% { 
+    transform: translate(-1px, -2px); 
+  }
+  90% { 
+    transform: translate(2px, 1.5px); 
+  }
+  100% { 
+    transform: translate(0px, 0px); 
+  }
+}
+
+/* Eye Blink Animation - Random intervals */
+@keyframes eye-blink {
+  0%, 85%, 100% { 
+    transform: scaleY(1); 
+    opacity: 0; 
+  }
+  86%, 88% { 
+    transform: scaleY(0.1); 
+    opacity: 0.9; 
+  }
+}
+
+/* Alternative blink timing for randomness */
+@keyframes eye-blink-delayed {
+  0%, 92%, 100% { 
+    transform: scaleY(1); 
+    opacity: 0; 
+  }
+  93%, 95% { 
+    transform: scaleY(0.1); 
+    opacity: 0.9; 
+  }
+}
+
+/* Book Animation - Opens, peruses pages, closes */
+@keyframes book-open {
+  0% { 
+    transform: scale(1) rotate(0deg); 
+  }
+  50% { 
+    transform: scale(1.2) rotate(-10deg); 
+  }
+  100% { 
+    transform: scale(1.15) rotate(0deg); 
+  }
+}
+
+@keyframes book-pages-turn {
+  0%, 100% { 
+    transform: scaleX(1) rotate(0deg); 
+    opacity: 1; 
+  }
+  20% { 
+    transform: scaleX(0.3) rotate(-2deg); 
+    opacity: 0.5; 
+  }
+  40% { 
+    transform: scaleX(1.1) rotate(2deg); 
+    opacity: 1; 
+  }
+  60% { 
+    transform: scaleX(0.3) rotate(-2deg); 
+    opacity: 0.5; 
+  }
+  80% { 
+    transform: scaleX(1) rotate(0deg); 
+    opacity: 1; 
+  }
+}
+
+@keyframes book-close {
+  0% { 
+    transform: scale(1.15) rotate(0deg); 
+  }
+  50% { 
+    transform: scale(1.2) rotate(10deg); 
+  }
+  100% { 
+    transform: scale(1) rotate(0deg); 
+  }
+}
+
+/* Arrow Animation - Points right continuously */
+@keyframes arrow-point-right {
+  0%, 100% { 
+    transform: translateX(0px); 
+  }
+  50% { 
+    transform: translateX(4px); 
+  }
+}
+
+/* Arrow Animation - For homepage (points left) */
+@keyframes arrow-point-left {
+  0%, 100% { 
+    transform: translateX(0px); 
+  }
+  50% { 
+    transform: translateX(-4px); 
+  }
+}
+
+/* Login Arrow Animation - Moves into door with depth effect */
+@keyframes login-arrow-enter {
+  0%, 100% { 
+    transform: translateX(0px) scale(1); 
+  }
+  50% { 
+    transform: translateX(3px) scale(1.1); 
+  }
+}
+
+/* Spotlight Sweep Animation for Button Text - 45° diagonal */
+@keyframes spotlight-sweep {
+  0% {
+    background-position: -150% -150%;
+  }
+  100% {
+    background-position: 250% 250%;
+  }
+}
+
+/* Eye Container Styles */
+.animated-eye-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.animated-eye-icon {
+  display: block !important;
+  width: 20px !important;
+  height: 20px !important;
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Pupil element - moves inside fixed eye, positioned dynamically via JS */
+.animated-eye-pupil {
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  /* Pupil is now in SVG, this div is hidden */
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+.animated-eye-pupil-svg {
+  transition: transform 0.4s ease-in-out !important;
+}
+
+/* Eyelids that close over pupil completely - oval shape */
+.animated-eye-blink {
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform-origin: center !important;
+  z-index: 3 !important;
+  overflow: hidden;
+}
+
+.animated-eye-blink > div {
+  width: 18px;
+  height: 12px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  border: 1.5px solid white;
+  background-color: transparent;
+  transform: scaleY(1);
+  transition: transform 0.15s ease-in-out;
+}
+
+.animated-eye-blink.blinking > div {
+  transform: scaleY(0.05);
+}
+
+/* Book Container Styles */
+.animated-book-container {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform-origin: center center;
+}
+
+.animated-book-open-state {
+  animation: book-open 0.8s ease-in-out forwards !important;
+}
+
+.animated-book-pages-state {
+  animation: book-pages-turn 2s ease-in-out infinite !important;
+}
+
+.animated-book-close-state {
+  animation: book-close 0.8s ease-in-out forwards !important;
+}
+
+/* Arrow Animations */
+.animated-arrow-right {
+  animation: arrow-point-right 1.5s ease-in-out infinite !important;
+}
+
+.animated-arrow-left {
+  animation: arrow-point-left 1.5s ease-in-out infinite !important;
+}
+
+/* Login Arrow Animation */
+.animated-login-arrow {
+  animation: login-arrow-enter 1.5s ease-in-out infinite !important;
+}
+
+.animated-login-arrow:hover {
+  animation-play-state: paused !important;
+}
+
+/* Spotlight Button Effect - Text contrast inversion with 45° diagonal sweep */
+.spotlight-button {
+  position: relative;
+  overflow: visible;
+}
+
+.spotlight-button-text {
+  position: relative;
+  display: inline-block;
+  z-index: 1;
+  color: inherit;
+}
+
+/* Inverted text overlay for spotlight effect - 45° diagonal sweep */
+.spotlight-button-text::before {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 30%,
+    currentColor 32%,
+    currentColor 38%,
+    transparent 40%,
+    transparent 100%
+  );
+  background-size: 25% 25%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: spotlight-sweep 2.25s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+  filter: invert(1);
+  mix-blend-mode: difference;
+}
+
+/* Shield Animation - Subtle zoom and rotation */
+@keyframes shield-pulse {
+  0%, 100% { 
+    transform: scale(1) rotate(0deg); 
+  }
+  25% { 
+    transform: scale(1.05) rotate(2deg); 
+  }
+  50% { 
+    transform: scale(1.03) rotate(0deg); 
+  }
+  75% { 
+    transform: scale(1.05) rotate(-2deg); 
+  }
+}
+
+.animated-shield-pulse {
+  animation: shield-pulse 2.5s ease-in-out infinite;
+}

@@ -1,0 +1,879 @@
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Users, Search, Building2, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, UserPlus, LogIn, KeyRound, Shield } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
+import { motion } from "framer-motion";
+
+const createLandlordSchema = z.object({
+  username: z.string().email("Must be a valid email address"),
+  fullName: z.string().min(1, "Full name is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  idNumber: z.string().optional(),
+});
+
+type CreateLandlordFormData = z.infer<typeof createLandlordSchema>;
+
+const editLandlordSchema = z.object({
+  username: z.string().email("Must be a valid email address"),
+  fullName: z.string().min(1, "Full name is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  idNumber: z.string().optional(),
+});
+
+type EditLandlordFormData = z.infer<typeof editLandlordSchema>;
+
+export function ClientsPage() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [sendingLoginTo, setSendingLoginTo] = useState<string | null>(null);
+  const [isSendLoginDialogOpen, setIsSendLoginDialogOpen] = useState(false);
+  const [sendLoginGenerateNew, setSendLoginGenerateNew] = useState(false);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch all landlords (users with role 'client')
+  const { data: landlords = [], isLoading } = useQuery({
+    queryKey: ["/api/landlords"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/landlords");
+      return await response.json();
+    },
+    staleTime: 0, // Always fetch fresh data (no caching)
+    refetchOnMount: true, // Refetch when component mounts
+  });
+  
+  // Invalidate cache on mount to remove stale data
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/landlords"] });
+  }, []);
+
+  // Fetch properties for each landlord
+  const { data: allProperties = [] } = useQuery({
+    queryKey: ["/api/properties"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/properties");
+      return await response.json();
+    },
+    enabled: landlords.length > 0,
+  });
+
+  // Create landlord form
+  const createForm = useForm<CreateLandlordFormData>({
+    resolver: zodResolver(createLandlordSchema),
+    defaultValues: {
+      username: "",
+      fullName: "",
+      phone: "",
+      idNumber: "",
+    },
+  });
+
+  // Edit landlord form
+  const editForm = useForm<EditLandlordFormData>({
+    resolver: zodResolver(editLandlordSchema),
+    defaultValues: {
+      username: "",
+      fullName: "",
+      phone: "",
+      idNumber: "",
+    },
+  });
+
+  // Create landlord mutation
+  const createLandlordMutation = useMutation({
+    mutationFn: async (data: CreateLandlordFormData) => {
+      const response = await apiRequest("POST", "/api/landlords", {
+        username: data.username,
+        fullName: data.fullName,
+        phone: data.phone,
+        idNumber: data.idNumber || undefined,
+      });
+      const result = await response.json();
+      
+      // Verify response indicates success
+      if (!response.ok || result.error) {
+        throw new Error(result.error || `Failed to create customer: ${response.statusText}`);
+      }
+      
+      // Verify landlord was created (has id)
+      if (!result.id) {
+        throw new Error('Customer creation failed - no ID returned from server');
+      }
+      
+      return result;
+    },
+    onSuccess: () => {
+      // Invalidate and refetch landlords list to ensure UI is in sync with database
+      queryClient.invalidateQueries({ queryKey: ["/api/landlords"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      createForm.reset();
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "Customer Created",
+        description: "Customer has been created successfully. Login credentials have been sent.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create customer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update landlord mutation
+  const updateLandlordMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: EditLandlordFormData }) => {
+      const response = await apiRequest("PUT", `/api/landlords/${id}`, {
+        username: data.username,
+        fullName: data.fullName,
+        phone: data.phone,
+        idNumber: data.idNumber || undefined,
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/landlords"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      editForm.reset();
+      setIsEditDialogOpen(false);
+      setEditingCustomer(null);
+      toast({
+        title: "Customer Updated",
+        description: "Customer has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update customer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete landlord mutation
+  const deleteLandlordMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/landlords/${id}`);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/landlords"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/properties"] });
+      setSelectedCustomers([]);
+      toast({
+        title: "Customer Deleted",
+        description: "Customer has been deleted successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete customer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Send login details mutation
+  const sendLoginDetailsMutation = useMutation({
+    mutationFn: async ({ id, generateNew }: { id: string; generateNew: boolean }) => {
+      const response = await apiRequest("POST", `/api/landlords/${id}/send-login-details`, {
+        generateNewPassword: generateNew,
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      setIsSendLoginDialogOpen(false);
+      setSendingLoginTo(null);
+      toast({
+        title: "Login Details Sent",
+        description: "Login credentials have been sent successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send login details",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Filter landlords based on search term
+  const filteredLandlords = landlords.filter((landlord: any) => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      landlord.username?.toLowerCase().includes(searchLower) ||
+      landlord.id?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // Get properties for a specific landlord
+  const getPropertiesForLandlord = (landlordId: string) => {
+    return allProperties.filter((property: any) => {
+      const propertyLandlordId = property.landlord_id ?? property.landlordId;
+      return propertyLandlordId === landlordId;
+    });
+  };
+
+  // Handle customer selection
+  const handleToggleCustomer = (customerId: string) => {
+    setSelectedCustomers((prev) =>
+      prev.includes(customerId)
+        ? prev.filter((id) => id !== customerId)
+        : [...prev, customerId]
+    );
+  };
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectedCustomers.length === filteredLandlords.length) {
+      setSelectedCustomers([]);
+    } else {
+      setSelectedCustomers(filteredLandlords.map((l: any) => l.id));
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    // Filter out customers with properties
+    const customersWithProperties = selectedCustomers.filter((id) => {
+      const properties = getPropertiesForLandlord(id);
+      return properties.length > 0;
+    });
+
+    if (customersWithProperties.length > 0) {
+      toast({
+        title: "Cannot Delete",
+        description: "Some selected customers have properties and cannot be deleted.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Delete all selected customers
+    selectedCustomers.forEach((id) => {
+      deleteLandlordMutation.mutate(id);
+    });
+  };
+
+  // Handle bulk send login details
+  const handleBulkSendLogin = () => {
+    selectedCustomers.forEach((id) => {
+      sendLoginDetailsMutation.mutate({ id, generateNew: false });
+    });
+  };
+
+  // Handle edit customer
+  const handleEditCustomer = (customer: any) => {
+    const properties = getPropertiesForLandlord(customer.id);
+    const primaryProperty = properties[0];
+    const fallbackName = primaryProperty?.landlord_name ?? primaryProperty?.landlordName ?? "";
+    const fallbackPhone = primaryProperty?.landlord_phone ?? primaryProperty?.landlordPhone ?? "";
+    setEditingCustomer(customer);
+    editForm.reset({
+      username: customer.username || "",
+      fullName: customer.fullName || customer.full_name || fallbackName,
+      phone: customer.phone || customer.landlord_phone || fallbackPhone,
+      idNumber: customer.idNumber || customer.id_number || "",
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  // Handle "Login as Client" - view their properties
+  // Note: Clients page should be free of admin dashboard filters
+  // Navigation to properties will show all properties (admin can filter there if needed)
+  const handleLoginAsClient = (customerId: string) => {
+    // Navigate to properties page without setting global filters
+    // Admin can use the filter dropdowns on the properties page if they want to filter
+    setLocation("/properties");
+  };
+
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <div className="container mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Clients</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage customers and their properties
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Admin Dashboard Button */}
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/portal")}
+              className="flex items-center gap-2"
+            >
+              <motion.div
+                animate={{ 
+                  scale: [1, 1.1, 1, 1.1, 1],
+                }}
+                transition={{ 
+                  scale: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                }}
+              >
+                <motion.div
+                  animate={{ rotate: [0, 0, 0, 0, 360] }}
+                  transition={{ 
+                    rotate: { duration: 5, repeat: Infinity, ease: "easeInOut", times: [0, 0.8, 0.85, 0.9, 1] }
+                  }}
+                >
+                  <Shield className="h-5 w-5 text-primary" />
+                </motion.div>
+              </motion.div>
+              Admin Dashboard
+            </Button>
+            {selectedCustomers.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleBulkSendLogin}
+                  disabled={sendLoginDetailsMutation.isPending}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Login Details ({selectedCustomers.length})
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={deleteLandlordMutation.isPending}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete ({selectedCustomers.length})
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Selected Customers</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete {selectedCustomers.length} customer(s)? 
+                        Customers with properties cannot be deleted.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleBulkDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add New Customer
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Customer</DialogTitle>
+                  <DialogDescription>
+                    Create a new customer account. Login credentials will be sent automatically.
+                  </DialogDescription>
+                </DialogHeader>
+                <Form {...createForm}>
+                  <form
+                    onSubmit={createForm.handleSubmit((data) => {
+                      createLandlordMutation.mutate(data);
+                    })}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={createForm.control}
+                      name="username"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Username (Email) <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="customer@email.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="fullName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input placeholder="Customer Full Name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input type="tel" placeholder="+254 7XX XXX XXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="idNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Identification Number (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="ID Number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCreateDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={createLandlordMutation.isPending}>
+                        {createLandlordMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Create Customer
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search customers..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Select All */}
+        {filteredLandlords.length > 0 && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={selectedCustomers.length === filteredLandlords.length && filteredLandlords.length > 0}
+              onCheckedChange={handleSelectAll}
+            />
+            <label className="text-sm text-muted-foreground cursor-pointer" onClick={handleSelectAll}>
+              Select All
+            </label>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        )}
+
+        {/* Customers Grid */}
+        {!isLoading && (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredLandlords.length > 0 ? (
+              filteredLandlords.map((landlord: any) => {
+                const properties = getPropertiesForLandlord(landlord.id);
+                const hasProperties = properties.length > 0;
+                const isSelected = selectedCustomers.includes(landlord.id);
+
+                return (
+                  <Card 
+                    key={landlord.id}
+                    className={`cursor-pointer hover:shadow-lg transition-shadow ${isSelected ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => handleLoginAsClient(landlord.id)}
+                  >
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3 flex-1">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => {
+                              handleToggleCustomer(landlord.id);
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Prevent card click when clicking checkbox
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          />
+                          <div className="p-2 rounded-full bg-primary/10">
+                            <Users className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg truncate">{landlord.username || 'N/A'}</CardTitle>
+                            <CardDescription>Customer Account</CardDescription>
+                          </div>
+                        </div>
+                        <Badge variant="outline">{landlord.role || 'client'}</Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {properties.length > 0 && properties[0] && (
+                        <div className="space-y-2">
+                          {properties[0].landlordName && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-muted-foreground">{properties[0].landlordName}</span>
+                            </div>
+                          )}
+                          {properties[0].landlordEmail && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Mail className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-muted-foreground truncate">{properties[0].landlordEmail}</span>
+                            </div>
+                          )}
+                          {properties[0].landlordPhone && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-muted-foreground">{properties[0].landlordPhone}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">Properties Owned:</p>
+                        {properties.length > 0 ? (
+                          <div className="space-y-2">
+                            {properties.map((property: any) => (
+                              <div
+                                key={property.id}
+                                className="flex items-start gap-2 p-2 rounded-md bg-muted/50"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Building2 className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{property.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {property.address}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No properties assigned</p>
+                        )}
+                      </div>
+                      <div className="pt-2 border-t flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          Total Properties: <span className="font-semibold">{properties.length}</span>
+                        </p>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleLoginAsClient(landlord.id)}
+                            title="Login as Client"
+                          >
+                            <LogIn className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditCustomer(landlord)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSendingLoginTo(landlord.id);
+                              setIsSendLoginDialogOpen(true);
+                            }}
+                            title="Reset Password - Send or generate new login credentials"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={hasProperties}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete this customer? 
+                                  {hasProperties && (
+                                    <span className="block mt-2 text-destructive">
+                                      This customer has properties and cannot be deleted.
+                                    </span>
+                                  )}
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteLandlordMutation.mutate(landlord.id)}
+                                  disabled={hasProperties}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            ) : (
+              <div className="col-span-full text-center py-12 text-muted-foreground">
+                {searchTerm ? 'No customers found matching your search' : 'No customers found'}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+            <DialogDescription>
+              Update customer information
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form
+              onSubmit={editForm.handleSubmit((data) => {
+                if (editingCustomer) {
+                  updateLandlordMutation.mutate({ id: editingCustomer.id, data });
+                }
+              })}
+              className="space-y-4"
+            >
+              <FormField
+                control={editForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username (Email) <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="customer@email.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input placeholder="Customer Full Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input type="tel" placeholder="+254 7XX XXX XXX" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="idNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Identification Number (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="ID Number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateLandlordMutation.isPending}>
+                  {updateLandlordMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Login Details Dialog */}
+      <Dialog open={isSendLoginDialogOpen} onOpenChange={setIsSendLoginDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Login Details</DialogTitle>
+            <DialogDescription>
+              Choose whether to resend existing credentials or generate new ones.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="resend"
+                name="loginOption"
+                checked={!sendLoginGenerateNew}
+                onChange={() => setSendLoginGenerateNew(false)}
+                className="h-4 w-4"
+              />
+              <label htmlFor="resend" className="text-sm font-medium leading-none cursor-pointer">
+                Resend existing credentials
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="generate"
+                name="loginOption"
+                checked={sendLoginGenerateNew}
+                onChange={() => setSendLoginGenerateNew(true)}
+                className="h-4 w-4"
+              />
+              <label htmlFor="generate" className="text-sm font-medium leading-none cursor-pointer">
+                Generate new password and send
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsSendLoginDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (sendingLoginTo) {
+                  sendLoginDetailsMutation.mutate({
+                    id: sendingLoginTo,
+                    generateNew: sendLoginGenerateNew,
+                  });
+                }
+              }}
+              disabled={sendLoginDetailsMutation.isPending}
+            >
+              {sendLoginDetailsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Login Details
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
