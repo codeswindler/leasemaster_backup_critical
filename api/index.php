@@ -143,9 +143,32 @@ function sendLoginOtp($storage, $messagingService, $userId, $tenantId, $recipien
     $message = "Your LeaseMaster login OTP is {$code}. It expires in 5 minutes.";
     $emailSubject = "Your LeaseMaster login OTP";
     $emailBody = "<p>Your LeaseMaster login OTP is <strong>{$code}</strong>.</p><p>It expires in 5 minutes.</p>";
+    $recipientType = $tenantId ? 'tenant' : 'landlord';
+    $propertyId = $tenantId ? getPropertyIdByTenant($storage, $tenantId) : null;
+    if ($userId && !$propertyId) {
+        $user = $storage->getUser($userId);
+        $propertyId = $user['property_id'] ?? null;
+    }
 
     if ($phone) {
         $smsResult = $messagingService->sendSystemOtpSMS($phone, $message);
+        $smsLogId = $messagingService->logMessage([
+            'channel' => 'sms',
+            'recipientContact' => $phone,
+            'status' => !empty($smsResult['success']) ? 'sent' : 'failed',
+            'messageCategory' => 'otp',
+            'recipientType' => $recipientType,
+            'recipientName' => $recipientName,
+            'content' => $message,
+            'propertyId' => $propertyId,
+            'tenantId' => $tenantId,
+            'externalMessageId' => $smsResult['messageId'] ?? null,
+            'senderShortcode' => getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS',
+            'sentByUserId' => $userId
+        ]);
+        if (empty($smsResult['success'])) {
+            $messagingService->updateMessageStatus($smsLogId, 'failed', $smsResult['error'] ?? 'SMS delivery failed');
+        }
         if (!empty($smsResult['success'])) {
             $channels[] = 'sms';
         }
@@ -153,6 +176,23 @@ function sendLoginOtp($storage, $messagingService, $userId, $tenantId, $recipien
 
     if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $emailResult = $messagingService->sendEmail($email, $recipientName, $emailSubject, $emailBody, true);
+        $emailLogId = $messagingService->logMessage([
+            'channel' => 'email',
+            'recipientContact' => $email,
+            'status' => !empty($emailResult['success']) ? 'sent' : 'failed',
+            'messageCategory' => 'otp',
+            'recipientType' => $recipientType,
+            'recipientName' => $recipientName,
+            'subject' => $emailSubject,
+            'content' => $emailBody,
+            'propertyId' => $propertyId,
+            'tenantId' => $tenantId,
+            'externalMessageId' => $emailResult['messageId'] ?? null,
+            'sentByUserId' => $userId
+        ]);
+        if (empty($emailResult['success'])) {
+            $messagingService->updateMessageStatus($emailLogId, 'failed', $emailResult['error'] ?? 'Email delivery failed');
+        }
         if (!empty($emailResult['success'])) {
             $channels[] = 'email';
         }

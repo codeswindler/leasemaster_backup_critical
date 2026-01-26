@@ -126,6 +126,7 @@ export function MessagingEmailOutbox() {
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="otp">OTP</SelectItem>
                 <SelectItem value="login_credentials">Login Credentials</SelectItem>
                 <SelectItem value="password_reset">Password Reset</SelectItem>
                 <SelectItem value="welcome_email">Welcome</SelectItem>
