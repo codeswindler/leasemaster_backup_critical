@@ -20,7 +20,7 @@ import { EnquiryForm } from "@/pages/EnquiryForm";
 import NotFound from "@/pages/not-found";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { BackToTop } from "@/components/back-to-top";
-import React, { useState, useEffect, lazy, Suspense } from "react";
+import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
 import "@/components/animated-icons.css";
 
 // Lazy load components for code splitting and faster initial load
@@ -283,6 +283,7 @@ function AppContent() {
   const [location, setLocation] = useLocation()
   const [isPortal, setIsPortal] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const prefetched = useRef(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string; role?: string } | null>(null)
@@ -407,6 +408,25 @@ function AppContent() {
   }, [location, isAuthenticated, currentUser]);
 
   // Note: No redirect needed here - we show Login directly in render logic below
+
+  useEffect(() => {
+    if (!isAuthenticated || prefetched.current) return;
+    prefetched.current = true;
+    const warm = () => {
+      import("@/components/dashboard");
+      import("@/components/properties");
+      import("@/components/tenants");
+      import("@/components/invoices");
+      import("@/components/receipts");
+      import("@/components/messaging");
+      import("@/components/settings");
+    };
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      (window as any).requestIdleCallback(warm, { timeout: 1500 });
+    } else {
+      setTimeout(warm, 800);
+    }
+  }, [isAuthenticated]);
 
   // Fetch SMS balance from API (only when authenticated)
   const { data: smsData } = useQuery({
