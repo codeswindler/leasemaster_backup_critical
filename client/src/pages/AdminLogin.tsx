@@ -549,6 +549,12 @@ export function AdminLogin() {
           setShowSuccess(false);
         }, 3000);
       } else {
+        if (data.retryAfter || data.error === "OTP recently sent") {
+          setOtpRequired(true);
+          setOtpCode("");
+          setOtpCooldown(data.retryAfter || 60);
+          return;
+        }
         setError(data.error || "Invalid username or password");
       }
     } catch (err) {
