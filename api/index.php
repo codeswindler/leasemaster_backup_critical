@@ -97,19 +97,12 @@ function generateTenantAccessCode($length = 8) {
     return $code;
 }
 
-function isTruthyEnv($value) {
-    if ($value === null) return false;
-    $value = strtolower(trim((string)$value));
-    return in_array($value, ['1', 'true', 'yes', 'on'], true);
-}
-
 function shouldRequireOtpForUser($user, $loginType = null) {
     $role = strtolower(trim((string)($user['role'] ?? 'client')));
     $userOtpEnabled = isset($user['otp_enabled']) ? ((int)$user['otp_enabled'] === 1) : false;
-    $adminOtpEnabled = isTruthyEnv(getenv('ADMIN_OTP_ENABLED'));
 
     if ($loginType === 'admin') {
-        return $adminOtpEnabled || $userOtpEnabled;
+        return $userOtpEnabled;
     }
 
     if ($loginType === 'client') {
@@ -117,7 +110,7 @@ function shouldRequireOtpForUser($user, $loginType = null) {
     }
 
     if ($role === 'admin' || $role === 'super_admin' || $role === 'administrator') {
-        return $adminOtpEnabled || $userOtpEnabled;
+        return $userOtpEnabled;
     }
 
     return $userOtpEnabled;
