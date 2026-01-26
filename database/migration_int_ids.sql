@@ -39,6 +39,9 @@ ALTER TABLE properties ADD COLUMN IF NOT EXISTS landlord_id_int INT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS property_id VARCHAR(36) NULL;
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS landlord_id VARCHAR(36) NULL;
 
+-- Optional tables referencing users (if present)
+ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS user_id_int INT NULL;
+
 ALTER TABLE charge_codes ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
 ALTER TABLE house_types ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
 ALTER TABLE units ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
@@ -185,6 +188,24 @@ SET o.user_id_int = u.id_int,
 ALTER TABLE users ADD COLUMN IF NOT EXISTS legacy_id VARCHAR(36) NULL;
 UPDATE users SET legacy_id = id;
 ALTER TABLE users DROP PRIMARY KEY;
+
+-- Drop foreign key from export_jobs if it exists (before dropping users.id)
+SET @has_export_jobs := (
+    SELECT COUNT(*) FROM information_schema.tables
+    WHERE table_schema = DATABASE() AND table_name = 'export_jobs'
+);
+SET @has_export_jobs_fk := (
+    SELECT COUNT(*) FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'export_jobs'
+      AND constraint_name = 'fk_export_jobs_user'
+      AND constraint_type = 'FOREIGN KEY'
+);
+SET @drop_fk_sql := IF(@has_export_jobs_fk > 0, 'ALTER TABLE export_jobs DROP FOREIGN KEY fk_export_jobs_user', 'SELECT 1');
+PREPARE drop_fk_stmt FROM @drop_fk_sql;
+EXECUTE drop_fk_stmt;
+DEALLOCATE PREPARE drop_fk_stmt;
+
 ALTER TABLE users DROP COLUMN id;
 ALTER TABLE users CHANGE COLUMN id_int id INT NOT NULL AUTO_INCREMENT;
 ALTER TABLE users ADD PRIMARY KEY (id);
@@ -288,5 +309,24 @@ ALTER TABLE login_otps DROP COLUMN IF EXISTS user_id;
 ALTER TABLE login_otps DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE login_otps CHANGE COLUMN user_id_int user_id INT NULL;
 ALTER TABLE login_otps CHANGE COLUMN tenant_id_int tenant_id INT NULL;
+
+-- Rewire export_jobs to new INT users if table exists
+SET @has_export_jobs_col := (
+    SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'export_jobs' AND column_name = 'user_id'
+);
+SET @drop_export_user_sql := IF(@has_export_jobs_col > 0, 'ALTER TABLE export_jobs DROP COLUMN user_id', 'SELECT 1');
+PREPARE drop_export_user_stmt FROM @drop_export_user_sql;
+EXECUTE drop_export_user_stmt;
+DEALLOCATE PREPARE drop_export_user_stmt;
+
+SET @has_export_jobs := (
+    SELECT COUNT(*) FROM information_schema.tables
+    WHERE table_schema = DATABASE() AND table_name = 'export_jobs'
+);
+SET @swap_export_user_sql := IF(@has_export_jobs > 0, 'ALTER TABLE export_jobs CHANGE COLUMN user_id_int user_id INT NULL', 'SELECT 1');
+PREPARE swap_export_user_stmt FROM @swap_export_user_sql;
+EXECUTE swap_export_user_stmt;
+DEALLOCATE PREPARE swap_export_user_stmt;
 
 SET FOREIGN_KEY_CHECKS = 1;
