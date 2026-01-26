@@ -124,9 +124,9 @@ function sendLoginOtp($storage, $messagingService, $userId, $tenantId, $recipien
     $latest = $storage->getLatestLoginOtp($userId, $tenantId);
     if (!empty($latest['last_sent_at'])) {
         $lastSentAt = strtotime($latest['last_sent_at']);
-        if ($lastSentAt && (time() - $lastSentAt) < 60) {
-            $retryAfter = 60 - (time() - $lastSentAt);
-            $retryAfter = max(1, min(60, $retryAfter));
+        if ($lastSentAt && (time() - $lastSentAt) < 30) {
+            $retryAfter = 30 - (time() - $lastSentAt);
+            $retryAfter = max(1, min(30, $retryAfter));
             return ['error' => 'OTP recently sent', 'retryAfter' => $retryAfter];
         }
     }
@@ -729,7 +729,7 @@ try {
                     sendJson(['error' => $otpResult['error'], 'retryAfter' => $otpResult['retryAfter'] ?? null], $status);
                 }
                 $_SESSION['pendingOtpId'] = $otpResult['otpId'];
-                sendJson(['success' => true, 'channels' => $otpResult['channels'], 'retryAfter' => 60]);
+                sendJson(['success' => true, 'channels' => $otpResult['channels'], 'retryAfter' => 30]);
             }
 
             if ($pendingTenantId) {
@@ -751,7 +751,7 @@ try {
                     sendJson(['error' => $otpResult['error'], 'retryAfter' => $otpResult['retryAfter'] ?? null], $status);
                 }
                 $_SESSION['pendingOtpId'] = $otpResult['otpId'];
-                sendJson(['success' => true, 'channels' => $otpResult['channels'], 'retryAfter' => 60]);
+                sendJson(['success' => true, 'channels' => $otpResult['channels'], 'retryAfter' => 30]);
             }
         }
 
