@@ -187,7 +187,16 @@ SET o.user_id_int = u.id_int,
 -- 5) Preserve legacy UUIDs, replace id/foreign key columns with INT versions
 ALTER TABLE users ADD COLUMN IF NOT EXISTS legacy_id VARCHAR(36) NULL;
 UPDATE users SET legacy_id = id;
-ALTER TABLE users DROP PRIMARY KEY;
+SET @has_users_pk := (
+    SELECT COUNT(*) FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'users'
+      AND constraint_type = 'PRIMARY KEY'
+);
+SET @drop_users_pk_sql := IF(@has_users_pk > 0, 'ALTER TABLE users DROP PRIMARY KEY', 'SELECT 1');
+PREPARE drop_users_pk_stmt FROM @drop_users_pk_sql;
+EXECUTE drop_users_pk_stmt;
+DEALLOCATE PREPARE drop_users_pk_stmt;
 
 -- Drop foreign key from export_jobs if it exists (before dropping users.id)
 SET @has_export_jobs := (
@@ -212,14 +221,32 @@ ALTER TABLE users ADD PRIMARY KEY (id);
 
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS legacy_id VARCHAR(36) NULL;
 UPDATE properties SET legacy_id = id;
-ALTER TABLE properties DROP PRIMARY KEY;
+SET @has_properties_pk := (
+    SELECT COUNT(*) FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'properties'
+      AND constraint_type = 'PRIMARY KEY'
+);
+SET @drop_properties_pk_sql := IF(@has_properties_pk > 0, 'ALTER TABLE properties DROP PRIMARY KEY', 'SELECT 1');
+PREPARE drop_properties_pk_stmt FROM @drop_properties_pk_sql;
+EXECUTE drop_properties_pk_stmt;
+DEALLOCATE PREPARE drop_properties_pk_stmt;
 ALTER TABLE properties DROP COLUMN id;
 ALTER TABLE properties CHANGE COLUMN id_int id INT NOT NULL AUTO_INCREMENT;
 ALTER TABLE properties ADD PRIMARY KEY (id);
 
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS legacy_id VARCHAR(36) NULL;
 UPDATE tenants SET legacy_id = id;
-ALTER TABLE tenants DROP PRIMARY KEY;
+SET @has_tenants_pk := (
+    SELECT COUNT(*) FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'tenants'
+      AND constraint_type = 'PRIMARY KEY'
+);
+SET @drop_tenants_pk_sql := IF(@has_tenants_pk > 0, 'ALTER TABLE tenants DROP PRIMARY KEY', 'SELECT 1');
+PREPARE drop_tenants_pk_stmt FROM @drop_tenants_pk_sql;
+EXECUTE drop_tenants_pk_stmt;
+DEALLOCATE PREPARE drop_tenants_pk_stmt;
 ALTER TABLE tenants DROP COLUMN id;
 ALTER TABLE tenants CHANGE COLUMN id_int id INT NOT NULL AUTO_INCREMENT;
 ALTER TABLE tenants ADD PRIMARY KEY (id);
