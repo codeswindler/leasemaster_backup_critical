@@ -35,6 +35,10 @@ SELECT id, id_int FROM tenants;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS landlord_id_int INT NULL;
 
+-- Ensure legacy UUID columns exist for backfill (if missing)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS property_id VARCHAR(36) NULL;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS landlord_id VARCHAR(36) NULL;
+
 ALTER TABLE charge_codes ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
 ALTER TABLE house_types ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
 ALTER TABLE units ADD COLUMN IF NOT EXISTS property_id_int INT NULL;
@@ -200,88 +204,88 @@ ALTER TABLE tenants CHANGE COLUMN id_int id INT NOT NULL AUTO_INCREMENT;
 ALTER TABLE tenants ADD PRIMARY KEY (id);
 
 -- Swap foreign key columns to INT versions
-ALTER TABLE users DROP COLUMN property_id;
+ALTER TABLE users DROP COLUMN IF EXISTS property_id;
 ALTER TABLE users CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE properties DROP COLUMN landlord_id;
+ALTER TABLE properties DROP COLUMN IF EXISTS landlord_id;
 ALTER TABLE properties CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 
-ALTER TABLE charge_codes DROP COLUMN property_id;
+ALTER TABLE charge_codes DROP COLUMN IF EXISTS property_id;
 ALTER TABLE charge_codes CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE house_types DROP COLUMN property_id;
+ALTER TABLE house_types DROP COLUMN IF EXISTS property_id;
 ALTER TABLE house_types CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE units DROP COLUMN property_id;
+ALTER TABLE units DROP COLUMN IF EXISTS property_id;
 ALTER TABLE units CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE leases DROP COLUMN tenant_id;
+ALTER TABLE leases DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE leases CHANGE COLUMN tenant_id_int tenant_id INT NULL;
 
-ALTER TABLE activity_logs DROP COLUMN user_id;
-ALTER TABLE activity_logs DROP COLUMN property_id;
+ALTER TABLE activity_logs DROP COLUMN IF EXISTS user_id;
+ALTER TABLE activity_logs DROP COLUMN IF EXISTS property_id;
 ALTER TABLE activity_logs CHANGE COLUMN user_id_int user_id INT NULL;
 ALTER TABLE activity_logs CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE message_recipients DROP COLUMN tenant_id;
-ALTER TABLE message_recipients DROP COLUMN property_id;
-ALTER TABLE message_recipients DROP COLUMN sent_by_user_id;
+ALTER TABLE message_recipients DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE message_recipients DROP COLUMN IF EXISTS property_id;
+ALTER TABLE message_recipients DROP COLUMN IF EXISTS sent_by_user_id;
 ALTER TABLE message_recipients CHANGE COLUMN tenant_id_int tenant_id INT NULL;
 ALTER TABLE message_recipients CHANGE COLUMN property_id_int property_id INT NULL;
 ALTER TABLE message_recipients CHANGE COLUMN sent_by_user_id_int sent_by_user_id INT NULL;
 
-ALTER TABLE messages DROP COLUMN tenant_id;
-ALTER TABLE messages DROP COLUMN property_id;
+ALTER TABLE messages DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE messages DROP COLUMN IF EXISTS property_id;
 ALTER TABLE messages CHANGE COLUMN tenant_id_int tenant_id INT NULL;
 ALTER TABLE messages CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE sms_settings DROP COLUMN landlord_id;
-ALTER TABLE sms_settings DROP COLUMN property_id;
+ALTER TABLE sms_settings DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE sms_settings DROP COLUMN IF EXISTS property_id;
 ALTER TABLE sms_settings CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE sms_settings CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE email_settings DROP COLUMN landlord_id;
-ALTER TABLE email_settings DROP COLUMN property_id;
+ALTER TABLE email_settings DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE email_settings DROP COLUMN IF EXISTS property_id;
 ALTER TABLE email_settings CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE email_settings CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE mpesa_settings DROP COLUMN landlord_id;
-ALTER TABLE mpesa_settings DROP COLUMN property_id;
+ALTER TABLE mpesa_settings DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE mpesa_settings DROP COLUMN IF EXISTS property_id;
 ALTER TABLE mpesa_settings CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE mpesa_settings CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE invoice_settings DROP COLUMN landlord_id;
-ALTER TABLE invoice_settings DROP COLUMN property_id;
+ALTER TABLE invoice_settings DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE invoice_settings DROP COLUMN IF EXISTS property_id;
 ALTER TABLE invoice_settings CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE invoice_settings CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE alert_settings DROP COLUMN landlord_id;
-ALTER TABLE alert_settings DROP COLUMN property_id;
+ALTER TABLE alert_settings DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE alert_settings DROP COLUMN IF EXISTS property_id;
 ALTER TABLE alert_settings CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE alert_settings CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE mpesa_stk_requests DROP COLUMN landlord_id;
-ALTER TABLE mpesa_stk_requests DROP COLUMN property_id;
-ALTER TABLE mpesa_stk_requests DROP COLUMN tenant_id;
+ALTER TABLE mpesa_stk_requests DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE mpesa_stk_requests DROP COLUMN IF EXISTS property_id;
+ALTER TABLE mpesa_stk_requests DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE mpesa_stk_requests CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE mpesa_stk_requests CHANGE COLUMN property_id_int property_id INT NULL;
 ALTER TABLE mpesa_stk_requests CHANGE COLUMN tenant_id_int tenant_id INT NULL;
 
-ALTER TABLE credit_usage DROP COLUMN landlord_id;
-ALTER TABLE credit_usage DROP COLUMN property_id;
+ALTER TABLE credit_usage DROP COLUMN IF EXISTS landlord_id;
+ALTER TABLE credit_usage DROP COLUMN IF EXISTS property_id;
 ALTER TABLE credit_usage CHANGE COLUMN landlord_id_int landlord_id INT NULL;
 ALTER TABLE credit_usage CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE maintenance_requests DROP COLUMN tenant_id;
-ALTER TABLE maintenance_requests DROP COLUMN property_id;
+ALTER TABLE maintenance_requests DROP COLUMN IF EXISTS tenant_id;
+ALTER TABLE maintenance_requests DROP COLUMN IF EXISTS property_id;
 ALTER TABLE maintenance_requests CHANGE COLUMN tenant_id_int tenant_id INT NULL;
 ALTER TABLE maintenance_requests CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE property_sms_settings DROP COLUMN property_id;
+ALTER TABLE property_sms_settings DROP COLUMN IF EXISTS property_id;
 ALTER TABLE property_sms_settings CHANGE COLUMN property_id_int property_id INT NULL;
 
-ALTER TABLE login_otps DROP COLUMN user_id;
-ALTER TABLE login_otps DROP COLUMN tenant_id;
+ALTER TABLE login_otps DROP COLUMN IF EXISTS user_id;
+ALTER TABLE login_otps DROP COLUMN IF EXISTS tenant_id;
 ALTER TABLE login_otps CHANGE COLUMN user_id_int user_id INT NULL;
 ALTER TABLE login_otps CHANGE COLUMN tenant_id_int tenant_id INT NULL;
 
