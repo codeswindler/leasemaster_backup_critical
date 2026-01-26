@@ -215,6 +215,19 @@ PREPARE drop_fk_stmt FROM @drop_fk_sql;
 EXECUTE drop_fk_stmt;
 DEALLOCATE PREPARE drop_fk_stmt;
 
+-- Drop foreign key from login_otps if it exists (before dropping users.id)
+SET @has_login_otps_fk := (
+    SELECT COUNT(*) FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'login_otps'
+      AND constraint_name = 'fk_login_otps_user'
+      AND constraint_type = 'FOREIGN KEY'
+);
+SET @drop_login_otps_fk_sql := IF(@has_login_otps_fk > 0, 'ALTER TABLE login_otps DROP FOREIGN KEY fk_login_otps_user', 'SELECT 1');
+PREPARE drop_login_otps_fk_stmt FROM @drop_login_otps_fk_sql;
+EXECUTE drop_login_otps_fk_stmt;
+DEALLOCATE PREPARE drop_login_otps_fk_stmt;
+
 ALTER TABLE users DROP COLUMN id;
 ALTER TABLE users CHANGE COLUMN id_int id INT NOT NULL AUTO_INCREMENT;
 ALTER TABLE users ADD PRIMARY KEY (id);
