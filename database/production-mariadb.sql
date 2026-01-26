@@ -31,7 +31,21 @@ CREATE TABLE users (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    role VARCHAR(50) DEFAULT 'admin' NOT NULL,
+    full_name VARCHAR(255),
+    phone VARCHAR(50),
+    status INT DEFAULT 1,
+    login_attempts INT DEFAULT 0,
+    last_login TIMESTAMP NULL,
+    last_failed_attempt TIMESTAMP NULL,
+    blocked_until TIMESTAMP NULL,
+    must_change_password TINYINT(1) DEFAULT 0,
+    property_id VARCHAR(36),
+    property_limit INT DEFAULT NULL,
+    permissions TEXT,
+    otp_enabled TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_users_property (property_id)
 );
 
 -- Create properties table
@@ -55,6 +69,10 @@ CREATE TABLE tenants (
     id_number VARCHAR(50) NOT NULL UNIQUE,
     emergency_contact TEXT,
     emergency_phone VARCHAR(50),
+    secondary_contact_name TEXT,
+    secondary_contact_phone VARCHAR(50),
+    secondary_contact_email VARCHAR(255),
+    notify_secondary VARCHAR(10) DEFAULT 'false' NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -177,6 +195,22 @@ CREATE TABLE payments (
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL
 );
 
+-- Create activity_logs table (operational log)
+CREATE TABLE activity_logs (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    action TEXT NOT NULL,
+    details TEXT,
+    type VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'success',
+    user_id VARCHAR(36),
+    property_id VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_activity_logs_type (type),
+    INDEX idx_activity_logs_user (user_id),
+    INDEX idx_activity_logs_property (property_id),
+    INDEX idx_activity_logs_created_at (created_at)
+);
+
 -- Create bulk_messages table
 CREATE TABLE bulk_messages (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
@@ -217,6 +251,22 @@ CREATE TABLE messages (
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
     FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE SET NULL
+);
+
+-- Create activity logs table
+CREATE TABLE activity_logs (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    action TEXT NOT NULL,
+    details TEXT,
+    type VARCHAR(50) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'success',
+    user_id VARCHAR(36),
+    property_id VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_activity_logs_type (type),
+    INDEX idx_activity_logs_user (user_id),
+    INDEX idx_activity_logs_property (property_id),
+    INDEX idx_activity_logs_created_at (created_at)
 );
 
 -- Create indexes for better performance

@@ -42,6 +42,16 @@ class MessagingService {
         $this->emailFromName = getenv('EMAIL_FROM_NAME') ?: 'LeaseMaster';
     }
 
+    private function columnExists($table, $column) {
+        try {
+            $stmt = $this->pdo->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            error_log("Column exists check failed for {$table}.{$column}: " . $e->getMessage());
+            return false;
+        }
+    }
+
     // ========== SMS FUNCTIONS ==========
     
     /**
@@ -283,7 +293,7 @@ class MessagingService {
     /**
      * Send email using GoDaddy SMTP
      */
-    public function sendEmail($to, $toName, $subject, $body, $isHtml = true) {
+    public function sendEmail($to, $toName, $subject, $body, $isHtml = true, $attachments = []) {
         // Validate credentials
         if (empty($this->smtpUser) || empty($this->smtpPass)) {
             return [
@@ -295,16 +305,23 @@ class MessagingService {
         
         // Use PHPMailer if available, otherwise use mail() function
         if (class_exists('PHPMailer\PHPMailer\PHPMailer')) {
-            return $this->sendEmailWithPhpMailer($to, $toName, $subject, $body, $isHtml);
+            return $this->sendEmailWithPhpMailer($to, $toName, $subject, $body, $isHtml, $attachments);
         } else {
-            return $this->sendEmailWithSmtp($to, $toName, $subject, $body, $isHtml);
+            return $this->sendEmailWithSmtp($to, $toName, $subject, $body, $isHtml, $attachments);
         }
     }
     
     /**
      * Send email using native PHP SMTP
      */
-    private function sendEmailWithSmtp($to, $toName, $subject, $body, $isHtml) {
+    private function sendEmailWithSmtp($to, $toName, $subject, $body, $isHtml, $attachments = []) {
+        if (!empty($attachments)) {
+            return [
+                'success' => false,
+                'error' => 'Attachments require PHPMailer',
+                'code' => 'ATTACHMENTS_NOT_SUPPORTED'
+            ];
+        }
         // Build headers
         $headers = [];
         $headers[] = "MIME-Version: 1.0";
@@ -338,7 +355,7 @@ class MessagingService {
     /**
      * Send email using PHPMailer (if installed)
      */
-    private function sendEmailWithPhpMailer($to, $toName, $subject, $body, $isHtml) {
+    private function sendEmailWithPhpMailer($to, $toName, $subject, $body, $isHtml, $attachments = []) {
         try {
             $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
             
@@ -362,6 +379,12 @@ class MessagingService {
             
             if ($isHtml) {
                 $mail->AltBody = strip_tags($body);
+            }
+
+            foreach ($attachments as $attachment) {
+                if (!empty($attachment['tmp_name'])) {
+                    $mail->addAttachment($attachment['tmp_name'], $attachment['name'] ?? 'attachment');
+                }
             }
             
             $mail->send();
@@ -387,31 +410,67 @@ class MessagingService {
      */
     public function logMessage($data) {
         $id = $this->generateUUID();
-        
-        $sql = "INSERT INTO message_recipients 
-                (id, bulk_message_id, tenant_id, channel, recipient_contact, status, 
-                 message_category, recipient_type, recipient_name, subject, content, property_id, 
-                 external_message_id, sender_shortcode, sent_by_user_id, sent_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
-        
+
+        $columns = [];
+        $placeholders = [];
+        $values = [];
+
+        $addColumn = function ($column, $value, $useNow = false) use (&$columns, &$placeholders, &$values) {
+            $columns[] = $column;
+            if ($useNow) {
+                $placeholders[] = "NOW()";
+            } else {
+                $placeholders[] = "?";
+                $values[] = $value;
+            }
+        };
+
+        $addColumn('id', $id);
+        $addColumn('bulk_message_id', $data['bulkMessageId'] ?? null);
+        $addColumn('tenant_id', $data['tenantId'] ?? null);
+        $addColumn('channel', $data['channel']);
+        $addColumn('recipient_contact', $data['recipientContact']);
+        $addColumn('status', $data['status'] ?? 'sent');
+
+        if ($this->columnExists('message_recipients', 'message_category')) {
+            $addColumn('message_category', $data['messageCategory'] ?? 'manual');
+        }
+        if ($this->columnExists('message_recipients', 'recipient_type')) {
+            $addColumn('recipient_type', $data['recipientType'] ?? 'tenant');
+        }
+        if ($this->columnExists('message_recipients', 'recipient_name')) {
+            $addColumn('recipient_name', $data['recipientName'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'subject')) {
+            $addColumn('subject', $data['subject'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'content')) {
+            $addColumn('content', $data['content'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'property_id')) {
+            $addColumn('property_id', $data['propertyId'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'external_message_id')) {
+            $addColumn('external_message_id', $data['externalMessageId'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'sender_shortcode')) {
+            $addColumn('sender_shortcode', $data['senderShortcode'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'sent_by_user_id')) {
+            $addColumn('sent_by_user_id', $data['sentByUserId'] ?? null);
+        }
+        if ($this->columnExists('message_recipients', 'sent_at')) {
+            $addColumn('sent_at', null, true);
+        }
+        if ($this->columnExists('message_recipients', 'created_at')) {
+            $addColumn('created_at', null, true);
+        }
+
+        $sql = "INSERT INTO message_recipients (" . implode(', ', $columns) . ")
+                VALUES (" . implode(', ', $placeholders) . ")";
+
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            $id,
-            $data['bulkMessageId'] ?? null,
-            $data['tenantId'] ?? null,
-            $data['channel'],
-            $data['recipientContact'],
-            $data['status'] ?? 'sent',
-            $data['messageCategory'] ?? 'manual',
-            $data['recipientType'] ?? 'tenant',
-            $data['recipientName'] ?? null,
-            $data['subject'] ?? null,
-            $data['content'] ?? null,
-            $data['propertyId'] ?? null,
-            $data['externalMessageId'] ?? null,
-            $data['senderShortcode'] ?? null,
-            $data['sentByUserId'] ?? null
-        ]);
+        $stmt->execute($values);
         
         return $id;
     }

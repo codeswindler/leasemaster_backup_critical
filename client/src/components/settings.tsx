@@ -1,22 +1,25 @@
-import { useState } from "react"
-import { 
-  Settings as SettingsIcon, 
+import { useEffect, useMemo, useState } from "react"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { apiRequest, queryClient } from "@/lib/queryClient"
+import { useToast } from "@/hooks/use-toast"
+import { useFilter } from "@/contexts/FilterContext"
+import {
+  Settings as SettingsIcon,
   Smartphone,
   CreditCard,
   Eye,
   EyeOff,
   Save,
-  TestTube,
   CheckCircle,
   AlertTriangle,
-  Loader2
+  Mail
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,127 +30,631 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+interface AlertRule {
+  key: string
+  label: string
+  recipient_type: "landlord" | "system_user" | "tenant"
+  alert_type: string
+  enable_sms: boolean
+  enable_email: boolean
+  frequency: string
+  threshold_value?: number | null
+  schedule_json?: string | null
+}
+
+const defaultAlertRules: AlertRule[] = [
+  {
+    key: "landlord_receipt",
+    label: "Receipt alerts",
+    recipient_type: "landlord",
+    alert_type: "receipt",
+    enable_sms: true,
+    enable_email: true,
+    frequency: "immediate",
+  },
+  {
+    key: "landlord_invoice_summary",
+    label: "Invoice alerts (count/amount)",
+    recipient_type: "landlord",
+    alert_type: "invoice_summary",
+    enable_sms: false,
+    enable_email: true,
+    frequency: "daily",
+    schedule_json: JSON.stringify({ invoice_count: 0, invoice_amount: 0 })
+  },
+  {
+    key: "landlord_reminder_sent",
+    label: "Reminder sent alerts",
+    recipient_type: "landlord",
+    alert_type: "reminder_sent",
+    enable_sms: true,
+    enable_email: true,
+    frequency: "immediate",
+  },
+  {
+    key: "landlord_balance_sms",
+    label: "SMS balance notifications",
+    recipient_type: "landlord",
+    alert_type: "balance_sms",
+    enable_sms: true,
+    enable_email: false,
+    frequency: "immediate",
+    threshold_value: 0
+  },
+  {
+    key: "landlord_balance_email",
+    label: "Email balance notifications",
+    recipient_type: "landlord",
+    alert_type: "balance_email",
+    enable_sms: false,
+    enable_email: true,
+    frequency: "immediate",
+    threshold_value: 0
+  },
+  {
+    key: "system_receipt",
+    label: "Receipt alerts",
+    recipient_type: "system_user",
+    alert_type: "receipt",
+    enable_sms: false,
+    enable_email: true,
+    frequency: "immediate",
+  },
+  {
+    key: "system_invoice_summary",
+    label: "Invoice alerts (count/amount)",
+    recipient_type: "system_user",
+    alert_type: "invoice_summary",
+    enable_sms: false,
+    enable_email: true,
+    frequency: "daily",
+    schedule_json: JSON.stringify({ invoice_count: 0, invoice_amount: 0 })
+  },
+  {
+    key: "system_reminder_sent",
+    label: "Reminder sent alerts",
+    recipient_type: "system_user",
+    alert_type: "reminder_sent",
+    enable_sms: false,
+    enable_email: true,
+    frequency: "immediate",
+  },
+  {
+    key: "system_balance_sms",
+    label: "SMS balance notifications",
+    recipient_type: "system_user",
+    alert_type: "balance_sms",
+    enable_sms: true,
+    enable_email: false,
+    frequency: "immediate",
+    threshold_value: 0
+  },
+  {
+    key: "system_balance_email",
+    label: "Email balance notifications",
+    recipient_type: "system_user",
+    alert_type: "balance_email",
+    enable_sms: false,
+    enable_email: true,
+    frequency: "immediate",
+    threshold_value: 0
+  },
+  {
+    key: "tenant_invoice_reminder",
+    label: "Invoice reminder alerts",
+    recipient_type: "tenant",
+    alert_type: "tenant_invoice_reminder",
+    enable_sms: true,
+    enable_email: false,
+    frequency: "custom",
+    schedule_json: JSON.stringify({ before_days: [3, 1], after_days: [3], on_due_date: true, reminder_every_days: 3 })
+  },
+  {
+    key: "tenant_receipt",
+    label: "Receipt alerts",
+    recipient_type: "tenant",
+    alert_type: "tenant_receipt",
+    enable_sms: true,
+    enable_email: false,
+    frequency: "immediate",
+  },
+  {
+    key: "tenant_payment_confirmation",
+    label: "Payment confirmation messages",
+    recipient_type: "tenant",
+    alert_type: "payment_confirmation",
+    enable_sms: true,
+    enable_email: false,
+    frequency: "immediate",
+  }
+]
+
+const parseSchedule = (value?: string | null) => {
+  if (!value) return {}
+  try {
+    return JSON.parse(value)
+  } catch {
+    return {}
+  }
+}
+
 export function Settings() {
-  const [showApiKeys, setShowApiKeys] = useState(false)
-  const [isTestingSms, setIsTestingSms] = useState(false)
-  const [isTestingMpesa, setIsTestingMpesa] = useState(false)
-  
+  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { toast } = useToast()
+  const [showFields, setShowFields] = useState<Record<string, boolean>>({})
+  const settingsDisabled = !selectedPropertyId || selectedPropertyId === "all"
+
+  const scopeParams = useMemo(() => {
+    const params = new URLSearchParams()
+    if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+    if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+    return params.toString() ? `?${params}` : ""
+  }, [selectedPropertyId, selectedLandlordId])
+
+  const { data: smsData } = useQuery({
+    queryKey: ["/api/settings/sms", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/settings/sms${scopeParams}`)
+      return await response.json()
+    },
+  })
+
+  const { data: emailData } = useQuery({
+    queryKey: ["/api/settings/email", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/settings/email${scopeParams}`)
+      return await response.json()
+    },
+  })
+
+  const { data: mpesaData } = useQuery({
+    queryKey: ["/api/settings/mpesa", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/settings/mpesa${scopeParams}`)
+      return await response.json()
+    },
+  })
+
+  const { data: invoiceData } = useQuery({
+    queryKey: ["/api/settings/invoice", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/settings/invoice${scopeParams}`)
+      return await response.json()
+    },
+  })
+
+  const { data: alertsData } = useQuery({
+    queryKey: ["/api/settings/alerts", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/settings/alerts${scopeParams}`)
+      return await response.json()
+    },
+  })
+
   const [smsSettings, setSmsSettings] = useState({
-    apiKey: "",
-    apiSecret: "",
-    senderId: "PROPERTY",
-    environment: "sandbox",
-    enabled: true
+    api_url: "",
+    api_key: "",
+    partner_id: "",
+    shortcode: "",
+    sender_id: "",
+    balance_threshold: "",
+    enabled: false
+  })
+
+  const [emailSettings, setEmailSettings] = useState({
+    smtp_host: "",
+    smtp_port: "",
+    smtp_user: "",
+    smtp_pass: "",
+    smtp_secure: "tls",
+    from_email: "",
+    from_name: "",
+    credit_balance: "",
+    credit_threshold: "",
+    enabled: false
   })
 
   const [mpesaSettings, setMpesaSettings] = useState({
-    consumerKey: "",
-    consumerSecret: "",
+    consumer_key: "",
+    consumer_secret: "",
     passkey: "",
-    shortcode: "174379",
-    environment: "sandbox",
-    enabled: true,
-    callbackUrl: "https://your-app.replit.app/api/mpesa/callback"
+    shortcode: "",
+    account_reference: "",
+    stk_callback_url: "",
+    balance_callback_url: "",
+    initiator_name: "",
+    security_credential: "",
+    enabled: false
   })
 
-  const [systemSettings, setSystemSettings] = useState({
-    companyName: "Property Management System",
-    companyEmail: "admin@propertymanager.com",
-    companyPhone: "+254700123456",
-    timezone: "Africa/Nairobi",
-    currency: "KES",
-    autoInvoiceGeneration: true,
-    paymentReminders: true,
-    latePaymentFees: true
+  const [invoiceSettings, setInvoiceSettings] = useState({
+    company_name: "",
+    company_phone: "",
+    company_email: "",
+    company_address: "",
+    payment_options: "",
+    logo_url: ""
   })
 
-  const [timezoneSearch, setTimezoneSearch] = useState("")
+  const [alertRules, setAlertRules] = useState<AlertRule[]>(defaultAlertRules)
+  const [balanceInfo, setBalanceInfo] = useState<string>("")
+  const [logoUploading, setLogoUploading] = useState(false)
 
-  const timezones = (() => {
-    if (typeof Intl !== "undefined" && typeof (Intl as any).supportedValuesOf === "function") {
-      return (Intl as any).supportedValuesOf("timeZone") as string[]
-    }
-    return ["Africa/Nairobi", "UTC", "America/New_York"]
-  })()
-
-  const getGmtLabel = (timezone: string) => {
-    try {
-      const formatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: timezone,
-        timeZoneName: "short"
+  useEffect(() => {
+    if (smsData && typeof smsData === "object") {
+      setSmsSettings({
+        api_url: smsData.api_url ?? "",
+        api_key: smsData.api_key ?? "",
+        partner_id: smsData.partner_id ?? "",
+        shortcode: smsData.shortcode ?? "",
+        sender_id: smsData.sender_id ?? "",
+        balance_threshold: smsData.balance_threshold ?? "",
+        enabled: !!smsData.enabled
       })
-      const parts = formatter.formatToParts(new Date())
-      const tzName = parts.find((p) => p.type === "timeZoneName")?.value || ""
-      return tzName.replace("GMT", "GMT").replace("UTC", "UTC")
-    } catch {
-      return "UTC"
+    }
+  }, [smsData])
+
+  useEffect(() => {
+    if (emailData && typeof emailData === "object") {
+      setEmailSettings({
+        smtp_host: emailData.smtp_host ?? "",
+        smtp_port: emailData.smtp_port ?? "",
+        smtp_user: emailData.smtp_user ?? "",
+        smtp_pass: emailData.smtp_pass ?? "",
+        smtp_secure: emailData.smtp_secure ?? "tls",
+        from_email: emailData.from_email ?? "",
+        from_name: emailData.from_name ?? "",
+        credit_balance: emailData.credit_balance ?? "",
+        credit_threshold: emailData.credit_threshold ?? "",
+        enabled: !!emailData.enabled
+      })
+    }
+  }, [emailData])
+
+  useEffect(() => {
+    if (mpesaData && typeof mpesaData === "object") {
+      setMpesaSettings({
+        consumer_key: mpesaData.consumer_key ?? "",
+        consumer_secret: mpesaData.consumer_secret ?? "",
+        passkey: mpesaData.passkey ?? "",
+        shortcode: mpesaData.shortcode ?? "",
+        account_reference: mpesaData.account_reference ?? "",
+        stk_callback_url: mpesaData.stk_callback_url ?? "",
+        balance_callback_url: mpesaData.balance_callback_url ?? "",
+        initiator_name: mpesaData.initiator_name ?? "",
+        security_credential: mpesaData.security_credential ?? "",
+        enabled: !!mpesaData.enabled
+      })
+    }
+  }, [mpesaData])
+
+  useEffect(() => {
+    if (invoiceData && typeof invoiceData === "object") {
+      setInvoiceSettings({
+        company_name: invoiceData.company_name ?? "",
+        company_phone: invoiceData.company_phone ?? "",
+        company_email: invoiceData.company_email ?? "",
+        company_address: invoiceData.company_address ?? "",
+        payment_options: invoiceData.payment_options ?? "",
+        logo_url: invoiceData.logo_url ?? ""
+      })
+    }
+  }, [invoiceData])
+
+  const toggleFieldVisibility = (key: string) => {
+    setShowFields((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const renderSecretInput = (
+    key: string,
+    value: string,
+    onChange: (value: string) => void,
+    placeholder?: string
+  ) => (
+    <div className="relative">
+      <Input
+        type={showFields[key] ? "text" : "password"}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => toggleFieldVisibility(key)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        aria-label={showFields[key] ? "Hide value" : "Show value"}
+      >
+        {showFields[key] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+
+  useEffect(() => {
+    if (Array.isArray(alertsData) && alertsData.length > 0) {
+      const existing = new Map(alertsData.map((alert: any) => [`${alert.recipient_type}:${alert.alert_type}`, alert]))
+      setAlertRules(
+        defaultAlertRules.map((rule) => {
+          const match = existing.get(`${rule.recipient_type}:${rule.alert_type}`)
+          if (!match) return rule
+          return {
+            ...rule,
+            enable_sms: !!match.enable_sms,
+            enable_email: !!match.enable_email,
+            frequency: match.frequency ?? rule.frequency,
+            threshold_value: match.threshold_value ?? rule.threshold_value,
+            schedule_json: match.schedule_json ?? rule.schedule_json
+          }
+        })
+      )
+    }
+  }, [alertsData])
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ section, payload }: { section: string; payload: any }) => {
+      const response = await apiRequest("PUT", `/api/settings/${section}${scopeParams}`, payload)
+      return await response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] })
+      toast({ title: "Settings saved" })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save failed",
+        description: error.message || "Unable to save settings",
+        variant: "destructive",
+      })
+    }
+  })
+
+  const balanceMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("GET", `/api/mpesa/balance${scopeParams}`)
+      return await response.json()
+    },
+    onSuccess: (data: any) => {
+      setBalanceInfo(data?.balance ? `KES ${data.balance}` : data?.message || "Balance fetched")
+      toast({
+        title: "M-Pesa balance",
+        description: data?.balance ? `Balance: KES ${data.balance}` : data?.message || "Balance fetched",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Balance check failed",
+        description: error?.message || "Unable to fetch balance",
+        variant: "destructive",
+      })
+    }
+  })
+
+  const saveSection = (section: string, payload: any) => {
+    saveMutation.mutate({ section, payload })
+  }
+
+  const handleLogoUpload = async (file?: File | null) => {
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Logo too large",
+        description: "Maximum logo size is 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+    const formData = new FormData()
+    formData.append("logo", file)
+    setLogoUploading(true)
+    try {
+      const response = await fetch(`/api/settings/invoice-logo${scopeParams}`, {
+        method: "POST",
+        body: formData,
+        credentials: "include"
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || "Logo upload failed")
+      }
+      setInvoiceSettings((prev) => ({ ...prev, logo_url: data.logo_url || "" }))
+      toast({ title: "Logo uploaded" })
+    } catch (error: any) {
+      toast({
+        title: "Logo upload failed",
+        description: error?.message || "Unable to upload logo.",
+        variant: "destructive"
+      })
+    } finally {
+      setLogoUploading(false)
     }
   }
 
-  const filteredTimezones = timezones.filter((timezone) => {
-    if (!timezoneSearch.trim()) return true
-    const search = timezoneSearch.toLowerCase()
-    const label = `${timezone} (${getGmtLabel(timezone)})`.toLowerCase()
-    return label.includes(search)
-  })
-
-  const handleTestSms = async () => {
-    setIsTestingSms(true)
-    // Simulate API test
-    setTimeout(() => {
-      setIsTestingSms(false)
-      alert("SMS test successful! Test message sent.")
-    }, 2000)
+  const handleLogoRemove = async () => {
+    if (!invoiceSettings.logo_url) return
+    setLogoUploading(true)
+    try {
+      const response = await fetch(`/api/settings/invoice-logo${scopeParams}`, {
+        method: "DELETE",
+        credentials: "include"
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || "Logo removal failed")
+      }
+      setInvoiceSettings((prev) => ({ ...prev, logo_url: "" }))
+      toast({ title: "Logo removed" })
+    } catch (error: any) {
+      toast({
+        title: "Logo removal failed",
+        description: error?.message || "Unable to remove logo.",
+        variant: "destructive"
+      })
+    } finally {
+      setLogoUploading(false)
+    }
   }
 
-  const handleTestMpesa = async () => {
-    setIsTestingMpesa(true)
-    // Simulate API test
-    setTimeout(() => {
-      setIsTestingMpesa(false)
-      alert("M-Pesa connection test successful!")
-    }, 2000)
+  const updateRule = (key: string, updater: (rule: AlertRule) => AlertRule) => {
+    setAlertRules((prev) => prev.map((rule) => (rule.key === key ? updater(rule) : rule)))
   }
 
-  const handleSaveSettings = (settingsType: string) => {
-    console.log(`Saving ${settingsType} settings`)
-    alert(`${settingsType} settings saved successfully!`)
+  const renderAlertRow = (rule: AlertRule) => {
+    const schedule = parseSchedule(rule.schedule_json)
+
+    return (
+      <div key={rule.key} className="flex flex-col gap-3 border rounded-lg p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label>{rule.label}</Label>
+            <p className="text-xs text-muted-foreground">{rule.recipient_type.replace("_", " ")} • {rule.alert_type.replace(/_/g, " ")}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={rule.enable_sms}
+              onCheckedChange={(checked) => updateRule(rule.key, (prevRule) => ({ ...prevRule, enable_sms: checked }))}
+            />
+            <span className="text-xs">SMS</span>
+            <Switch
+              checked={rule.enable_email}
+              onCheckedChange={(checked) => updateRule(rule.key, (prevRule) => ({ ...prevRule, enable_email: checked }))}
+            />
+            <span className="text-xs">Email</span>
+          </div>
+        </div>
+
+        {rule.alert_type === "invoice_summary" && (
+          <p className="text-sm text-muted-foreground">
+            Summary includes invoice count, total amount, and sender details. Alerts send immediately when invoices are sent.
+          </p>
+        )}
+
+        {rule.alert_type === "balance_sms" || rule.alert_type === "balance_email" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Threshold</Label>
+              <Input
+                value={rule.threshold_value ?? ""}
+                onChange={(event) => updateRule(rule.key, (prevRule) => ({ ...prevRule, threshold_value: Number(event.target.value || 0) }))}
+              />
+            </div>
+            <div>
+              <Label>Frequency</Label>
+              <Select
+                value={rule.frequency}
+                onValueChange={(value) => updateRule(rule.key, (prevRule) => ({ ...prevRule, frequency: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="immediate">Immediate</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : null}
+
+        {rule.alert_type === "tenant_invoice_reminder" && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Days before due (comma separated)</Label>
+              <Input
+                value={(schedule.before_days || []).join(",")}
+                onChange={(event) => {
+                  const days = event.target.value.split(",").map((d: string) => Number(d.trim())).filter((n: number) => !Number.isNaN(n))
+                  const next = { ...schedule, before_days: days }
+                  updateRule(rule.key, (prevRule) => ({ ...prevRule, schedule_json: JSON.stringify(next) }))
+                }}
+              />
+            </div>
+            <div>
+              <Label>Days after due (comma separated)</Label>
+              <Input
+                value={(schedule.after_days || []).join(",")}
+                onChange={(event) => {
+                  const days = event.target.value.split(",").map((d: string) => Number(d.trim())).filter((n: number) => !Number.isNaN(n))
+                  const next = { ...schedule, after_days: days }
+                  updateRule(rule.key, (prevRule) => ({ ...prevRule, schedule_json: JSON.stringify(next) }))
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={!!schedule.on_due_date}
+                onCheckedChange={(checked) => {
+                  const next = { ...schedule, on_due_date: checked }
+                  updateRule(rule.key, (prevRule) => ({ ...prevRule, schedule_json: JSON.stringify(next) }))
+                }}
+              />
+              <span className="text-sm">Send on due date</span>
+            </div>
+            <div>
+              <Label>Repeat every (days)</Label>
+              <Input
+                value={schedule.reminder_every_days ?? ""}
+                onChange={(event) => {
+                  const next = { ...schedule, reminder_every_days: Number(event.target.value || 0) }
+                  updateRule(rule.key, (prevRule) => ({ ...prevRule, schedule_json: JSON.stringify(next) }))
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {rule.alert_type === "reminder_sent" && (
+          <p className="text-sm text-muted-foreground">
+            Summary includes reminder count, total amount, and sender details. Alerts send immediately when reminders are sent.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  const groupedRules = {
+    landlord: alertRules.filter((rule) => rule.recipient_type === "landlord"),
+    system_user: alertRules.filter((rule) => rule.recipient_type === "system_user"),
+    tenant: alertRules.filter((rule) => rule.recipient_type === "tenant")
+  }
+
+  if (settingsDisabled) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Settings</CardTitle>
+            <CardDescription>Select a client and property to manage settings.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="settings-title">Settings</h1>
-          <p className="text-muted-foreground">Configure system settings and API integrations</p>
-        </div>
-        <Button 
-          variant="outline" 
-          onClick={() => setShowApiKeys(!showApiKeys)}
-          data-testid="button-toggle-api-keys"
-        >
-          {showApiKeys ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-          {showApiKeys ? "Hide" : "Show"} API Keys
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold" data-testid="settings-title">Settings</h1>
+        <p className="text-muted-foreground">Configure SMS, email, M-Pesa, invoices, and alerts</p>
       </div>
 
       <Tabs defaultValue="sms" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="sms" data-testid="tab-sms">SMS Integration</TabsTrigger>
-          <TabsTrigger value="mpesa" data-testid="tab-mpesa">M-Pesa Integration</TabsTrigger>
-          <TabsTrigger value="system" data-testid="tab-system">System Settings</TabsTrigger>
-          <TabsTrigger value="notifications" data-testid="tab-notifications">Notifications</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="sms">SMS</TabsTrigger>
+          <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="mpesa">M-Pesa</TabsTrigger>
+          <TabsTrigger value="invoice">Invoice</TabsTrigger>
+          <TabsTrigger value="alerts">Alerts</TabsTrigger>
         </TabsList>
 
-        {/* SMS Integration Settings */}
-        <TabsContent value="sms" className="space-y-6">
+        <TabsContent value="sms">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5" />
                 <div>
-                  <CardTitle>Advanta SMS Integration</CardTitle>
-                  <CardDescription>Configure SMS notifications using Advanta SMS API</CardDescription>
+                  <CardTitle>SMS Integration</CardTitle>
+                  <CardDescription>Configure SMS provider credentials</CardDescription>
                 </div>
                 <div className="ml-auto">
                   {smsSettings.enabled ? (
@@ -167,464 +674,306 @@ export function Settings() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="sms-api-key">API Key</Label>
-                  <Input
-                    id="sms-api-key"
-                    type={showApiKeys ? "text" : "password"}
-                    value={showApiKeys ? smsSettings.apiKey : "••••••••••••••••••••••••••••••••"}
-                    onChange={(e) => setSmsSettings(prev => ({ ...prev, apiKey: e.target.value }))}
-                    data-testid="input-sms-api-key"
-                  />
+                  <Label>API URL</Label>
+                  <Input value={smsSettings.api_url} onChange={(e) => setSmsSettings(prev => ({ ...prev, api_url: e.target.value }))} />
                 </div>
                 <div>
-                  <Label htmlFor="sms-api-secret">API Secret</Label>
-                  <Input
-                    id="sms-api-secret"
-                    type={showApiKeys ? "text" : "password"}
-                    value={showApiKeys ? smsSettings.apiSecret : "••••••••••••••••••••••••••••••••"}
-                    onChange={(e) => setSmsSettings(prev => ({ ...prev, apiSecret: e.target.value }))}
-                    data-testid="input-sms-api-secret"
-                  />
+                  <Label>API Key</Label>
+                  {renderSecretInput("sms_api_key", smsSettings.api_key, (value) => setSmsSettings(prev => ({ ...prev, api_key: value })))}
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="sms-sender-id">Sender ID</Label>
-                  <Input
-                    id="sms-sender-id"
-                    value={smsSettings.senderId}
-                    onChange={(e) => setSmsSettings(prev => ({ ...prev, senderId: e.target.value }))}
-                    placeholder="PROPERTY"
-                    data-testid="input-sms-sender-id"
-                  />
+                  <Label>Partner ID</Label>
+                  {renderSecretInput("sms_partner_id", smsSettings.partner_id, (value) => setSmsSettings(prev => ({ ...prev, partner_id: value })))}
                 </div>
                 <div>
-                  <Label htmlFor="sms-environment">Environment</Label>
-                  <Select 
-                    value={smsSettings.environment} 
-                    onValueChange={(value) => setSmsSettings(prev => ({ ...prev, environment: value }))}
-                  >
-                    <SelectTrigger data-testid="select-sms-environment">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sandbox">Sandbox</SelectItem>
-                      <SelectItem value="production">Production</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Shortcode</Label>
+                  <Input value={smsSettings.shortcode} onChange={(e) => setSmsSettings(prev => ({ ...prev, shortcode: e.target.value }))} />
                 </div>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="sms-enabled"
-                  checked={smsSettings.enabled}
-                  onCheckedChange={(checked) => setSmsSettings(prev => ({ ...prev, enabled: checked }))}
-                  data-testid="switch-sms-enabled"
-                />
-                <Label htmlFor="sms-enabled">Enable SMS notifications</Label>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t">
-                <Button 
-                  onClick={handleTestSms} 
-                  disabled={isTestingSms || !smsSettings.enabled}
-                  data-testid="button-test-sms"
-                >
-                  {isTestingSms ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <TestTube className="h-4 w-4 mr-2" />
-                  )}
-                  Test SMS
-                </Button>
-                <Button onClick={() => handleSaveSettings("SMS")} data-testid="button-save-sms">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save SMS Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* SMS Documentation */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanta SMS API Documentation</CardTitle>
-              <CardDescription>Integration guidelines and endpoints</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-sm space-y-2">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <strong>Base URL:</strong> <code className="bg-muted px-2 py-1 rounded">https://api.advantasms.com</code>
+                  <Label>Sender ID</Label>
+                  <Input value={smsSettings.sender_id} onChange={(e) => setSmsSettings(prev => ({ ...prev, sender_id: e.target.value }))} />
                 </div>
                 <div>
-                  <strong>Send SMS Endpoint:</strong> <code className="bg-muted px-2 py-1 rounded">POST /v1/sms/send</code>
-                </div>
-                <div>
-                  <strong>Balance Check:</strong> <code className="bg-muted px-2 py-1 rounded">GET /v1/account/balance</code>
-                </div>
-                <div>
-                  <strong>Required Headers:</strong>
-                  <ul className="list-disc list-inside ml-4 mt-1">
-                    <li>Authorization: Bearer {"{API_KEY}"}</li>
-                    <li>Content-Type: application/json</li>
-                  </ul>
+                  <Label>Balance threshold</Label>
+                  <Input value={smsSettings.balance_threshold} onChange={(e) => setSmsSettings(prev => ({ ...prev, balance_threshold: e.target.value }))} />
                 </div>
               </div>
+              <div className="flex items-center justify-between border rounded-lg p-3">
+                <div>
+                  <Label>Enable SMS</Label>
+                  <p className="text-xs text-muted-foreground">Use this provider for alerts</p>
+                </div>
+                <Switch checked={smsSettings.enabled} onCheckedChange={(checked) => setSmsSettings(prev => ({ ...prev, enabled: checked }))} />
+              </div>
+              <Button onClick={() => saveSection("sms", smsSettings)}>
+                <Save className="h-4 w-4 mr-2" />
+                Save SMS Settings
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* M-Pesa Integration Settings */}
-        <TabsContent value="mpesa" className="space-y-6">
+        <TabsContent value="email">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                <div>
+                  <CardTitle>Email Integration</CardTitle>
+                  <CardDescription>Configure SMTP settings and credit balance</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>SMTP Host</Label>
+                  <Input value={emailSettings.smtp_host} onChange={(e) => setEmailSettings(prev => ({ ...prev, smtp_host: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>SMTP Port</Label>
+                  <Input value={emailSettings.smtp_port} onChange={(e) => setEmailSettings(prev => ({ ...prev, smtp_port: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>SMTP User</Label>
+                  <Input value={emailSettings.smtp_user} onChange={(e) => setEmailSettings(prev => ({ ...prev, smtp_user: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>SMTP Password</Label>
+                  {renderSecretInput("smtp_pass", emailSettings.smtp_pass, (value) => setEmailSettings(prev => ({ ...prev, smtp_pass: value })))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>From Email</Label>
+                  <Input value={emailSettings.from_email} onChange={(e) => setEmailSettings(prev => ({ ...prev, from_email: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>From Name</Label>
+                  <Input value={emailSettings.from_name} onChange={(e) => setEmailSettings(prev => ({ ...prev, from_name: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Email credit balance</Label>
+                  <Input value={emailSettings.credit_balance} onChange={(e) => setEmailSettings(prev => ({ ...prev, credit_balance: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Balance threshold</Label>
+                  <Input value={emailSettings.credit_threshold} onChange={(e) => setEmailSettings(prev => ({ ...prev, credit_threshold: e.target.value }))} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between border rounded-lg p-3">
+                <div>
+                  <Label>Enable Email</Label>
+                  <p className="text-xs text-muted-foreground">Use SMTP for alerts</p>
+                </div>
+                <Switch checked={emailSettings.enabled} onCheckedChange={(checked) => setEmailSettings(prev => ({ ...prev, enabled: checked }))} />
+              </div>
+              <Button onClick={() => saveSection("email", emailSettings)}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Email Settings
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="mpesa">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
                 <div>
-                  <CardTitle>M-Pesa Integration</CardTitle>
-                  <CardDescription>Configure M-Pesa payments using Safaricom Daraja API</CardDescription>
-                </div>
-                <div className="ml-auto">
-                  {mpesaSettings.enabled ? (
-                    <Badge variant="default" className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      Inactive
-                    </Badge>
-                  )}
+                  <CardTitle>M-Pesa STK Push</CardTitle>
+                  <CardDescription>Configure paybill credentials</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="mpesa-consumer-key">Consumer Key</Label>
-                  <Input
-                    id="mpesa-consumer-key"
-                    type={showApiKeys ? "text" : "password"}
-                    value={showApiKeys ? mpesaSettings.consumerKey : "••••••••••••••••••••••••••••••••"}
-                    onChange={(e) => setMpesaSettings(prev => ({ ...prev, consumerKey: e.target.value }))}
-                    data-testid="input-mpesa-consumer-key"
-                  />
+                  <Label>Consumer Key</Label>
+                  {renderSecretInput("mpesa_consumer_key", mpesaSettings.consumer_key, (value) => setMpesaSettings(prev => ({ ...prev, consumer_key: value })))}
                 </div>
                 <div>
-                  <Label htmlFor="mpesa-consumer-secret">Consumer Secret</Label>
-                  <Input
-                    id="mpesa-consumer-secret"
-                    type={showApiKeys ? "text" : "password"}
-                    value={showApiKeys ? mpesaSettings.consumerSecret : "••••••••••••••••••••••••••••••••"}
-                    onChange={(e) => setMpesaSettings(prev => ({ ...prev, consumerSecret: e.target.value }))}
-                    data-testid="input-mpesa-consumer-secret"
-                  />
+                  <Label>Consumer Secret</Label>
+                  {renderSecretInput("mpesa_consumer_secret", mpesaSettings.consumer_secret, (value) => setMpesaSettings(prev => ({ ...prev, consumer_secret: value })))}
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="mpesa-passkey">Passkey</Label>
-                  <Input
-                    id="mpesa-passkey"
-                    type={showApiKeys ? "text" : "password"}
-                    value={showApiKeys ? mpesaSettings.passkey : "••••••••••••••••••••••••••••••••"}
-                    onChange={(e) => setMpesaSettings(prev => ({ ...prev, passkey: e.target.value }))}
-                    data-testid="input-mpesa-passkey"
-                  />
+                  <Label>Passkey</Label>
+                  {renderSecretInput("mpesa_passkey", mpesaSettings.passkey, (value) => setMpesaSettings(prev => ({ ...prev, passkey: value })))}
                 </div>
                 <div>
-                  <Label htmlFor="mpesa-shortcode">Business Shortcode</Label>
-                  <Input
-                    id="mpesa-shortcode"
-                    value={mpesaSettings.shortcode}
-                    onChange={(e) => setMpesaSettings(prev => ({ ...prev, shortcode: e.target.value }))}
-                    data-testid="input-mpesa-shortcode"
-                  />
+                  <Label>Shortcode</Label>
+                  <Input value={mpesaSettings.shortcode} onChange={(e) => setMpesaSettings(prev => ({ ...prev, shortcode: e.target.value }))} />
                 </div>
               </div>
-
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Account Reference</Label>
+                  <Input value={mpesaSettings.account_reference} onChange={(e) => setMpesaSettings(prev => ({ ...prev, account_reference: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>STK Callback URL</Label>
+                  <Input value={mpesaSettings.stk_callback_url} onChange={(e) => setMpesaSettings(prev => ({ ...prev, stk_callback_url: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Balance Callback URL</Label>
+                  <Input value={mpesaSettings.balance_callback_url} onChange={(e) => setMpesaSettings(prev => ({ ...prev, balance_callback_url: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>Initiator Name</Label>
+                  <Input value={mpesaSettings.initiator_name} onChange={(e) => setMpesaSettings(prev => ({ ...prev, initiator_name: e.target.value }))} />
+                </div>
+              </div>
               <div>
-                <Label htmlFor="mpesa-callback">Callback URL</Label>
-                <Input
-                  id="mpesa-callback"
-                  value={mpesaSettings.callbackUrl}
-                  onChange={(e) => setMpesaSettings(prev => ({ ...prev, callbackUrl: e.target.value }))}
-                  data-testid="input-mpesa-callback"
-                />
+                <Label>Security Credential</Label>
+                {renderSecretInput("mpesa_security_credential", mpesaSettings.security_credential, (value) => setMpesaSettings(prev => ({ ...prev, security_credential: value })))}
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center justify-between border rounded-lg p-3">
                 <div>
-                  <Label htmlFor="mpesa-environment">Environment</Label>
-                  <Select 
-                    value={mpesaSettings.environment} 
-                    onValueChange={(value) => setMpesaSettings(prev => ({ ...prev, environment: value }))}
-                  >
-                    <SelectTrigger data-testid="select-mpesa-environment">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sandbox">Sandbox</SelectItem>
-                      <SelectItem value="production">Production</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Enable M-Pesa</Label>
+                  <p className="text-xs text-muted-foreground">Enable STK push</p>
                 </div>
-                <div className="flex items-center space-x-2 pt-6">
-                  <Switch
-                    id="mpesa-enabled"
-                    checked={mpesaSettings.enabled}
-                    onCheckedChange={(checked) => setMpesaSettings(prev => ({ ...prev, enabled: checked }))}
-                    data-testid="switch-mpesa-enabled"
-                  />
-                  <Label htmlFor="mpesa-enabled">Enable M-Pesa payments</Label>
-                </div>
+                <Switch checked={mpesaSettings.enabled} onCheckedChange={(checked) => setMpesaSettings(prev => ({ ...prev, enabled: checked }))} />
               </div>
-
-              <div className="flex gap-3 pt-4 border-t">
-                <Button 
-                  onClick={handleTestMpesa} 
-                  disabled={isTestingMpesa || !mpesaSettings.enabled}
-                  data-testid="button-test-mpesa"
-                >
-                  {isTestingMpesa ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <TestTube className="h-4 w-4 mr-2" />
-                  )}
-                  Test Connection
+              <Button onClick={() => saveSection("mpesa", mpesaSettings)}>
+                <Save className="h-4 w-4 mr-2" />
+                Save M-Pesa Settings
+              </Button>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" onClick={() => balanceMutation.mutate()} disabled={balanceMutation.isPending}>
+                  Check Paybill Balance
                 </Button>
-                <Button onClick={() => handleSaveSettings("M-Pesa")} data-testid="button-save-mpesa">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save M-Pesa Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* M-Pesa Documentation */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Safaricom Daraja API Documentation</CardTitle>
-              <CardDescription>M-Pesa integration endpoints and requirements</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-sm space-y-2">
-                <div>
-                  <strong>Sandbox URL:</strong> <code className="bg-muted px-2 py-1 rounded">https://sandbox.safaricom.co.ke</code>
-                </div>
-                <div>
-                  <strong>Production URL:</strong> <code className="bg-muted px-2 py-1 rounded">https://api.safaricom.co.ke</code>
-                </div>
-                <div>
-                  <strong>STK Push:</strong> <code className="bg-muted px-2 py-1 rounded">POST /mpesa/stkpush/v1/processrequest</code>
-                </div>
-                <div>
-                  <strong>Account Balance:</strong> <code className="bg-muted px-2 py-1 rounded">POST /mpesa/accountbalance/v1/query</code>
-                </div>
-                <div>
-                  <strong>Authentication:</strong> <code className="bg-muted px-2 py-1 rounded">GET /oauth/v1/generate?grant_type=client_credentials</code>
-                </div>
+                {balanceInfo && (
+                  <span className="text-sm text-muted-foreground">{balanceInfo}</span>
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* System Settings */}
-        <TabsContent value="system" className="space-y-6">
+        <TabsContent value="invoice">
           <Card>
             <CardHeader>
-              <CardTitle>General System Settings</CardTitle>
-              <CardDescription>Configure basic system preferences</CardDescription>
+              <div className="flex items-center gap-2">
+                <SettingsIcon className="h-5 w-5" />
+                <div>
+                  <CardTitle>Invoice Settings</CardTitle>
+                  <CardDescription>Company details and payment options</CardDescription>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="company-name">Company Name</Label>
-                  <Input
-                    id="company-name"
-                    value={systemSettings.companyName}
-                    onChange={(e) => setSystemSettings(prev => ({ ...prev, companyName: e.target.value }))}
-                    data-testid="input-company-name"
-                  />
+                  <Label>Company Name</Label>
+                  <Input value={invoiceSettings.company_name} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_name: e.target.value }))} />
                 </div>
                 <div>
-                  <Label htmlFor="company-email">Company Email</Label>
-                  <Input
-                    id="company-email"
-                    type="email"
-                    value={systemSettings.companyEmail}
-                    onChange={(e) => setSystemSettings(prev => ({ ...prev, companyEmail: e.target.value }))}
-                    data-testid="input-company-email"
-                  />
+                  <Label>Company Phone</Label>
+                  <Input value={invoiceSettings.company_phone} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_phone: e.target.value }))} />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="company-phone">Company Phone</Label>
-                  <Input
-                    id="company-phone"
-                    value={systemSettings.companyPhone}
-                    onChange={(e) => setSystemSettings(prev => ({ ...prev, companyPhone: e.target.value }))}
-                    data-testid="input-company-phone"
-                  />
+                  <Label>Company Email</Label>
+                  <Input value={invoiceSettings.company_email} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_email: e.target.value }))} />
                 </div>
                 <div>
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select 
-                    value={systemSettings.timezone} 
-                    onValueChange={(value) => setSystemSettings(prev => ({ ...prev, timezone: value }))}
-                  >
-                    <SelectTrigger data-testid="select-timezone">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <div className="p-2">
-                        <Input
-                          value={timezoneSearch}
-                          onChange={(e) => setTimezoneSearch(e.target.value)}
-                          placeholder="Search timezone or GMT"
-                        />
-                      </div>
-                      {filteredTimezones.map((timezone) => (
-                        <SelectItem key={timezone} value={timezone}>
-                          {timezone} ({getGmtLabel(timezone)})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Company Address</Label>
+                  <Input value={invoiceSettings.company_address} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_address: e.target.value }))} />
                 </div>
               </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                <div>
+                  <Label>Invoice Logo (max 5MB)</Label>
+                  <Input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    onChange={(event) => handleLogoUpload(event.target.files?.[0])}
+                    disabled={logoUploading}
+                  />
+                  {invoiceSettings.logo_url && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={handleLogoRemove}
+                      disabled={logoUploading}
+                    >
+                      Remove Logo
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-lg border p-3">
+                  <Label className="text-sm text-muted-foreground">Preview</Label>
+                  {invoiceSettings.logo_url ? (
+                    <img
+                      src={invoiceSettings.logo_url}
+                      alt="Invoice logo"
+                      className="mt-2 h-16 w-auto object-contain"
+                    />
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">No logo uploaded.</p>
+                  )}
+                </div>
+              </div>
               <div>
-                <Label htmlFor="currency">Default Currency</Label>
-                <Select 
-                  value={systemSettings.currency} 
-                  onValueChange={(value) => setSystemSettings(prev => ({ ...prev, currency: value }))}
-                >
-                  <SelectTrigger data-testid="select-currency">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
-                    <SelectItem value="USD">USD - US Dollar</SelectItem>
-                    <SelectItem value="EUR">EUR - Euro</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Payment Options (one per line)</Label>
+                <Textarea rows={4} value={invoiceSettings.payment_options} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, payment_options: e.target.value }))} />
               </div>
-
-              <div className="space-y-3 pt-4 border-t">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="auto-invoice"
-                    checked={systemSettings.autoInvoiceGeneration}
-                    onCheckedChange={(checked) => setSystemSettings(prev => ({ ...prev, autoInvoiceGeneration: checked }))}
-                    data-testid="switch-auto-invoice"
-                  />
-                  <Label htmlFor="auto-invoice">Automatic invoice generation</Label>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="payment-reminders"
-                    checked={systemSettings.paymentReminders}
-                    onCheckedChange={(checked) => setSystemSettings(prev => ({ ...prev, paymentReminders: checked }))}
-                    data-testid="switch-payment-reminders"
-                  />
-                  <Label htmlFor="payment-reminders">Send payment reminders</Label>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="late-fees"
-                    checked={systemSettings.latePaymentFees}
-                    onCheckedChange={(checked) => setSystemSettings(prev => ({ ...prev, latePaymentFees: checked }))}
-                    data-testid="switch-late-fees"
-                  />
-                  <Label htmlFor="late-fees">Apply late payment fees</Label>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t">
-                <Button onClick={() => handleSaveSettings("System")} data-testid="button-save-system">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save System Settings
-                </Button>
-              </div>
+              <Button onClick={() => saveSection("invoice", invoiceSettings)}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Invoice Settings
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Notification Settings */}
-        <TabsContent value="notifications" className="space-y-6">
+        <TabsContent value="alerts">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Configure when and how notifications are sent</CardDescription>
+              <div className="flex items-center gap-2">
+                <SettingsIcon className="h-5 w-5" />
+                <div>
+                  <CardTitle>Alert Settings</CardTitle>
+                  <CardDescription>Landlord, system user, and tenant rules</CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-base font-medium">Payment Reminders</Label>
-                  <div className="space-y-2 mt-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="reminder-1">Send 3 days before due date</Label>
-                      <Switch id="reminder-1" defaultChecked />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="reminder-2">Send on due date</Label>
-                      <Switch id="reminder-2" defaultChecked />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="reminder-3">Send 3 days after due date</Label>
-                      <Switch id="reminder-3" defaultChecked />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-base font-medium">Invoice Notifications</Label>
-                  <div className="space-y-2 mt-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="invoice-created">New invoice created</Label>
-                      <Switch id="invoice-created" defaultChecked />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="invoice-paid">Invoice payment received</Label>
-                      <Switch id="invoice-paid" defaultChecked />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-base font-medium">System Notifications</Label>
-                  <div className="space-y-2 mt-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="new-tenant">New tenant registration</Label>
-                      <Switch id="new-tenant" defaultChecked />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="maintenance-request">Maintenance requests</Label>
-                      <Switch id="maintenance-request" defaultChecked />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="low-sms-balance">Low SMS balance alert</Label>
-                      <Switch id="low-sms-balance" defaultChecked />
-                    </div>
-                  </div>
-                </div>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Landlord Alerts</Label>
+                {groupedRules.landlord.map(renderAlertRow)}
               </div>
-
-              <div className="pt-4 border-t">
-                <Button onClick={() => handleSaveSettings("Notifications")} data-testid="button-save-notifications">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Notification Settings
-                </Button>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">System User Alerts</Label>
+                {groupedRules.system_user.map(renderAlertRow)}
               </div>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Tenant Alerts</Label>
+                {groupedRules.tenant.map(renderAlertRow)}
+              </div>
+              <Button onClick={() => saveSection("alerts", { alerts: alertRules.map((rule) => ({
+                ...rule,
+                channel: "multi",
+                frequency: ["invoice_summary", "reminder_sent", "receipt", "payment_confirmation", "tenant_receipt"].includes(rule.alert_type) ? "immediate" : rule.frequency,
+                enabled: rule.enable_sms || rule.enable_email
+              })) })}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Alert Settings
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

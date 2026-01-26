@@ -48,6 +48,7 @@ export function Receipts() {
   const [viewingReceipt, setViewingReceipt] = useState<any>(null)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const actionsDisabled = !selectedPropertyId
 
   // Fetch all required data with complete status tracking
   const paymentsQuery = useQuery({ 
@@ -90,6 +91,17 @@ export function Receipts() {
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+  const invoiceSettingsQuery = useQuery({
+    queryKey: ['/api/settings/invoice', selectedLandlordId, selectedPropertyId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
     },
@@ -220,46 +232,72 @@ export function Receipts() {
   })
 
   const downloadReceipt = (receipt: any) => {
+    if (actionsDisabled) {
+      toast({
+        title: "Property Required",
+        description: "Select a property in the header to download receipts.",
+        variant: "destructive",
+      })
+      return
+    }
     try {
       const doc = new jsPDF()
-      
-      // Header
-      doc.setFontSize(20)
-      doc.text('PAYMENT RECEIPT', 20, 30)
-      
-      // Receipt details
-      doc.setFontSize(12)
-      doc.text(`Receipt ID: ${receipt.id}`, 20, 50)
-      doc.text(`Date: ${new Date(receipt.paymentDate).toLocaleDateString()}`, 20, 60)
-      doc.text(`Reference: ${receipt.reference}`, 20, 70)
-      
-      // Tenant and property information
-      doc.text('TENANT INFORMATION:', 20, 90)
-      doc.text(`Name: ${receipt.tenant}`, 30, 100)
-      doc.text(`Phone: ${receipt.tenantPhone}`, 30, 110)
-      doc.text(`Email: ${receipt.tenantEmail}`, 30, 120)
-      
-      doc.text('PROPERTY INFORMATION:', 20, 140)
-      doc.text(`Property: ${receipt.property}`, 30, 150)
-      doc.text(`Unit: ${receipt.unit}`, 30, 160)
-      
-      // Payment details
-      doc.text('PAYMENT DETAILS:', 20, 180)
-      doc.text(`Amount: KSh ${receipt.amount.toLocaleString()}`, 30, 190)
-      doc.text(`Method: ${receipt.paymentMethod}`, 30, 200)
-      doc.text(`Status: ${receipt.status.toUpperCase()}`, 30, 210)
-      doc.text(`Description: ${receipt.description}`, 30, 220)
-      
-      // Invoice reference if available
-      if (receipt.invoiceNumber) {
-        doc.text(`Invoice: ${receipt.invoiceNumber}`, 30, 230)
+      const paymentDate = receipt.paymentDate || Date.now()
+      const formattedDate = new Date(paymentDate).toISOString().slice(0, 10)
+      const unitLabel = receipt.unit ? String(receipt.unit).replace(/\s+/g, "-") : "unit"
+      const invoiceSettings = invoiceSettingsQuery.data || {}
+      const companyName = invoiceSettings.company_name || "Company"
+      const companyPhone = invoiceSettings.company_phone || ""
+      const companyEmail = invoiceSettings.company_email || ""
+      const companyAddress = invoiceSettings.company_address || ""
+      const properties = Array.isArray(propertiesQuery.data) ? propertiesQuery.data : []
+      const propertyMatch = properties.find((property: any) => property.id === receipt.propertyId || property.name === receipt.property)
+      const accountPrefix = propertyMatch?.accountPrefix ?? propertyMatch?.account_prefix ?? ""
+      const accountNumber = accountPrefix && receipt.unit ? `${accountPrefix}${receipt.unit}` : ""
+
+      doc.setFontSize(14)
+      doc.text(companyName.toUpperCase(), 20, 20)
+      doc.setFontSize(9)
+      if (companyAddress) doc.text(companyAddress, 20, 26)
+      if (companyPhone) doc.text(`Tel: ${companyPhone}`, 20, 31)
+      if (companyEmail) doc.text(`Email: ${companyEmail}`, 20, 36)
+
+      doc.setFontSize(11)
+      doc.text("RECEIPT", 150, 20)
+      doc.setFontSize(9)
+      doc.text(`Date: ${new Date(paymentDate).toLocaleDateString()}`, 150, 26)
+      doc.text(`Receipt No: ${receipt.reference || receipt.id}`, 150, 31)
+
+      doc.line(20, 42, 190, 42)
+
+      doc.setFontSize(10)
+      doc.text("RECEIVED FROM", 20, 52)
+      doc.text(String(receipt.tenant || "Tenant"), 20, 58)
+      if (receipt.tenantEmail) doc.text(String(receipt.tenantEmail), 20, 63)
+      if (receipt.tenantPhone) doc.text(String(receipt.tenantPhone), 20, 68)
+
+      doc.text("PROPERTY", 120, 52)
+      doc.text(String(receipt.property || "—"), 120, 58)
+      doc.text(`House: ${receipt.unit || "—"}`, 120, 63)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, 68)
+
+      autoTable(doc, {
+        head: [["Description", "Amount"]],
+        body: [[receipt.description || "Payment", `KES ${Number(receipt.amount || 0).toLocaleString()}`]],
+        startY: 78,
+        theme: "grid",
+        headStyles: { fillColor: [56, 78, 84], textColor: 255 },
+        styles: { fontSize: 9 }
+      })
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 110
+      doc.setFontSize(10)
+      doc.text(`Amount Received: KES ${Number(receipt.amount || 0).toLocaleString()}`, 120, finalY + 12)
+      if (receipt.balance !== undefined) {
+        doc.text(`Current Balance: KES ${Number(receipt.balance || 0).toLocaleString()}`, 120, finalY + 18)
       }
-      
-      // Footer
-      doc.text('Thank you for your payment!', 20, 260)
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 270)
-      
-      const fileName = `Receipt_${receipt.id}_${receipt.tenant.replace(/\s+/g, '_')}.pdf`
+
+      const fileName = `${unitLabel}-${formattedDate}-receipt.pdf`
       doc.save(fileName)
       
       toast({
@@ -437,6 +475,7 @@ export function Receipts() {
                         variant="ghost" 
                         size="sm" 
                         data-testid={`button-download-${receipt.id}`}
+                        disabled={actionsDisabled}
                         onClick={() => downloadReceipt(receipt)}
                       >
                         <Download className="h-4 w-4" />
@@ -534,6 +573,7 @@ export function Receipts() {
                   onClick={() => downloadReceipt(viewingReceipt)} 
                   className="flex-1"
                   data-testid="button-download-from-modal"
+                  disabled={actionsDisabled}
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Download PDF

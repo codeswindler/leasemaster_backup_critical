@@ -31,11 +31,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useLocation } from "wouter"
 import { useFilter } from "@/contexts/FilterContext"
+import { getPaletteByIndex } from "@/lib/palette"
 
 export function Dashboard() {
   const [mpesaBalance, setMpesaBalance] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const [timeframe, setTimeframe] = useState("monthly")
+  const mpesaPalette = getPaletteByIndex(0)
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -175,6 +177,21 @@ export function Dashboard() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: activityLogs, isLoading: activityLoading } = useQuery({
+    queryKey: ["/api/activity-logs", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId && selectedPropertyId !== "all") {
+        params.append("propertyId", selectedPropertyId)
+      }
+      params.append("limit", "50")
+      const url = `/api/activity-logs?${params.toString()}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    staleTime: 30 * 1000,
+  })
+
   // Fetch units data for filtering (needed for unitId → propertyId mapping)
   const { data: units } = useQuery({
     queryKey: ["/api/units", selectedPropertyId, selectedLandlordId],
@@ -218,12 +235,70 @@ export function Dashboard() {
 
   // Transform backend stats into display format
   const statsData = stats as any
-  const allPropertiesData = Array.isArray(properties) ? properties : []
-  const allUnitsData = Array.isArray(units) ? units : []
-  const allLeasesData = Array.isArray(leases) ? leases : []
-  const allTenantsData = Array.isArray(tenants) ? tenants : []
-  const allInvoicesData = Array.isArray(allInvoices) ? allInvoices : []
-  const allPaymentsData = Array.isArray(allPayments) ? allPayments : []
+  const allPropertiesData = Array.isArray(properties)
+    ? properties.map((property: any) => ({
+        ...property,
+        id: property.id,
+        landlordId: property.landlordId ?? property.landlord_id,
+      }))
+    : []
+  const allUnitsData = Array.isArray(units)
+    ? units.map((unit: any) => ({
+        ...unit,
+        id: unit.id,
+        propertyId: unit.propertyId ?? unit.property_id,
+        unitNumber: unit.unitNumber ?? unit.unit_number,
+      }))
+    : []
+  const allLeasesData = Array.isArray(leases)
+    ? leases.map((lease: any) => ({
+        ...lease,
+        id: lease.id,
+        unitId: lease.unitId ?? lease.unit_id,
+        tenantId: lease.tenantId ?? lease.tenant_id,
+        startDate: lease.startDate ?? lease.start_date,
+        endDate: (lease.endDate ?? lease.end_date) || null,
+        rentAmount: lease.rentAmount ?? lease.rent_amount,
+        status: (lease.status || "").toLowerCase(),
+      }))
+    : []
+  const allTenantsData = Array.isArray(tenants)
+    ? tenants.map((tenant: any) => ({
+        ...tenant,
+        id: tenant.id,
+        fullName: tenant.fullName ?? tenant.full_name,
+      }))
+    : []
+  const allInvoicesData = Array.isArray(allInvoices)
+    ? allInvoices.map((invoice: any) => ({
+        ...invoice,
+        id: invoice.id,
+        leaseId: invoice.leaseId ?? invoice.lease_id,
+        amount: invoice.amount,
+        dueDate: invoice.dueDate ?? invoice.due_date,
+        status: (invoice.status || "").toLowerCase(),
+      }))
+    : []
+  const allOverdueInvoicesData = Array.isArray(allOverdueInvoices)
+    ? allOverdueInvoices.map((invoice: any) => ({
+        ...invoice,
+        id: invoice.id,
+        leaseId: invoice.leaseId ?? invoice.lease_id,
+        amount: invoice.amount,
+        dueDate: invoice.dueDate ?? invoice.due_date,
+        status: (invoice.status || "").toLowerCase(),
+      }))
+    : []
+  const allPaymentsData = Array.isArray(allPayments)
+    ? allPayments.map((payment: any) => ({
+        ...payment,
+        id: payment.id,
+        leaseId: payment.leaseId ?? payment.lease_id,
+        amount: payment.amount,
+        paymentDate: payment.paymentDate ?? payment.payment_date,
+      }))
+    : []
+  const allActivityLogs = Array.isArray(activityLogs) ? activityLogs : []
   
   // Debug logging
   console.log("Dashboard filtering - selectedLandlordId:", selectedLandlordId, "selectedPropertyId:", selectedPropertyId)
@@ -295,7 +370,6 @@ export function Dashboard() {
     
     // Filter recent payments and overdue invoices
     const allRecentPaymentsData = Array.isArray(allRecentPayments) ? allRecentPayments : []
-    const allOverdueInvoicesData = Array.isArray(allOverdueInvoices) ? allOverdueInvoices : []
     
     recentPayments = allRecentPaymentsData.filter((p: any) => {
       const lease = leasesMap[p.leaseId]
@@ -329,7 +403,6 @@ export function Dashboard() {
     })
     
     const allRecentPaymentsData = Array.isArray(allRecentPayments) ? allRecentPayments : []
-    const allOverdueInvoicesData = Array.isArray(allOverdueInvoices) ? allOverdueInvoices : []
     
     recentPayments = allRecentPaymentsData.filter((p: any) => {
       const lease = leasesMap[p.leaseId]
@@ -366,31 +439,59 @@ export function Dashboard() {
   } else {
     // Show all data
     recentPayments = Array.isArray(allRecentPayments) ? allRecentPayments.slice(0, 5) : []
-    overdueInvoices = Array.isArray(allOverdueInvoices) ? allOverdueInvoices.slice(0, 5) : []
+    overdueInvoices = allOverdueInvoicesData.slice(0, 5)
+  }
+
+  const filteredActivityLogs = (() => {
+    if (selectedPropertyId && selectedPropertyId !== "all") {
+      return allActivityLogs
+    }
+    if (selectedLandlordId && selectedLandlordId !== "all") {
+      const propertyIds = new Set(propertiesAfterLandlordFilter.map((p: any) => p.id))
+      return allActivityLogs.filter((log: any) => !log.property_id || propertyIds.has(log.property_id))
+    }
+    return allActivityLogs
+  })()
+  
+  const toStartOfDay = (dateValue: any) => {
+    if (!dateValue) return null
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return null
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }
+
+  const toEndOfDay = (dateValue: any) => {
+    if (!dateValue) return null
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return null
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+  }
+
+  const isActiveLease = (lease: any) => {
+    const startDate = toStartOfDay(lease.startDate)
+    const endDate = lease.endDate ? toEndOfDay(lease.endDate) : null
+    if (!startDate) return false
+    const normalizedStatus = lease.status || "active"
+    const isActiveStatus = normalizedStatus === "active" || normalizedStatus === ""
+    const now = new Date()
+    return startDate <= now && (!endDate || endDate >= now) && isActiveStatus
   }
   
   // Recalculate stats from filtered data
   const calculateFilteredStats = () => {
     // Calculate occupancy from filtered units and leases
-    const occupiedUnitsCount = filteredLeases.filter((l: any) => {
-      const startDate = new Date(l.startDate)
-      const endDate = l.endDate ? new Date(l.endDate) : null
-      return startDate <= new Date() && (!endDate || endDate >= new Date()) && l.status === 'active'
-    }).length
+    const occupiedUnitsCount = filteredLeases.filter((l: any) => isActiveLease(l)).length
     const totalUnitsCount = filteredUnits.length
     const vacantUnitsCount = totalUnitsCount - occupiedUnitsCount
     
     // Calculate monthly revenue from filtered active leases
     const monthlyRevenue = filteredLeases
-      .filter((l: any) => {
-        const startDate = new Date(l.startDate)
-        const endDate = l.endDate ? new Date(l.endDate) : null
-        return startDate <= new Date() && (!endDate || endDate >= new Date()) && l.status === 'active'
-      })
+      .filter((l: any) => isActiveLease(l))
       .reduce((sum: number, l: any) => sum + parseFloat(l.rentAmount || l.monthlyRent || 0), 0)
     
     // Calculate collection rate from filtered invoices and payments
-    const totalInvoiced = filteredInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount || 0), 0)
+    const approvedInvoices = filteredInvoices.filter((inv: any) => (inv.status || "").toLowerCase() === "approved")
+    const totalInvoiced = approvedInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount || 0), 0)
     const totalPaid = filteredPayments.reduce((sum: number, pay: any) => sum + parseFloat(pay.amount || 0), 0)
     const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
     
@@ -520,7 +621,7 @@ export function Dashboard() {
 
   // Calculate real financial metrics using filtered data
   const calculateFinancialMetrics = () => {
-    const invoices = filteredInvoices
+    const invoices = filteredInvoices.filter((inv: any) => (inv.status || "").toLowerCase() === "approved")
     const payments = filteredPayments
     const leasesData = filteredLeases
 
@@ -533,12 +634,8 @@ export function Dashboard() {
     const currentMonth = new Date().getMonth()
     const currentYear = new Date().getFullYear()
     const monthlyRevenue = leasesData
-      .filter((lease: any) => {
-        const startDate = new Date(lease.startDate)
-        const endDate = lease.endDate ? new Date(lease.endDate) : null
-        return startDate <= new Date() && (!endDate || endDate >= new Date())
-      })
-      .reduce((sum: number, lease: any) => sum + parseFloat(lease.monthlyRent || 0), 0)
+      .filter((lease: any) => isActiveLease(lease))
+      .reduce((sum: number, lease: any) => sum + parseFloat(lease.rentAmount || lease.monthlyRent || 0), 0)
 
     // Find top performing property (using filtered data)
     // Create unitsMap for property lookup
@@ -616,52 +713,24 @@ export function Dashboard() {
 
   const financialMetrics = calculateFinancialMetrics()
 
-  // Transform real payment data into activity format (using filtered data)
-  const recentActivity = [
-    // Add real user activities
-    ...(propertiesData.length > 0 ? [{
-      id: `property-${propertiesData[0]?.id}`,
-      type: "property",
-      message: `Property "${propertiesData[0]?.name}" created`,
-      amount: null,
-      time: new Date().toLocaleDateString(),
-      status: "success",
-      user: "Admin"
-    }] : []),
-    
-    // Add maintenance activities
-    ...(propertiesData.length > 0 ? [{
-      id: `maintenance-${Date.now()}`,
-      type: "maintenance",
-      message: `Maintenance request submitted for ${propertiesData[0]?.name}`,
-      amount: null,
-      time: new Date(Date.now() - 2 * 60 * 60 * 1000).toLocaleDateString(), // 2 hours ago
-      status: "warning",
-      user: "Tenant"
-    }] : []),
-    
-    // Add payment activities
-    ...((recentPayments || []).map((payment: any, index: number) => ({
-      id: `payment-${payment.id}`,
-      type: "payment",
-      message: `Payment received - ${payment.paymentMethod || 'Unknown method'}`,
-      amount: `KSh ${parseFloat(payment.amount || 0).toLocaleString()}`,
-      time: new Date(payment.paymentDate).toLocaleDateString(),
-      status: "success",
-      user: payment.reference || "Tenant"
-    }))),
-    
-    // Add overdue invoice activities
-    ...(overdueInvoices.map((invoice: any, index: number) => ({
-      id: `overdue-${invoice.id}`,
-      type: "alert",
-      message: `Overdue invoice - ${invoice.description || 'Monthly rent'}`,
-      amount: `KSh ${parseFloat(invoice.amount || 0).toLocaleString()}`,
-      time: new Date(invoice.dueDate).toLocaleDateString(),
-      status: "warning",
-      user: "System"
-    })))
-  ].slice(0, 6)
+  const recentActivity = filteredActivityLogs
+    .slice(0, 6)
+    .map((activity: any) => ({
+      id: activity.id,
+      type: activity.type || "system",
+      message: activity.action,
+      amount: activity.amount ? `KSh ${parseFloat(activity.amount || 0).toLocaleString()}` : null,
+      time: activity.created_at ? new Date(activity.created_at).toLocaleString() : "—",
+      status: activity.status || "success",
+      user: activity.user_name || "System"
+    }))
+
+  const activityLast24h = filteredActivityLogs.filter((activity: any) => {
+    if (!activity.created_at) return false
+    const createdAt = new Date(activity.created_at)
+    if (Number.isNaN(createdAt.getTime())) return false
+    return Date.now() - createdAt.getTime() <= 24 * 60 * 60 * 1000
+  }).length
 
   // Loading and error states
   const isLoading = statsLoading || propertiesLoading || paymentsLoading || overdueLoading
@@ -711,7 +780,7 @@ export function Dashboard() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 hover:shadow-xl transition-all duration-300 hover:scale-[1.01]">
+        <Card className={`border ${mpesaPalette.border} ${mpesaPalette.card} hover:shadow-xl transition-all duration-300 hover:scale-[1.01]`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">M-Pesa Paybill Balance</CardTitle>
           <div className="flex items-center gap-2">
@@ -723,7 +792,7 @@ export function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <Wallet className="h-8 w-8 text-primary" />
+            <Wallet className={`h-8 w-8 ${mpesaPalette.icon}`} />
             <div>
               <div className="text-2xl font-bold font-mono" data-testid="mpesa-balance">
                 KSh {mpesaBalance.toLocaleString()}
@@ -749,47 +818,50 @@ export function Dashboard() {
             <AlertTriangle className="h-6 w-6 mr-2" />
             <span>Failed to load statistics</span>
           </div>
-        ) : displayStats.map((stat, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-          >
-            <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.02] border-2 hover:border-primary/50 bg-card/50 backdrop-blur-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <motion.div
-                  animate={{ rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                >
-                  <stat.icon className="h-4 w-4 text-muted-foreground" />
-                </motion.div>
-              </CardHeader>
-              <CardContent>
-                <motion.div
-                  initial={{ scale: 0.8 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 + 0.2 }}
-                  className="text-2xl font-bold"
-                  data-testid={`stat-${stat.title.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  {stat.value}
-                </motion.div>
-                <p className="text-xs text-muted-foreground">{stat.description}</p>
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 + 0.3 }}
-                  className="flex items-center gap-1 mt-2"
-                >
-                  <TrendingUp className="h-3 w-3 text-green-500" />
-                  <span className="text-xs text-green-500">{stat.trend}</span>
-                </motion.div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+        ) : displayStats.map((stat, index) => {
+          const palette = getPaletteByIndex(index + 1)
+          return (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+            >
+              <Card className={`hover:shadow-lg transition-all duration-300 hover:scale-[1.02] border-2 ${palette.border} ${palette.card} backdrop-blur-sm`}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                  >
+                    <stat.icon className={`h-4 w-4 ${palette.icon}`} />
+                  </motion.div>
+                </CardHeader>
+                <CardContent>
+                  <motion.div
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 + 0.2 }}
+                    className="text-2xl font-bold"
+                    data-testid={`stat-${stat.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    {stat.value}
+                  </motion.div>
+                  <p className="text-xs text-muted-foreground">{stat.description}</p>
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.1 + 0.3 }}
+                    className="flex items-center gap-1 mt-2"
+                  >
+                    <TrendingUp className={`h-3 w-3 ${palette.icon}`} />
+                    <span className={`text-xs ${palette.accentText}`}>{stat.trend}</span>
+                  </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )
+        })}
       </div>
 
       {/* Main Dashboard Content */}
@@ -799,21 +871,27 @@ export function Dashboard() {
         transition={{ duration: 0.5, delay: 0.4 }}
         className="grid grid-cols-1 gap-6"
       >
-        {/* Maintenance Requests */}
+        {/* Operational Log */}
         <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-orange-500" />
-              Maintenance Requests
+              Operational Log
             </CardTitle>
-            <CardDescription>Active maintenance issues and tenant requests</CardDescription>
+            <CardDescription>Live system activity and urgent operational signals</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Maintenance System</span>
-                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">Active</span>
+                  <span className="text-sm font-medium">Activity Logging</span>
+                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">Recording</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Events (Last 24h)</span>
+                  <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                    {activityLast24h}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Overdue Invoices</span>
@@ -829,14 +907,13 @@ export function Dashboard() {
                 </div>
               </div>
               
-              {overdueInvoices && Array.isArray(overdueInvoices) && overdueInvoices.length > 0 ? (
+                  {recentActivity.length > 0 ? (
                 <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg">
-                  <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-2">Urgent: Overdue Invoice</h4>
+                  <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-2">Latest Activity</h4>
                   <div className="text-sm text-orange-800 dark:text-orange-200">
-                    <div className="font-semibold">{overdueInvoices[0].description || 'Monthly Rent'}</div>
+                    <div className="font-semibold">{recentActivity[0].message}</div>
                     <div className="text-xs opacity-75">
-                      Due: {new Date(overdueInvoices[0].dueDate).toLocaleDateString()} • 
-                      Amount: KSh {parseFloat(overdueInvoices[0].amount || 0).toLocaleString()}
+                      {recentActivity[0].time} • by {recentActivity[0].user}
                     </div>
                   </div>
                 </div>
@@ -844,8 +921,8 @@ export function Dashboard() {
                 <div className="mt-4 p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
                   <h4 className="font-medium text-green-900 dark:text-green-100 mb-2">All Clear</h4>
                   <div className="text-sm text-green-800 dark:text-green-200">
-                    <div className="font-semibold">No urgent maintenance issues</div>
-                    <div className="text-xs opacity-75">All systems operating normally</div>
+                    <div className="font-semibold">No recent activity recorded</div>
+                    <div className="text-xs opacity-75">System idle with no updates</div>
                   </div>
                 </div>
               )}
@@ -878,27 +955,37 @@ export function Dashboard() {
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Active Tenants</span>
                       <span className="text-lg font-bold text-rose-600 dark:text-rose-400">
-                        {tenants.length}
+                        {filteredTenants.length}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Retention Rate</span>
                       <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                        {leases && Array.isArray(leases) ? 
-                          Math.round((leases.filter((l: any) => !l.endDate || new Date(l.endDate) > new Date()).length / Math.max(leases.length, 1)) * 100) 
+                        {filteredLeases && Array.isArray(filteredLeases) ? 
+                          Math.round((filteredLeases.filter((l: any) => isActiveLease(l)).length / Math.max(filteredLeases.length, 1)) * 100) 
                           : 0}%
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Average Lease Duration</span>
                       <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                        {leases && Array.isArray(leases) && leases.length > 0 ? 
-                          Math.round(leases.reduce((sum: number, l: any) => {
-                            const start = new Date(l.startDate)
-                            const end = l.endDate ? new Date(l.endDate) : new Date()
+                        {filteredLeases && Array.isArray(filteredLeases) && filteredLeases.length > 0 ? (() => {
+                          let validCount = 0
+                          const totalMonths = filteredLeases.reduce((sum: number, lease: any) => {
+                            const start = toStartOfDay(lease.startDate)
+                            if (!start) return sum
+                            const end = lease.endDate ? toEndOfDay(lease.endDate) : new Date()
+                            if (end && Number.isNaN(end.getTime())) return sum
+                            validCount += 1
                             return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)
-                          }, 0) / leases.length) 
-                          : 0} months
+                          }, 0)
+                          if (validCount === 0) return "0 months"
+                          const avgMonths = totalMonths / validCount
+                          if (avgMonths < 1) {
+                            return `${Math.max(1, Math.round(avgMonths * 30))} days`
+                          }
+                          return `${Math.round(avgMonths)} months`
+                        })() : "0 months"}
                       </span>
                     </div>
                   </div>
@@ -908,25 +995,36 @@ export function Dashboard() {
                     <div className="space-y-2 text-sm text-rose-800 dark:text-rose-200">
                       <div className="flex justify-between">
                         <span>Total Tenants</span>
-                        <span className="font-semibold">{tenants.length}</span>
+                        <span className="font-semibold">{filteredTenants.length}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Active Leases</span>
                         <span className="font-semibold">
-                          {leases && Array.isArray(leases) ? 
-                            leases.filter((l: any) => !l.endDate || new Date(l.endDate) > new Date()).length 
+                          {filteredLeases && Array.isArray(filteredLeases)
+                            ? filteredLeases.filter((l: any) => isActiveLease(l)).length
+                            : 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Terminated Leases</span>
+                        <span className="font-semibold">
+                          {filteredLeases && Array.isArray(filteredLeases)
+                            ? filteredLeases.filter((l: any) => (l.status || "").toLowerCase() === "terminated").length
                             : 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Properties with Tenants</span>
                         <span className="font-semibold">
-                          {properties && Array.isArray(properties) && leases && Array.isArray(leases) ? 
-                            properties.filter((p: any) => {
-                              const propLeases = leases.filter((l: any) => l.propertyId === p.id && (!l.endDate || new Date(l.endDate) > new Date()))
-                              return propLeases && propLeases.length > 0
-                            }).length 
-                            : 0}
+                          {filteredUnits && Array.isArray(filteredUnits) && filteredLeases && Array.isArray(filteredLeases) ? (() => {
+                            const activeUnitIds = new Set(
+                              filteredLeases.filter((l: any) => isActiveLease(l)).map((l: any) => l.unitId)
+                            )
+                            const propertyIds = new Set(
+                              filteredUnits.filter((u: any) => activeUnitIds.has(u.id)).map((u: any) => u.propertyId)
+                            )
+                            return propertyIds.size
+                          })() : 0}
                         </span>
                       </div>
                     </div>
@@ -958,7 +1056,7 @@ export function Dashboard() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Monthly Revenue</span>
                   <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                    KSh {(stats as any)?.monthlyRevenue ? String((stats as any).monthlyRevenue).replace('KSh ', '').replace(',', '') : '0'}
+                    KSh {filteredStats.monthlyRevenue.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1022,13 +1120,27 @@ export function Dashboard() {
               <CardTitle>Recent Activity</CardTitle>
               <CardDescription>Latest transactions and user activities</CardDescription>
             </div>
-            <Button variant="outline" size="sm" data-testid="button-view-full-activity">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="button-view-full-activity"
+              onClick={() => setLocation("/activity")}
+            >
               <Activity className="h-4 w-4 mr-2" />
               View Full Activity
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentActivity.slice(0, 4).map((activity, idx) => (
+            {activityLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Loading activity...</span>
+              </div>
+            ) : recentActivity.length === 0 ? (
+              <div className="text-center text-muted-foreground py-4">
+                No activity recorded yet
+              </div>
+            ) : recentActivity.slice(0, 4).map((activity, idx) => (
               <motion.div
                 key={activity.id}
                 initial={{ opacity: 0, x: -20 }}

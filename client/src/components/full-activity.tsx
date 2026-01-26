@@ -156,8 +156,8 @@ export function FullActivity() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="full-activity-title">User Activity Log</h1>
-          <p className="text-muted-foreground">Complete system activity and user actions</p>
+          <h1 className="text-3xl font-bold" data-testid="full-activity-title">Operational Log</h1>
+          <p className="text-muted-foreground">Complete system activity with user accountability</p>
         </div>
         <Button onClick={handleExportActivity} data-testid="button-export-activity">
           <Download className="h-4 w-4 mr-2" />
@@ -169,7 +169,7 @@ export function FullActivity() {
       <Card>
         <CardHeader>
           <CardTitle>Filter Activity</CardTitle>
-          <CardDescription>Search and filter system activities</CardDescription>
+          <CardDescription>Search, filter, and audit user actions</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -249,7 +249,7 @@ export function FullActivity() {
       {/* Activity Log */}
       <Card>
         <CardHeader>
-          <CardTitle>Activity Log</CardTitle>
+          <CardTitle>Operational Log</CardTitle>
           <CardDescription>
             Showing {filteredActivities.length} of {activities.length} activities
           </CardDescription>

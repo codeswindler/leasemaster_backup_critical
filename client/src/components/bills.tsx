@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
+import { useFilter } from "@/contexts/FilterContext"
 import { 
   FileText, 
   Plus, 
@@ -48,6 +49,8 @@ export function Bills() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const { selectedPropertyId } = useFilter()
+  const actionsDisabled = !selectedPropertyId
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
@@ -68,6 +71,9 @@ export function Bills() {
   // Payment mutation
   const paymentMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to record bill payments.")
+      }
       // Mock payment processing
       return Promise.resolve({
         id: `PAY-${Date.now()}`,
@@ -100,6 +106,9 @@ export function Bills() {
   // Bill status update mutation
   const updateBillStatusMutation = useMutation({
     mutationFn: async ({ billId, status }: { billId: string; status: string }) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to update bills.")
+      }
       // Mock status update
       return Promise.resolve({ id: billId, status })
     },
@@ -246,6 +255,14 @@ export function Bills() {
   }
 
   const handleAddBill = () => {
+    if (actionsDisabled) {
+      toast({
+        title: "Property Required",
+        description: "Select a property in the header to add bills.",
+        variant: "destructive",
+      })
+      return
+    }
     console.log("Add bill form submitted")
     setIsAddDialogOpen(false)
   }
@@ -267,7 +284,7 @@ export function Bills() {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-add-bill">
+            <Button data-testid="button-add-bill" disabled={actionsDisabled}>
               <Plus className="h-4 w-4 mr-2" />
               Add Bill
             </Button>
@@ -357,7 +374,7 @@ export function Bills() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddBill} data-testid="button-submit-bill">
+              <Button onClick={handleAddBill} disabled={actionsDisabled} data-testid="button-submit-bill">
                 Add Bill
               </Button>
             </div>

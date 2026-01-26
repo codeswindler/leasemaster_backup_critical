@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,12 +41,23 @@ import { Users, Search, Building2, Mail, Phone, Loader2, Plus, Send, Edit, Trash
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { getPaletteByKey, getSessionSeed } from "@/lib/palette";
+
+const propertyLimitSchema = z.preprocess(
+  (value) => {
+    if (value === "" || value === null || value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  },
+  z.number().int().min(0, "Property limit must be 0 or higher").optional()
+);
 
 const createLandlordSchema = z.object({
   username: z.string().email("Must be a valid email address"),
   fullName: z.string().min(1, "Full name is required"),
   phone: z.string().min(1, "Phone number is required"),
   idNumber: z.string().optional(),
+  propertyLimit: propertyLimitSchema,
 });
 
 type CreateLandlordFormData = z.infer<typeof createLandlordSchema>;
@@ -56,6 +67,7 @@ const editLandlordSchema = z.object({
   fullName: z.string().min(1, "Full name is required"),
   phone: z.string().min(1, "Phone number is required"),
   idNumber: z.string().optional(),
+  propertyLimit: propertyLimitSchema,
 });
 
 type EditLandlordFormData = z.infer<typeof editLandlordSchema>;
@@ -72,6 +84,7 @@ export function ClientsPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
 
   // Fetch all landlords (users with role 'client')
   const { data: landlords = [], isLoading } = useQuery({
@@ -107,6 +120,7 @@ export function ClientsPage() {
       fullName: "",
       phone: "",
       idNumber: "",
+      propertyLimit: undefined,
     },
   });
 
@@ -118,6 +132,7 @@ export function ClientsPage() {
       fullName: "",
       phone: "",
       idNumber: "",
+      propertyLimit: undefined,
     },
   });
 
@@ -129,6 +144,7 @@ export function ClientsPage() {
         fullName: data.fullName,
         phone: data.phone,
         idNumber: data.idNumber || undefined,
+        propertyLimit: data.propertyLimit,
       });
       const result = await response.json();
       
@@ -172,6 +188,7 @@ export function ClientsPage() {
         fullName: data.fullName,
         phone: data.phone,
         idNumber: data.idNumber || undefined,
+        propertyLimit: data.propertyLimit,
       });
       return await response.json();
     },
@@ -322,6 +339,10 @@ export function ClientsPage() {
       fullName: customer.fullName || customer.full_name || fallbackName,
       phone: customer.phone || customer.landlord_phone || fallbackPhone,
       idNumber: customer.idNumber || customer.id_number || "",
+      propertyLimit:
+        customer.propertyLimit ??
+        customer.property_limit ??
+        undefined,
     });
     setIsEditDialogOpen(true);
   };
@@ -472,6 +493,26 @@ export function ClientsPage() {
                     />
                     <FormField
                       control={createForm.control}
+                      name="propertyLimit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Property Limit (Optional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              placeholder="e.g. 10"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
                       name="idNumber"
                       render={({ field }) => (
                         <FormItem>
@@ -551,11 +592,19 @@ export function ClientsPage() {
                 const properties = getPropertiesForLandlord(landlord.id);
                 const hasProperties = properties.length > 0;
                 const isSelected = selectedCustomers.includes(landlord.id);
+                const palette = getPaletteByKey(
+                  String(landlord.id ?? landlord.username ?? properties[0]?.id ?? "client"),
+                  sessionPaletteSeed
+                );
+                const propertyLimit =
+                  landlord.propertyLimit ??
+                  landlord.property_limit ??
+                  null;
 
                 return (
                   <Card 
                     key={landlord.id}
-                    className={`cursor-pointer hover:shadow-lg transition-shadow ${isSelected ? "ring-2 ring-primary" : ""}`}
+                    className={`cursor-pointer hover:shadow-lg transition-shadow border ${palette.card} ${palette.border} ${isSelected ? "ring-2 ring-primary" : ""}`}
                     onClick={() => handleLoginAsClient(landlord.id)}
                   >
                     <CardHeader>
@@ -572,18 +621,23 @@ export function ClientsPage() {
                             }}
                             onMouseDown={(e) => e.stopPropagation()}
                           />
-                          <div className="p-2 rounded-full bg-primary/10">
-                            <Users className="h-5 w-5 text-primary" />
+                          <div className={`p-2 rounded-full ${palette.iconBg}`}>
+                            <Users className={`h-5 w-5 ${palette.icon}`} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <CardTitle className="text-lg truncate">{landlord.username || 'N/A'}</CardTitle>
                             <CardDescription>Customer Account</CardDescription>
                           </div>
                         </div>
-                        <Badge variant="outline">{landlord.role || 'client'}</Badge>
+                        <Badge variant="outline" className={palette.badge}>{landlord.role || 'client'}</Badge>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {propertyLimit !== null && propertyLimit !== undefined && propertyLimit !== "" && (
+                        <div className="text-sm text-muted-foreground">
+                          Property limit: {propertyLimit}
+                        </div>
+                      )}
                       {properties.length > 0 && properties[0] && (
                         <div className="space-y-2">
                           {properties[0].landlordName && (
@@ -632,7 +686,7 @@ export function ClientsPage() {
                       </div>
                       <div className="pt-2 border-t flex items-center justify-between">
                         <p className="text-xs text-muted-foreground">
-                          Total Properties: <span className="font-semibold">{properties.length}</span>
+                          Total Properties: <span className={`font-semibold ${palette.accentText}`}>{properties.length}</span>
                         </p>
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                           <Button
@@ -762,6 +816,26 @@ export function ClientsPage() {
                     <FormLabel>Phone <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input type="tel" placeholder="+254 7XX XXX XXX" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="propertyLimit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Property Limit (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        placeholder="e.g. 10"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

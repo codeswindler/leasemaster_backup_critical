@@ -45,10 +45,18 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Badge } from "@/components/ui/badge"
 import { motion } from "framer-motion"
 import { useFilter } from "@/contexts/FilterContext"
+import { getPaletteByIndex } from "@/lib/palette"
 
 export function AppSidebar() {
   const { selectedPropertyId, selectedLandlordId } = useFilter();
   const [messagingOpen, setMessagingOpen] = useState(false);
+  const [tenantsOpen, setTenantsOpen] = useState(false);
+
+  const getPropertyId = (item: any) => item?.propertyId ?? item?.property_id;
+  const getLandlordId = (item: any) => item?.landlordId ?? item?.landlord_id;
+  const getUnitId = (item: any) => item?.unitId ?? item?.unit_id;
+  const getLeaseId = (item: any) => item?.leaseId ?? item?.lease_id;
+  const getTenantId = (item: any) => item?.tenantId ?? item?.tenant_id;
 
   // Fetch data for badges
   const { data: allProperties = [] } = useQuery({
@@ -141,38 +149,40 @@ export function AppSidebar() {
   let invoices = allInvoices;
   let houseTypes = allHouseTypes;
   let bulkMessages = allBulkMessages;
+  let units = allUnits;
 
   // Filter by landlord first
   if (selectedLandlordId && selectedLandlordId !== "all") {
-    properties = (allProperties as any[]).filter((p: any) => p.landlordId === selectedLandlordId);
+    properties = (allProperties as any[]).filter((p: any) => getLandlordId(p) === selectedLandlordId);
     
     // Filter house types by landlord's properties
     const landlordPropertyIds = new Set(properties.map((p: any) => p.id));
-    houseTypes = (allHouseTypes as any[]).filter((ht: any) => landlordPropertyIds.has(ht.propertyId));
+    houseTypes = (allHouseTypes as any[]).filter((ht: any) => landlordPropertyIds.has(getPropertyId(ht)));
     
     // Filter units by landlord's properties
-    const filteredUnitsByLandlord = (allUnits as any[]).filter((u: any) => landlordPropertyIds.has(u.propertyId));
+    const filteredUnitsByLandlord = (allUnits as any[]).filter((u: any) => landlordPropertyIds.has(getPropertyId(u)));
+    units = filteredUnitsByLandlord;
     const unitsMapByLandlord: Record<string, any> = {};
     filteredUnitsByLandlord.forEach((u: any) => { unitsMapByLandlord[u.id] = u });
 
     // Filter leases by landlord's properties (via units)
     const filteredLeasesByLandlord = (allLeases as any[]).filter((l: any) => {
-      const unit = unitsMapByLandlord[l.unitId];
-      return unit && landlordPropertyIds.has(unit.propertyId);
+      const unit = unitsMapByLandlord[getUnitId(l)];
+      return unit && landlordPropertyIds.has(getPropertyId(unit));
     });
     const leasesMapByLandlord: Record<string, any> = {};
     filteredLeasesByLandlord.forEach((l: any) => { leasesMapByLandlord[l.id] = l });
 
     // Filter tenants by landlord's properties (via leases)
-    const filteredLeaseTenantIdsByLandlord = new Set(filteredLeasesByLandlord.map((l: any) => l.tenantId));
+    const filteredLeaseTenantIdsByLandlord = new Set(filteredLeasesByLandlord.map((l: any) => getTenantId(l)));
     tenants = (allTenants as any[]).filter((t: any) => filteredLeaseTenantIdsByLandlord.has(t.id));
 
     // Filter invoices by landlord's properties (via leases)
     invoices = (allInvoices as any[]).filter((i: any) => {
-      const lease = leasesMapByLandlord[i.leaseId];
+      const lease = leasesMapByLandlord[getLeaseId(i)];
       if (!lease) return false;
-      const unit = unitsMapByLandlord[lease.unitId];
-      return unit && landlordPropertyIds.has(unit.propertyId);
+      const unit = unitsMapByLandlord[getUnitId(lease)];
+      return unit && landlordPropertyIds.has(getPropertyId(unit));
     });
   }
 
@@ -181,31 +191,32 @@ export function AppSidebar() {
     properties = properties.filter((p: any) => p.id === selectedPropertyId);
     
     // Filter house types by property
-    houseTypes = (allHouseTypes as any[]).filter((ht: any) => ht.propertyId === selectedPropertyId);
+    houseTypes = (allHouseTypes as any[]).filter((ht: any) => getPropertyId(ht) === selectedPropertyId);
     
     // Filter units by property
-    const filteredUnits = (allUnits as any[]).filter((u: any) => u.propertyId === selectedPropertyId);
+    const filteredUnits = (allUnits as any[]).filter((u: any) => getPropertyId(u) === selectedPropertyId);
+    units = filteredUnits;
     const unitsMap: Record<string, any> = {};
     filteredUnits.forEach((u: any) => { unitsMap[u.id] = u });
 
     // Filter leases by property (via units)
     const filteredLeases = (allLeases as any[]).filter((l: any) => {
-      const unit = unitsMap[l.unitId];
-      return unit && unit.propertyId === selectedPropertyId;
+      const unit = unitsMap[getUnitId(l)];
+      return unit && getPropertyId(unit) === selectedPropertyId;
     });
     const leasesMap: Record<string, any> = {};
     filteredLeases.forEach((l: any) => { leasesMap[l.id] = l });
 
     // Filter tenants by property (via leases)
-    const filteredLeaseTenantIds = new Set(filteredLeases.map((l: any) => l.tenantId));
+    const filteredLeaseTenantIds = new Set(filteredLeases.map((l: any) => getTenantId(l)));
     tenants = (allTenants as any[]).filter((t: any) => filteredLeaseTenantIds.has(t.id));
 
     // Filter invoices by property (via leases)
     invoices = (allInvoices as any[]).filter((i: any) => {
-      const lease = leasesMap[i.leaseId];
+      const lease = leasesMap[getLeaseId(i)];
       if (!lease) return false;
-      const unit = unitsMap[lease.unitId];
-      return unit && unit.propertyId === selectedPropertyId;
+      const unit = unitsMap[getUnitId(lease)];
+      return unit && getPropertyId(unit) === selectedPropertyId;
     });
   }
 
@@ -231,14 +242,13 @@ export function AppSidebar() {
       title: "Houses",
       url: "/houses",
       icon: Building2,
-      badge: houseTypes.length.toString(),
+      badge: units.length.toString(),
     },
-    {
-      title: "Tenants",
-      url: "/tenants", 
-      icon: Users,
-      badge: tenants.length.toString(),
-    }
+  ]
+
+  const tenantItems = [
+    { title: "Active Tenants", url: "/tenants", icon: Users },
+    { title: "Terminated Leases", url: "/tenants/terminated", icon: FileText },
   ]
 
   const accountingItems = [
@@ -299,6 +309,11 @@ export function AppSidebar() {
       icon: Shield,
     },
     {
+      title: "Credit Usage",
+      url: "/credit-usage",
+      icon: CreditCard,
+    },
+    {
       title: "Settings",
       url: "/settings",
       icon: Settings,
@@ -323,6 +338,13 @@ export function AppSidebar() {
       icon: Mail,
     }
   ]
+  const iconClassForIndex = (index: number) => getPaletteByIndex(index).icon
+  const menuOffset = 0
+  const tenantsOffset = menuItems.length
+  const tenantItemsOffset = tenantsOffset + 1
+  const accountingOffset = tenantItemsOffset + tenantItems.length
+  const otherOffset = accountingOffset + accountingItems.length
+  const messagingOffset = otherOffset + otherItems.length
 
   return (
     <Sidebar className="bg-sidebar/95 backdrop-blur-sm border-r-2" collapsible="offcanvas">
@@ -370,7 +392,7 @@ export function AppSidebar() {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                         >
-                          <item.icon className="h-4 w-4 transition-transform group-hover:rotate-12" />
+                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(menuOffset + index)}`} />
                         </motion.div>
                         <span>{item.title}</span>
                         {item.badge && (
@@ -389,6 +411,54 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 </motion.div>
               ))}
+              <Collapsible open={tenantsOpen} onOpenChange={setTenantsOpen}>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: menuItems.length * 0.05 }}
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton 
+                        className="group transition-all duration-200 hover:scale-[1.02]"
+                        tooltip="Tenants"
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <Users className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(tenantsOffset)}`} />
+                        </motion.div>
+                        <span>Tenants</span>
+                        {Array.isArray(tenants) && tenants.length > 0 && (
+                          <Badge variant="secondary" className="ml-auto text-xs mr-2">
+                            {tenants.length}
+                          </Badge>
+                        )}
+                        {tenantsOpen ? (
+                          <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {tenantItems.map((item, index) => (
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton asChild>
+                              <Link href={item.url} data-testid={`nav-tenants-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                                <item.icon className={`h-4 w-4 ${iconClassForIndex(tenantItemsOffset + index)}`} />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </motion.div>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -415,7 +485,7 @@ export function AppSidebar() {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                         >
-                          <item.icon className="h-4 w-4 transition-transform group-hover:rotate-12" />
+                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(accountingOffset + index)}`} />
                         </motion.div>
                         <span>{item.title}</span>
                         {item.badge && (
@@ -462,7 +532,7 @@ export function AppSidebar() {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                       >
-                        <AlertTriangle className="h-4 w-4 transition-transform group-hover:rotate-12" />
+                        <AlertTriangle className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset)}`} />
                       </motion.div>
                       <span>Maintenance</span>
                     </Link>
@@ -487,7 +557,7 @@ export function AppSidebar() {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                         >
-                          <MessageSquare className="h-4 w-4 transition-transform group-hover:rotate-12" />
+                          <MessageSquare className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 1)}`} />
                         </motion.div>
                         <span>Messaging</span>
                         {Array.isArray(bulkMessages) && bulkMessages.length > 0 && (
@@ -504,11 +574,11 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {messagingItems.map((item) => (
+                        {messagingItems.map((item, index) => (
                           <SidebarMenuSubItem key={item.title}>
                             <SidebarMenuSubButton asChild>
                               <Link href={item.url} data-testid={`nav-messaging-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                <item.icon className="h-4 w-4" />
+                                <item.icon className={`h-4 w-4 ${iconClassForIndex(messagingOffset + index)}`} />
                                 <span>{item.title}</span>
                               </Link>
                             </SidebarMenuSubButton>
@@ -539,7 +609,7 @@ export function AppSidebar() {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                         >
-                          <item.icon className="h-4 w-4 transition-transform group-hover:rotate-12" />
+                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 2 + index)}`} />
                         </motion.div>
                         <span>{item.title}</span>
                         {item.badge && (
@@ -577,8 +647,8 @@ export function AppSidebar() {
               const protocol = window.location.protocol;
               
               if (hostname === 'localhost' || hostname === '127.0.0.1') {
-                // Localhost: redirect to root path which shows landing page
-                window.location.href = '/';
+                // Localhost: redirect to landing route to avoid app routing
+                window.location.href = '/landing';
               } else {
                 // Production: always redirect to root domain (theleasemaster.com)
                 const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries)\./, '');

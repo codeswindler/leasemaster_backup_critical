@@ -7,7 +7,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useLocation, useSearch } from "wouter"
 import { useFilter } from "@/contexts/FilterContext"
-import { AlertTriangle, Loader2, Plus, Building2, Home, Users, DollarSign, Settings, Eye, Edit, Trash2, MapPin, Check, X, Pencil, ArrowLeft, Phone, Mail, MessageSquare, CreditCard, Smartphone } from "lucide-react"
+import { AlertTriangle, Loader2, Plus, Building2, Home, Users, DollarSign, Settings, Eye, Edit, Trash2, MapPin, Check, X, Pencil, ArrowLeft, Phone, Mail, Smartphone } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -19,8 +19,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { 
   Select,
@@ -79,9 +79,10 @@ export function Houses() {
   const [isUpdateScopeDialogOpen, setIsUpdateScopeDialogOpen] = useState(false)
   const [pendingUpdate, setPendingUpdate] = useState<{houseTypeId: string, field: string, value: string} | null>(null)
   const [chargeCodeAmounts, setChargeCodeAmounts] = useState<Record<string, string>>({})
+  const [selectedChargeCodes, setSelectedChargeCodes] = useState<Record<string, boolean>>({})
+  const [isChargePromptOpen, setIsChargePromptOpen] = useState(false)
   const [chargeCodeToDelete, setChargeCodeToDelete] = useState<any>(null)
   const [isDeleteChargeCodeDialogOpen, setIsDeleteChargeCodeDialogOpen] = useState(false)
-  const [smsTopUpAmount, setSmsTopUpAmount] = useState("")
   const [isSmsSettingsDialogOpen, setIsSmsSettingsDialogOpen] = useState(false)
   const [smsSettings, setSmsSettings] = useState({
     apiUrl: "",
@@ -96,6 +97,44 @@ export function Houses() {
   
   const [, setLocation] = useLocation()
   const { toast } = useToast()
+
+  const normalizeChargeAmounts = (value: any): Record<string, string> => {
+    if (!value || value === 'null' || value === '') return {}
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        return parsed && typeof parsed === 'object' ? parsed : {}
+      } catch (error) {
+        console.warn('Failed to parse chargeAmounts JSON:', error)
+        return {}
+      }
+    }
+    return typeof value === 'object' ? value : {}
+  }
+
+  const normalizeHouseType = (houseType: any) => ({
+    ...houseType,
+    propertyId: houseType.propertyId ?? houseType.property_id,
+    baseRentAmount: houseType.baseRentAmount ?? houseType.base_rent_amount ?? "0",
+    rentDepositAmount: houseType.rentDepositAmount ?? houseType.rent_deposit_amount ?? "0",
+    waterRatePerUnit: houseType.waterRatePerUnit ?? houseType.water_rate_per_unit ?? "0",
+    waterRateType: houseType.waterRateType ?? houseType.water_rate_type ?? "unit_based",
+    waterFlatRate: houseType.waterFlatRate ?? houseType.water_flat_rate ?? "0",
+    chargeAmounts: houseType.chargeAmounts ?? houseType.charge_amounts ?? null,
+    isActive: houseType.isActive ?? houseType.is_active ?? "true",
+  })
+
+  const normalizeUnit = (unit: any) => ({
+    ...unit,
+    propertyId: unit.propertyId ?? unit.property_id,
+    houseTypeId: unit.houseTypeId ?? unit.house_type_id,
+    unitNumber: unit.unitNumber ?? unit.unit_number,
+    rentAmount: unit.rentAmount ?? unit.rent_amount ?? "0",
+    rentDepositAmount: unit.rentDepositAmount ?? unit.rent_deposit_amount ?? "0",
+    waterRateAmount: unit.waterRateAmount ?? unit.water_rate_amount ?? "0",
+    chargeAmounts: unit.chargeAmounts ?? unit.charge_amounts ?? null,
+    status: unit.status ?? "vacant",
+  })
   
   // Get search params from URL
   const getSearchParams = () => {
@@ -155,7 +194,8 @@ export function Houses() {
         if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
         const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
         const response = await apiRequest("GET", url)
-        return await response.json()
+        const results = await response.json()
+        return Array.isArray(results) ? results.map(normalizeHouseType) : results
       },
     })
 
@@ -188,7 +228,8 @@ export function Houses() {
         if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
         const url = `/api/units${params.toString() ? `?${params}` : ''}`
         const response = await apiRequest("GET", url)
-        return await response.json()
+        const results = await response.json()
+        return Array.isArray(results) ? results.map(normalizeUnit) : results
       },
     })
 
@@ -291,43 +332,37 @@ export function Houses() {
   useEffect(() => {
     if (!isAddHouseTypeDialogOpen) {
       setChargeCodeAmounts({})
+      setSelectedChargeCodes({})
     }
   }, [isAddHouseTypeDialogOpen])
 
   // Reset charge code amounts when property changes
   useEffect(() => {
     setChargeCodeAmounts({})
+    setSelectedChargeCodes({})
+  }, [selectedPropertyId])
+
+  useEffect(() => {
+    if (!selectedPropertyId) {
+      setSelectedHouseTypeFilters([])
+    }
   }, [selectedPropertyId])
 
   // Add house type mutation
   const addHouseTypeMutation = useMutation({
     mutationFn: async (data: any) => {
       console.log("Sending house type data to API:", data)
-      // Use full URL to ensure we're hitting the right server
-      const response = await fetch('http://localhost:3000/api/house-types', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("API Error:", errorText)
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("POST", "/api/house-types", data)
       const result = await response.json()
       console.log("API Response:", result)
       return result
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/house-types"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/house-types"] })
       setIsAddHouseTypeDialogOpen(false)
       houseTypeForm.reset()
       setChargeCodeAmounts({})
+      setSelectedChargeCodes({})
       toast({
         title: "House Type Added",
         description: "New house type has been created successfully.",
@@ -352,15 +387,7 @@ export function Houses() {
         const unitNumber = `${unitPrefix}${startNumber + i}`
         
         // Copy charge amounts from house type to new unit
-        let unitChargeAmounts = {}
-        try {
-          if (houseType?.chargeAmounts && houseType.chargeAmounts !== 'null' && houseType.chargeAmounts !== '') {
-            unitChargeAmounts = JSON.parse(houseType.chargeAmounts)
-          }
-        } catch (error) {
-          console.warn('Failed to parse house type chargeAmounts:', error)
-          unitChargeAmounts = {}
-        }
+        const unitChargeAmounts = normalizeChargeAmounts(houseType?.chargeAmounts)
         
         units.push({
           propertyId,
@@ -371,33 +398,20 @@ export function Houses() {
           waterRateAmount: houseType.waterRateType === "unit_based" 
             ? houseType.waterRatePerUnit || "0.00"
             : houseType.waterFlatRate || "0.00",
-          chargeAmounts: Object.keys(unitChargeAmounts).length > 0 ? JSON.stringify(unitChargeAmounts) : undefined,
+          chargeAmounts: Object.keys(unitChargeAmounts).length > 0 ? unitChargeAmounts : undefined,
           status: "vacant"
         })
       }
       
       // Create all units
-      const promises = units.map(unit => 
-        fetch('http://localhost:3000/api/units', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(unit)
-        }).then(response => {
-          if (!response.ok) {
-            const errorText = response.text()
-            throw new Error(`HTTP ${response.status}: ${errorText}`)
-          }
-          return response.json()
-        })
+      const promises = units.map(unit =>
+        apiRequest("POST", "/api/units", unit).then((response) => response.json())
       )
       
       return Promise.all(promises)
     },
     onSuccess: (results) => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/units"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/units"] })
       setIsBulkUnitDialogOpen(false)
       bulkUnitForm.reset()
       toast({
@@ -417,20 +431,7 @@ export function Houses() {
   // Update unit rent amount mutation
   const updateUnitRentMutation = useMutation({
     mutationFn: async ({ unitId, rentAmount }: { unitId: string, rentAmount: string }) => {
-      const response = await fetch(`http://localhost:3000/api/units/${unitId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ rentAmount })
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("PUT", `/api/units/${unitId}`, { rentAmount })
       return response.json()
     },
     onSuccess: () => {
@@ -470,24 +471,11 @@ export function Houses() {
   // Charge codes mutations
   const addChargeCodeMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch('http://localhost:3000/api/charge-codes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("POST", "/api/charge-codes", data)
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/charge-codes"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/charge-codes"] })
       chargeCodeForm.reset()
       // Re-set propertyId after reset to maintain context for adding another charge code
       chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
@@ -509,21 +497,8 @@ export function Houses() {
   const deleteChargeCodeMutation = useMutation({
     mutationFn: async (id: string) => {
       console.log("Deleting charge code with ID:", id)
-      const response = await fetch(`http://localhost:3000/api/charge-codes/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      })
-      
+      const response = await apiRequest("DELETE", `/api/charge-codes/${id}`)
       console.log("Delete response status:", response.status)
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("Delete error:", errorText)
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
       // 204 No Content has no body, return success object
       if (response.status === 204) {
         return { success: true }
@@ -532,7 +507,7 @@ export function Houses() {
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/charge-codes"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/charge-codes"] })
       setChargeCodeToDelete(null)
       setIsDeleteChargeCodeDialogOpen(false)
       toast({
@@ -574,18 +549,10 @@ export function Houses() {
         const houseType = Array.isArray(houseTypes) ? houseTypes.find((ht: any) => ht.id === houseTypeId) : null
         
         // Safely parse the charge amounts JSON
-        let currentChargeAmounts: { [key: string]: string } = {}
-        try {
-          if (houseType?.chargeAmounts && houseType.chargeAmounts !== 'null' && houseType.chargeAmounts !== '') {
-            currentChargeAmounts = JSON.parse(houseType.chargeAmounts)
-          }
-        } catch (error) {
-          console.warn('Failed to parse chargeAmounts JSON:', error)
-          currentChargeAmounts = {}
-        }
+        const currentChargeAmounts = normalizeChargeAmounts(houseType?.chargeAmounts)
         
         currentChargeAmounts[chargeCodeId] = value
-        houseTypeUpdateData.chargeAmounts = JSON.stringify(currentChargeAmounts)
+        houseTypeUpdateData.chargeAmounts = currentChargeAmounts
       } else {
         houseTypeUpdateData[field] = value
       }
@@ -601,21 +568,7 @@ export function Houses() {
       console.log('House type ID:', houseTypeId)
       
       // First update the house type
-      const houseTypeResponse = await fetch(`http://localhost:3000/api/house-types/${houseTypeId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(houseTypeUpdateData)
-      })
-      
-      if (!houseTypeResponse.ok) {
-        const errorText = await houseTypeResponse.text()
-        console.error('House type update failed:', errorText)
-        console.error('Response status:', houseTypeResponse.status)
-        throw new Error(`HTTP ${houseTypeResponse.status}: ${errorText}`)
-      }
+      const houseTypeResponse = await apiRequest("PUT", `/api/house-types/${houseTypeId}`, houseTypeUpdateData)
       
       // Then update all units of this house type
       const unitsToUpdate = Array.isArray(units) ? units.filter((unit: any) => unit.houseTypeId === houseTypeId) : []
@@ -637,33 +590,18 @@ export function Houses() {
           const chargeCodeId = field.replace('charge_', '')
           
                   // Safely parse the unit charge amounts JSON
-                  let currentUnitChargeAmounts: { [key: string]: string } = {}
-                  try {
-                    if (unit.chargeAmounts && unit.chargeAmounts !== 'null' && unit.chargeAmounts !== '') {
-                      currentUnitChargeAmounts = JSON.parse(unit.chargeAmounts)
-                    }
-                  } catch (error) {
-                    console.warn('Failed to parse unit chargeAmounts JSON:', error)
-                    currentUnitChargeAmounts = {}
-                  }
+                  const currentUnitChargeAmounts = normalizeChargeAmounts(unit.chargeAmounts)
                   
                   currentUnitChargeAmounts[chargeCodeId] = value
-          updateData.chargeAmounts = JSON.stringify(currentUnitChargeAmounts)
+        updateData.chargeAmounts = currentUnitChargeAmounts
         }
         
         // Only update if we have valid data
         if (Object.keys(updateData).length > 0) {
-          const unitResponse = await fetch(`http://localhost:3000/api/units/${unit.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify(updateData)
-          })
-          
-          if (!unitResponse.ok) {
-            console.error(`Failed to update unit ${unit.id}:`, await unitResponse.text())
+          try {
+            await apiRequest("PUT", `/api/units/${unit.id}`, updateData)
+          } catch (error: any) {
+            console.error(`Failed to update unit ${unit.id}:`, error?.message || error)
           }
         }
       }
@@ -671,8 +609,8 @@ export function Houses() {
       return { success: true, updatedUnits: unitsToUpdate.length }
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/house-types"] })
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/units"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/house-types"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/units"] })
       setEditingHouseType(null)
       setEditingHouseTypeField(null)
       setEditingHouseTypeValue("")
@@ -706,40 +644,19 @@ export function Houses() {
         const houseType = Array.isArray(houseTypes) ? houseTypes.find((ht: any) => ht.id === houseTypeId) : null
         
         // Safely parse the charge amounts JSON
-        let currentChargeAmounts: { [key: string]: string } = {}
-        try {
-          if (houseType?.chargeAmounts && houseType.chargeAmounts !== 'null' && houseType.chargeAmounts !== '') {
-            currentChargeAmounts = JSON.parse(houseType.chargeAmounts)
-          }
-        } catch (error) {
-          console.warn('Failed to parse chargeAmounts JSON:', error)
-          currentChargeAmounts = {}
-        }
+        const currentChargeAmounts = normalizeChargeAmounts(houseType?.chargeAmounts)
         
         currentChargeAmounts[chargeCodeId] = value
-        houseTypeUpdateData.chargeAmounts = JSON.stringify(currentChargeAmounts)
+        houseTypeUpdateData.chargeAmounts = currentChargeAmounts
       } else {
         houseTypeUpdateData[field] = value
       }
       
-      const response = await fetch(`http://localhost:3000/api/house-types/${houseTypeId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(houseTypeUpdateData)
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("PUT", `/api/house-types/${houseTypeId}`, houseTypeUpdateData)
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/house-types"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/house-types"] })
       setEditingHouseType(null)
       setEditingHouseTypeField(null)
       setEditingHouseTypeValue("")
@@ -764,19 +681,7 @@ export function Houses() {
   // Delete house type mutation
   const deleteHouseTypeMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`http://localhost:3000/api/house-types/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("DELETE", `/api/house-types/${id}`)
       // DELETE requests typically return 204 (no content)
       if (response.status === 204) {
         return { success: true }
@@ -785,8 +690,8 @@ export function Houses() {
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/house-types"] })
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/units"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/house-types"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/units"] })
       toast({
         title: "House Type Deleted",
         description: "House type has been deleted successfully.",
@@ -806,24 +711,11 @@ export function Houses() {
   // Bulk delete units mutation
   const bulkDeleteUnitsMutation = useMutation({
     mutationFn: async (unitIds: string[]) => {
-      const response = await fetch('http://localhost:3000/api/units/bulk-delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ unitIds })
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("POST", "/api/units/bulk-delete", { unitIds })
       return response.json()
     },
     onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/units"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/units"] })
       setSelectedUnits([])
       
       if (result.failed.length > 0) {
@@ -851,24 +743,11 @@ export function Houses() {
   // Generic update unit field mutation
   const updateUnitFieldMutation = useMutation({
     mutationFn: async ({ unitId, field, value }: { unitId: string, field: string, value: string }) => {
-      const response = await fetch(`http://localhost:3000/api/units/${unitId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ [field]: value })
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-      
+      const response = await apiRequest("PUT", `/api/units/${unitId}`, { [field]: value })
       return response.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["http://localhost:3000/api/units"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/units"] })
       setEditingUnit(null)
       setEditingField(null)
       setEditingValue("")
@@ -914,6 +793,46 @@ export function Houses() {
     saveSmsSettingsMutation.mutate(smsSettings)
   }
 
+  const handleOpenAddHouseType = () => {
+    if (!selectedPropertyId) {
+      toast({
+        title: "Property Required",
+        description: "Please select a property in the header before adding a house type.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (chargeCodes.length === 0) {
+      setIsChargePromptOpen(true)
+      return
+    }
+    setIsAddHouseTypeDialogOpen(true)
+  }
+
+  const handleOpenChargeCodes = () => {
+    if (!selectedPropertyId) {
+      toast({
+        title: "Property Required",
+        description: "Please select a property in the header before configuring charge codes.",
+        variant: "destructive",
+      })
+      return
+    }
+    setIsChargeCodesDialogOpen(true)
+    chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
+  }
+
+  const handleChargePromptConfigure = () => {
+    setIsChargePromptOpen(false)
+    setIsChargeCodesDialogOpen(true)
+    chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
+  }
+
+  const handleChargePromptContinue = () => {
+    setIsChargePromptOpen(false)
+    setIsAddHouseTypeDialogOpen(true)
+  }
+
   const handleAddHouseType = (data: any) => {
     console.log("Creating house type with data:", data)
     console.log("Form data keys:", Object.keys(data))
@@ -929,19 +848,26 @@ export function Houses() {
       return
     }
     
-    // Build charge amounts object from charge code amounts
+    // Build charge amounts object from selected charge codes
     const chargeAmounts: Record<string, string> = {}
-    chargeCodes.forEach((chargeCode: any) => {
-      const amount = chargeCodeAmounts[chargeCode.id] || "0.00"
-      if (parseFloat(amount) > 0) {
-        chargeAmounts[chargeCode.id] = amount
+    const selectedChargeCodeIds = Object.keys(selectedChargeCodes).filter((id) => selectedChargeCodes[id])
+    for (const chargeCodeId of selectedChargeCodeIds) {
+      const amount = chargeCodeAmounts[chargeCodeId]
+      if (!amount || parseFloat(amount) <= 0) {
+        toast({
+          title: "Charge Amount Required",
+          description: "Please enter a valid amount for each selected charge code.",
+          variant: "destructive",
+        })
+        return
       }
-    })
+      chargeAmounts[chargeCodeId] = amount
+    }
     
     addHouseTypeMutation.mutate({
       ...data,
       propertyId: selectedPropertyId,
-      chargeAmounts: Object.keys(chargeAmounts).length > 0 ? JSON.stringify(chargeAmounts) : undefined
+      chargeAmounts: Object.keys(chargeAmounts).length > 0 ? chargeAmounts : undefined
     })
   }
 
@@ -1000,7 +926,7 @@ export function Houses() {
       // For charge codes, we need to update the chargeAmounts JSON field
       const chargeCodeId = editingField.replace('charge_', '')
       const unit = filteredUnits.find((u: any) => u.id === unitId)
-      const currentChargeAmounts = unit?.chargeAmounts ? JSON.parse(unit.chargeAmounts) : {}
+    const currentChargeAmounts = normalizeChargeAmounts(unit?.chargeAmounts)
       currentChargeAmounts[chargeCodeId] = editingValue
       
       updateUnitFieldMutation.mutate({ 
@@ -1162,25 +1088,6 @@ export function Houses() {
     )
   }
 
-  // Handler for SMS top-up
-  const handleSmsTopUp = () => {
-    if (!smsTopUpAmount) {
-      toast({
-        title: "Error",
-        description: "Please enter a top-up amount",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // TODO: Implement SMS top-up API
-    toast({
-      title: "SMS Top-up",
-      description: `KSh ${smsTopUpAmount} SMS units added successfully`,
-    })
-    setSmsTopUpAmount("")
-  }
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -1211,22 +1118,39 @@ export function Houses() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => {
-                setIsChargeCodesDialogOpen(true)
-                chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
-              }}
-              disabled={!selectedPropertyId}
+              onClick={handleOpenChargeCodes}
             >
               <Settings className="h-4 w-4 mr-2" />
               Configure Charges
             </Button>
+          <Button
+            data-testid="button-add-house-type"
+            onClick={handleOpenAddHouseType}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add House Type
+          </Button>
+
+          <AlertDialog open={isChargePromptOpen} onOpenChange={setIsChargePromptOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Configure Charge Codes?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This property has no charge codes yet. Do you want to configure charges before adding a house type?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={handleChargePromptContinue}>
+                  Continue Without Charges
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={handleChargePromptConfigure}>
+                  Configure Charges
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           <Dialog open={isAddHouseTypeDialogOpen} onOpenChange={setIsAddHouseTypeDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-house-type" disabled={!selectedProperty}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add House Type
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-8">
               <DialogHeader>
                 <DialogTitle>Add New House Type</DialogTitle>
@@ -1392,38 +1316,70 @@ export function Houses() {
                   </div>
                   
                   {/* Property Charge Codes Section */}
-                  {selectedProperty && chargeCodes.length > 0 && (
+                  {selectedProperty && (
                     <div className="space-y-4">
                       <div className="border-t pt-4">
-                        <h4 className="text-lg font-semibold mb-3">Other Property Charge Codes</h4>
-                        <div className="space-y-3">
-                          {chargeCodes.map((chargeCode: any) => (
-                            <div key={chargeCode.id} className="flex items-center justify-between p-3 border rounded-lg">
-                              <div>
-                                <div className="font-medium">{chargeCode.name}</div>
-                                {chargeCode.description && (
-                                  <div className="text-sm text-muted-foreground">{chargeCode.description}</div>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="Rate"
-                                  className="w-24"
-                                  value={chargeCodeAmounts[chargeCode.id] || "0.00"}
-                                  onChange={(e) => {
-                                    const value = e.target.value
-                                    setChargeCodeAmounts(prev => ({
-                                      ...prev,
-                                      [chargeCode.id]: value
-                                    }))
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <h4 className="text-lg font-semibold mb-3">Property Charge Codes</h4>
+                        {chargeCodes.length === 0 ? (
+                          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                            <div className="mb-3">No charge codes configured for this property yet.</div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                setIsAddHouseTypeDialogOpen(false)
+                                setIsChargeCodesDialogOpen(true)
+                                chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
+                              }}
+                            >
+                              Configure Charge Codes
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {chargeCodes.map((chargeCode: any) => {
+                              const isSelected = !!selectedChargeCodes[chargeCode.id]
+                              return (
+                                <div key={chargeCode.id} className="flex items-center justify-between gap-4 p-3 border rounded-lg">
+                                  <div className="flex items-start gap-3">
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        setSelectedChargeCodes((prev) => ({
+                                          ...prev,
+                                          [chargeCode.id]: Boolean(checked),
+                                        }))
+                                      }}
+                                    />
+                                    <div>
+                                      <div className="font-medium">{chargeCode.name}</div>
+                                      {chargeCode.description && (
+                                        <div className="text-sm text-muted-foreground">{chargeCode.description}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder="Rate"
+                                      className="w-24"
+                                      disabled={!isSelected}
+                                      value={chargeCodeAmounts[chargeCode.id] || ""}
+                                      onChange={(e) => {
+                                        const value = e.target.value
+                                        setChargeCodeAmounts((prev) => ({
+                                          ...prev,
+                                          [chargeCode.id]: value,
+                                        }))
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1839,65 +1795,6 @@ export function Houses() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2 pt-4">
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    // TODO: Open dialog for sending login details
-                    toast({
-                      title: "Send Login Details",
-                      description: "Feature coming soon - dialog with resend/generate options",
-                    })
-                  }}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send Login Details
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    // TODO: Implement reset password
-                    toast({
-                      title: "Reset Password",
-                      description: "Feature coming soon - will generate new temp password",
-                    })
-                  }}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Reset Password
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* SMS Units Top-up Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                SMS Units Top-up
-              </CardTitle>
-              <CardDescription>
-                Add SMS units to this property's account for tenant communications
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
-                  <Label htmlFor="sms-amount">Amount (KSh)</Label>
-                  <Input
-                    id="sms-amount"
-                    type="number"
-                    placeholder="e.g., 1000"
-                    value={smsTopUpAmount}
-                    onChange={(e) => setSmsTopUpAmount(e.target.value)}
-                  />
-                </div>
-                <Button onClick={handleSmsTopUp}>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Top Up SMS Units
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </>
@@ -1920,7 +1817,7 @@ export function Houses() {
               <Button 
                 variant="outline" 
                 onClick={() => {
-                  setSelectedProperty(null)
+                  setSelectedPropertyId(null)
                   setLocation('/houses')
                 }}
               >
@@ -1957,53 +1854,22 @@ export function Houses() {
             </div>
           </CardContent>
         </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label htmlFor="property-select" className="text-sm font-medium">Filter by Property</Label>
-                <Select value={selectedProperty?.id || "all-properties"} onValueChange={(value) => {
-                  if (value === "all-properties") {
-                    setSelectedProperty(null)
-                  } else {
-                    const property = Array.isArray(properties) ? properties.find((p: any) => p.id === value) : null
-                    setSelectedProperty(property || null)
-                  }
-                }}>
-                  <SelectTrigger id="property-select" className="w-full">
-                    <SelectValue placeholder="Select a property to filter house types and units" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all-properties">All Properties</SelectItem>
-                    {Array.isArray(properties) ? properties.map((property: any) => (
-                      <SelectItem key={property.id} value={property.id}>
-                        {property.name}
-                      </SelectItem>
-                    )) : null}
-                  </SelectContent>
-                </Select>
-              </div>
-              {selectedProperty && (
-                <div className="text-sm text-muted-foreground">
-                  Showing data for: <span className="font-medium text-foreground">{selectedProperty.name}</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      ) : null}
 
       {/* Search */}
-      <div className="flex items-center space-x-2">
-        <Input
-          placeholder={selectedProperty ? `Search house types in ${selectedProperty.name}...` : "Search house types..."}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
-      </div>
+      {selectedProperty && (
+        <div className="flex items-center space-x-2">
+          <Input
+            placeholder={`Search house types in ${selectedProperty.name}...`}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+      )}
 
+      {selectedProperty ? (
+      <>
       {/* House Types Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {houseTypesLoading ? (
@@ -2235,7 +2101,7 @@ export function Houses() {
                       let currentAmount = "0.00"
                       try {
                         if (houseType.chargeAmounts && houseType.chargeAmounts !== 'null' && houseType.chargeAmounts !== '') {
-                          const parsedAmounts = JSON.parse(houseType.chargeAmounts)
+                      const parsedAmounts = normalizeChargeAmounts(houseType.chargeAmounts)
                           currentAmount = parsedAmounts[chargeCode.id] || "0.00"
                         }
                       } catch (error) {
@@ -2382,6 +2248,15 @@ export function Houses() {
             <div className="mt-2 text-sm text-muted-foreground">
               Showing {filteredUnits.length} unit(s) matching selected house types
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      </>
+      ) : (
+        <Card className="border-dashed">
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            Select a property in the header to view house types. Units across all properties are listed below.
           </CardContent>
         </Card>
       )}
@@ -2564,7 +2439,7 @@ export function Houses() {
                       )}
                     </TableCell>
                     {chargeCodes.map((chargeCode: any) => {
-                      const unitChargeAmounts = unit.chargeAmounts ? JSON.parse(unit.chargeAmounts) : {}
+                      const unitChargeAmounts = normalizeChargeAmounts(unit.chargeAmounts)
                       const chargeAmount = unitChargeAmounts[chargeCode.id] || "0.00"
                       
                       return (

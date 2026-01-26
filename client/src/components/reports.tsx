@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast"
 import { apiRequest } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { getPaletteByIndex } from "@/lib/palette"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -69,6 +70,25 @@ export function Reports() {
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const [selectedTenants, setSelectedTenants] = useState<string[]>([])
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const invoiceSummaryPalettes = [
+    getPaletteByIndex(0),
+    getPaletteByIndex(1),
+    getPaletteByIndex(2),
+    getPaletteByIndex(3),
+  ]
+  const paymentSummaryPalettes = [
+    getPaletteByIndex(2),
+    getPaletteByIndex(4),
+    getPaletteByIndex(0),
+    getPaletteByIndex(1),
+  ]
+  const agingSummaryPalettes = [
+    getPaletteByIndex(0),
+    getPaletteByIndex(1),
+    getPaletteByIndex(2),
+    getPaletteByIndex(3),
+    getPaletteByIndex(4),
+  ]
 
   // Fetch real properties data
   const { data: propertiesData } = useQuery({ 
@@ -418,15 +438,17 @@ export function Reports() {
       {selectedReport === "organizational" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {organizationalReports.map((report) => (
-              <Card key={report.id} className="hover-elevate">
+            {organizationalReports.map((report, index) => {
+              const palette = getPaletteByIndex(index)
+              return (
+              <Card key={report.id} className={`hover-elevate border ${palette.border} ${palette.card}`}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-base font-medium">{report.name}</CardTitle>
-                  <report.icon className="h-5 w-5 text-muted-foreground" />
+                  <report.icon className={`h-5 w-5 ${palette.icon}`} />
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="text-2xl font-bold">{report.total}</div>
+                    <div className={`text-2xl font-bold ${palette.accentText}`}>{report.total}</div>
                     
                     {/* Date Range Selection */}
                     <div className="grid grid-cols-2 gap-2">
@@ -492,7 +514,8 @@ export function Reports() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            )
+            })}
           </div>
         </div>
       )}
@@ -590,21 +613,21 @@ export function Reports() {
               <div className="space-y-4">
                 <h4 className="font-medium">Invoice Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-3 bg-blue-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-blue-900">KSh 180,000</p>
-                    <p className="text-sm text-blue-700">Rent Collection</p>
+                  <div className={`p-3 rounded-lg border text-center ${invoiceSummaryPalettes[0].card} ${invoiceSummaryPalettes[0].border}`}>
+                    <p className={`text-lg font-bold ${invoiceSummaryPalettes[0].accentText}`}>KSh 180,000</p>
+                    <p className="text-sm text-muted-foreground">Rent Collection</p>
                   </div>
-                  <div className="p-3 bg-green-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-green-900">KSh 45,000</p>
-                    <p className="text-sm text-green-700">Water Charges</p>
+                  <div className={`p-3 rounded-lg border text-center ${invoiceSummaryPalettes[1].card} ${invoiceSummaryPalettes[1].border}`}>
+                    <p className={`text-lg font-bold ${invoiceSummaryPalettes[1].accentText}`}>KSh 45,000</p>
+                    <p className="text-sm text-muted-foreground">Water Charges</p>
                   </div>
-                  <div className="p-3 bg-yellow-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-yellow-900">KSh 25,000</p>
-                    <p className="text-sm text-yellow-700">Service Charges</p>
+                  <div className={`p-3 rounded-lg border text-center ${invoiceSummaryPalettes[2].card} ${invoiceSummaryPalettes[2].border}`}>
+                    <p className={`text-lg font-bold ${invoiceSummaryPalettes[2].accentText}`}>KSh 25,000</p>
+                    <p className="text-sm text-muted-foreground">Service Charges</p>
                   </div>
-                  <div className="p-3 bg-purple-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-purple-900">KSh 250,000</p>
-                    <p className="text-sm text-purple-700">Total Invoiced</p>
+                  <div className={`p-3 rounded-lg border text-center ${invoiceSummaryPalettes[3].card} ${invoiceSummaryPalettes[3].border}`}>
+                    <p className={`text-lg font-bold ${invoiceSummaryPalettes[3].accentText}`}>KSh 250,000</p>
+                    <p className="text-sm text-muted-foreground">Total Invoiced</p>
                   </div>
                 </div>
               </div>
@@ -613,21 +636,21 @@ export function Reports() {
               <div className="space-y-4">
                 <h4 className="font-medium">Tenant Payment Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-3 bg-green-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-green-900">KSh 235,000</p>
-                    <p className="text-sm text-green-700">Total Payments</p>
+                  <div className={`p-3 rounded-lg border text-center ${paymentSummaryPalettes[0].card} ${paymentSummaryPalettes[0].border}`}>
+                    <p className={`text-lg font-bold ${paymentSummaryPalettes[0].accentText}`}>KSh 235,000</p>
+                    <p className="text-sm text-muted-foreground">Total Payments</p>
                   </div>
-                  <div className="p-3 bg-red-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-red-900">KSh 15,000</p>
-                    <p className="text-sm text-red-700">Outstanding</p>
+                  <div className={`p-3 rounded-lg border text-center ${paymentSummaryPalettes[1].card} ${paymentSummaryPalettes[1].border}`}>
+                    <p className={`text-lg font-bold ${paymentSummaryPalettes[1].accentText}`}>KSh 15,000</p>
+                    <p className="text-sm text-muted-foreground">Outstanding</p>
                   </div>
-                  <div className="p-3 bg-blue-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-blue-900">94%</p>
-                    <p className="text-sm text-blue-700">Collection Rate</p>
+                  <div className={`p-3 rounded-lg border text-center ${paymentSummaryPalettes[2].card} ${paymentSummaryPalettes[2].border}`}>
+                    <p className={`text-lg font-bold ${paymentSummaryPalettes[2].accentText}`}>94%</p>
+                    <p className="text-sm text-muted-foreground">Collection Rate</p>
                   </div>
-                  <div className="p-3 bg-yellow-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-yellow-900">28</p>
-                    <p className="text-sm text-yellow-700">Transactions</p>
+                  <div className={`p-3 rounded-lg border text-center ${paymentSummaryPalettes[3].card} ${paymentSummaryPalettes[3].border}`}>
+                    <p className={`text-lg font-bold ${paymentSummaryPalettes[3].accentText}`}>28</p>
+                    <p className="text-sm text-muted-foreground">Transactions</p>
                   </div>
                 </div>
               </div>
@@ -856,25 +879,25 @@ export function Reports() {
               <div className="space-y-6">
                 {/* Aging Summary */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="p-3 bg-green-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-green-900">KSh 0</p>
-                    <p className="text-sm text-green-700">Current</p>
+                  <div className={`p-3 rounded-lg border text-center ${agingSummaryPalettes[0].card} ${agingSummaryPalettes[0].border}`}>
+                    <p className={`text-lg font-bold ${agingSummaryPalettes[0].accentText}`}>KSh 0</p>
+                    <p className="text-sm text-muted-foreground">Current</p>
                   </div>
-                  <div className="p-3 bg-yellow-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-yellow-900">KSh 24,000</p>
-                    <p className="text-sm text-yellow-700">1-30 Days</p>
+                  <div className={`p-3 rounded-lg border text-center ${agingSummaryPalettes[1].card} ${agingSummaryPalettes[1].border}`}>
+                    <p className={`text-lg font-bold ${agingSummaryPalettes[1].accentText}`}>KSh 24,000</p>
+                    <p className="text-sm text-muted-foreground">1-30 Days</p>
                   </div>
-                  <div className="p-3 bg-orange-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-orange-900">KSh 42,500</p>
-                    <p className="text-sm text-orange-700">31-60 Days</p>
+                  <div className={`p-3 rounded-lg border text-center ${agingSummaryPalettes[2].card} ${agingSummaryPalettes[2].border}`}>
+                    <p className={`text-lg font-bold ${agingSummaryPalettes[2].accentText}`}>KSh 42,500</p>
+                    <p className="text-sm text-muted-foreground">31-60 Days</p>
                   </div>
-                  <div className="p-3 bg-red-50 rounded-lg text-center">
-                    <p className="text-lg font-bold text-red-900">KSh 36,000</p>
-                    <p className="text-sm text-red-700">61-90 Days</p>
+                  <div className={`p-3 rounded-lg border text-center ${agingSummaryPalettes[3].card} ${agingSummaryPalettes[3].border}`}>
+                    <p className={`text-lg font-bold ${agingSummaryPalettes[3].accentText}`}>KSh 36,000</p>
+                    <p className="text-sm text-muted-foreground">61-90 Days</p>
                   </div>
-                  <div className="p-3 bg-red-100 rounded-lg text-center">
-                    <p className="text-lg font-bold text-red-900">KSh 51,500</p>
-                    <p className="text-sm text-red-700">90+ Days</p>
+                  <div className={`p-3 rounded-lg border text-center ${agingSummaryPalettes[4].card} ${agingSummaryPalettes[4].border}`}>
+                    <p className={`text-lg font-bold ${agingSummaryPalettes[4].accentText}`}>KSh 51,500</p>
+                    <p className="text-sm text-muted-foreground">90+ Days</p>
                   </div>
                 </div>
 

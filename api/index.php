@@ -63,6 +63,362 @@ function getQuery($key, $default = null) {
     return $_GET[$key] ?? $default;
 }
 
+function getPropertyIdByLease($storage, $leaseId) {
+    if (!$leaseId) return null;
+    $lease = $storage->getLease($leaseId);
+    if (!$lease) return null;
+    $unit = $storage->getUnit($lease['unit_id'] ?? null);
+    return $unit['property_id'] ?? null;
+}
+
+function getPropertyIdByTenant($storage, $tenantId) {
+    if (!$tenantId) return null;
+    $leases = $storage->getLeasesByTenant($tenantId);
+    if (!is_array($leases) || empty($leases)) return null;
+    $activeLease = null;
+    foreach ($leases as $lease) {
+        if (($lease['status'] ?? '') === 'active') {
+            $activeLease = $lease;
+            break;
+        }
+    }
+    $targetLease = $activeLease ?? $leases[0];
+    return getPropertyIdByLease($storage, $targetLease['id'] ?? null);
+}
+
+function generateTenantAccessCode($length = 8) {
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $max = strlen($alphabet) - 1;
+    $bytes = random_bytes($length);
+    $code = '';
+    for ($i = 0; $i < $length; $i++) {
+        $code .= $alphabet[ord($bytes[$i]) % ($max + 1)];
+    }
+    return $code;
+}
+
+function isTruthyEnv($value) {
+    if ($value === null) return false;
+    $value = strtolower(trim((string)$value));
+    return in_array($value, ['1', 'true', 'yes', 'on'], true);
+}
+
+function shouldRequireOtpForUser($user, $loginType = null) {
+    $role = strtolower(trim((string)($user['role'] ?? 'client')));
+    $userOtpEnabled = isset($user['otp_enabled']) ? ((int)$user['otp_enabled'] === 1) : false;
+    $adminOtpEnabled = isTruthyEnv(getenv('ADMIN_OTP_ENABLED'));
+
+    if ($loginType === 'admin') {
+        return $adminOtpEnabled || $userOtpEnabled;
+    }
+
+    if ($loginType === 'client') {
+        return true;
+    }
+
+    if ($role === 'admin' || $role === 'super_admin' || $role === 'administrator') {
+        return $adminOtpEnabled || $userOtpEnabled;
+    }
+
+    return $userOtpEnabled;
+}
+
+function generateLoginOtpCode() {
+    return str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+function sendLoginOtp($storage, $messagingService, $userId, $tenantId, $recipientName, $email, $phone) {
+    $latest = $storage->getLatestLoginOtp($userId, $tenantId);
+    if (!empty($latest['last_sent_at'])) {
+        $lastSentAt = strtotime($latest['last_sent_at']);
+        if ($lastSentAt && (time() - $lastSentAt) < 60) {
+            $retryAfter = 60 - (time() - $lastSentAt);
+            $retryAfter = max(1, min(60, $retryAfter));
+            return ['error' => 'OTP recently sent', 'retryAfter' => $retryAfter];
+        }
+    }
+
+    $code = generateLoginOtpCode();
+    $codeHash = password_hash($code, PASSWORD_BCRYPT);
+    $expiresAt = date('Y-m-d H:i:s', time() + 300);
+    $otpId = $storage->createLoginOtp($userId, $tenantId, $codeHash, $expiresAt);
+    if (!$otpId) {
+        return ['error' => 'OTP storage not configured'];
+    }
+
+    $channels = [];
+    $message = "Your LeaseMaster login OTP is {$code}. It expires in 5 minutes.";
+    $emailSubject = "Your LeaseMaster login OTP";
+    $emailBody = "<p>Your LeaseMaster login OTP is <strong>{$code}</strong>.</p><p>It expires in 5 minutes.</p>";
+
+    if ($phone) {
+        $smsResult = $messagingService->sendSystemSMS($phone, $message);
+        if (!empty($smsResult['success'])) {
+            $channels[] = 'sms';
+        }
+    }
+
+    if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $emailResult = $messagingService->sendEmail($email, $recipientName, $emailSubject, $emailBody, true);
+        if (!empty($emailResult['success'])) {
+            $channels[] = 'email';
+        }
+    }
+
+    if (empty($channels)) {
+        return ['error' => 'No delivery channels available'];
+    }
+
+    return ['otpId' => $otpId, 'channels' => $channels];
+}
+
+function sendTenantLoginDetails($storage, $messagingService, $tenantId, $options = []) {
+    $tenant = $storage->getTenant($tenantId);
+    if (!$tenant) {
+        return ['success' => false, 'error' => 'Tenant not found'];
+    }
+
+    $generateNew = $options['generateNew'] ?? true;
+    $sendSms = $options['sendSms'] ?? true;
+    $sendEmail = $options['sendEmail'] ?? true;
+
+    $accessCode = $generateNew ? generateTenantAccessCode(8) : null;
+    if (!$accessCode) {
+        return ['success' => false, 'error' => 'Access code generation is required'];
+    }
+
+    $storage->setTenantPortalAccess($tenantId, $accessCode, true);
+
+    $profile = $storage->getTenantPortalProfile($tenantId);
+    $propertyId = $profile['property_id'] ?? getPropertyIdByTenant($storage, $tenantId);
+
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $loginUrl = $options['loginUrl'] ?? "{$scheme}://{$host}/tenant/login";
+
+    $identifier = $tenant['email'] ?? $tenant['phone'] ?? 'your registered contact';
+    $smsMessage = "LeaseMaster Tenant Portal Login\n";
+    $smsMessage .= "Login: {$identifier}\n";
+    $smsMessage .= "Access Code: {$accessCode}\n";
+    $smsMessage .= "Login: {$loginUrl}";
+
+    $emailSubject = "Tenant Portal Login Details";
+    $emailBody = "<html><body>";
+    $emailBody .= "<h2>LeaseMaster Tenant Portal Login</h2>";
+    $emailBody .= "<p>Hello " . htmlspecialchars($tenant['full_name'] ?? 'Tenant') . ",</p>";
+    $emailBody .= "<p>Use the details below to access your tenant portal:</p>";
+    $emailBody .= "<table style='border-collapse: collapse;'>";
+    $emailBody .= "<tr><td style='padding: 8px; border: 1px solid #ddd;'><strong>Login:</strong></td><td style='padding: 8px; border: 1px solid #ddd;'>{$identifier}</td></tr>";
+    $emailBody .= "<tr><td style='padding: 8px; border: 1px solid #ddd;'><strong>Access Code:</strong></td><td style='padding: 8px; border: 1px solid #ddd;'>{$accessCode}</td></tr>";
+    $emailBody .= "</table>";
+    $emailBody .= "<p>Login here: <a href='{$loginUrl}'>{$loginUrl}</a></p>";
+    $emailBody .= "<p>Best regards,<br>LeaseMaster Team</p>";
+    $emailBody .= "</body></html>";
+
+    $sendResults = ['sms' => null, 'email' => null];
+    $sentByUserId = $_SESSION['userId'] ?? null;
+    $senderShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
+
+    if ($sendSms && !empty($tenant['phone'])) {
+        $smsResult = $messagingService->sendSystemSMS($tenant['phone'], $smsMessage);
+        $sendResults['sms'] = $smsResult;
+        $messagingService->logMessage([
+            'channel' => 'sms',
+            'recipientContact' => $tenant['phone'],
+            'status' => $smsResult['success'] ? 'sent' : 'failed',
+            'messageCategory' => 'tenant_login_credentials',
+            'recipientType' => 'tenant',
+            'recipientName' => $tenant['full_name'] ?? null,
+            'content' => $smsMessage,
+            'propertyId' => $propertyId,
+            'externalMessageId' => $smsResult['messageId'] ?? null,
+            'senderShortcode' => $senderShortcode,
+            'sentByUserId' => $sentByUserId,
+            'tenantId' => $tenantId
+        ]);
+    }
+
+    if ($sendEmail && !empty($tenant['email'])) {
+        $emailResult = $messagingService->sendEmail($tenant['email'], $tenant['full_name'] ?? 'Tenant', $emailSubject, $emailBody, true);
+        $sendResults['email'] = $emailResult;
+        $messagingService->logMessage([
+            'channel' => 'email',
+            'recipientContact' => $tenant['email'],
+            'status' => $emailResult['success'] ? 'sent' : 'failed',
+            'messageCategory' => 'tenant_login_credentials',
+            'recipientType' => 'tenant',
+            'recipientName' => $tenant['full_name'] ?? null,
+            'subject' => $emailSubject,
+            'content' => $emailBody,
+            'propertyId' => $propertyId,
+            'externalMessageId' => $emailResult['messageId'] ?? null,
+            'sentByUserId' => $sentByUserId,
+            'tenantId' => $tenantId
+        ]);
+    }
+
+    $anySent = ($sendResults['sms']['success'] ?? false) || ($sendResults['email']['success'] ?? false);
+
+    return [
+        'success' => $anySent,
+        'tenant' => $tenant,
+        'profile' => $profile,
+        'accessCode' => $accessCode,
+        'sent' => $sendResults
+    ];
+}
+
+function buildTenantAccountNumber($propertyPrefix, $unitNumber) {
+    $prefix = strtoupper(trim((string) $propertyPrefix));
+    $unit = strtoupper(trim((string) $unitNumber));
+    if ($prefix === '' || $unit === '') {
+        return null;
+    }
+    return $prefix . $unit;
+}
+
+function getMpesaAccessToken($settings) {
+    $consumerKey = $settings['consumer_key'] ?? null;
+    $consumerSecret = $settings['consumer_secret'] ?? null;
+    if (!$consumerKey || !$consumerSecret) {
+        throw new Exception("M-Pesa consumer key/secret not configured.");
+    }
+    $credentials = base64_encode($consumerKey . ':' . $consumerSecret);
+    $ch = curl_init("https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials");
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Basic {$credentials}"
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $result = curl_exec($ch);
+    if ($result === false) {
+        throw new Exception("Failed to connect to M-Pesa token endpoint.");
+    }
+    $response = json_decode($result, true);
+    if (empty($response['access_token'])) {
+        throw new Exception("Failed to retrieve M-Pesa access token.");
+    }
+    return $response['access_token'];
+}
+
+function sendMpesaStkPush($settings, $payload) {
+    $shortcode = $settings['shortcode'] ?? null;
+    $passkey = $settings['passkey'] ?? null;
+    $callbackUrl = $settings['stk_callback_url'] ?? null;
+    if (!$shortcode || !$passkey || !$callbackUrl) {
+        throw new Exception("M-Pesa STK settings incomplete.");
+    }
+    $timestamp = date('YmdHis');
+    $password = base64_encode($shortcode . $passkey . $timestamp);
+    $accessToken = getMpesaAccessToken($settings);
+
+    $body = [
+        "BusinessShortCode" => $shortcode,
+        "Password" => $password,
+        "Timestamp" => $timestamp,
+        "TransactionType" => "CustomerPayBillOnline",
+        "Amount" => $payload['amount'],
+        "PartyA" => $payload['phone'],
+        "PartyB" => $shortcode,
+        "PhoneNumber" => $payload['phone'],
+        "CallBackURL" => $callbackUrl,
+        "AccountReference" => $payload['accountNumber'],
+        "TransactionDesc" => $payload['description'] ?? "LeaseMaster Payment"
+    ];
+
+    $ch = curl_init("https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest");
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        "Authorization: Bearer {$accessToken}",
+        "Content-Type: application/json"
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+    $result = curl_exec($ch);
+    if ($result === false) {
+        throw new Exception("Failed to send STK push request.");
+    }
+    $response = json_decode($result, true);
+    if (empty($response['CheckoutRequestID'])) {
+        throw new Exception("STK push failed: " . ($response['errorMessage'] ?? 'Unknown error'));
+    }
+    return $response;
+}
+
+function sendTenantPaymentConfirmation($storage, $messagingService, $propertyId, $tenantId, $amount) {
+    if (!$propertyId || !$tenantId) return;
+    $alerts = $storage->getAlertSettings($propertyId, null);
+    if (!is_array($alerts)) return;
+    $rule = null;
+    foreach ($alerts as $alert) {
+        if (($alert['recipient_type'] ?? '') === 'tenant' && ($alert['alert_type'] ?? '') === 'payment_confirmation') {
+            $rule = $alert;
+            break;
+        }
+    }
+    if (!$rule) return;
+
+    $tenant = $storage->getTenant($tenantId);
+    if (!$tenant) return;
+
+    $message = "Payment received. Amount: KSh {$amount}. Thank you.";
+    $sentByUserId = $_SESSION['userId'] ?? null;
+
+    if (!empty($rule['enable_sms']) && !empty($tenant['phone'])) {
+        $smsResult = $messagingService->sendPropertySMS($propertyId, $tenant['phone'], $message);
+        if (!empty($smsResult['success'])) {
+            $messagingService->logMessage([
+                'channel' => 'sms',
+                'recipientContact' => $tenant['phone'],
+                'status' => 'sent',
+                'messageCategory' => 'system',
+                'recipientType' => 'tenant',
+                'recipientName' => $tenant['full_name'] ?? null,
+                'content' => $message,
+                'propertyId' => $propertyId,
+                'tenantId' => $tenantId,
+                'externalMessageId' => $smsResult['messageId'] ?? null,
+                'sentByUserId' => $sentByUserId
+            ]);
+            $storage->recordCreditUsage([
+                'landlordId' => null,
+                'propertyId' => $propertyId,
+                'channel' => 'sms',
+                'units' => 1,
+                'meta' => json_encode(['recipient' => $tenant['phone'], 'category' => 'payment_confirmation'])
+            ]);
+        }
+    }
+
+    if (!empty($rule['enable_email']) && !empty($tenant['email'])) {
+        $emailResult = $messagingService->sendEmail($tenant['email'], $tenant['full_name'] ?? null, "Payment received", $message);
+        if (!empty($emailResult['success'])) {
+            $messagingService->logMessage([
+                'channel' => 'email',
+                'recipientContact' => $tenant['email'],
+                'status' => 'sent',
+                'messageCategory' => 'system',
+                'recipientType' => 'tenant',
+                'recipientName' => $tenant['full_name'] ?? null,
+                'subject' => 'Payment received',
+                'content' => $message,
+                'propertyId' => $propertyId,
+                'tenantId' => $tenantId,
+                'externalMessageId' => $emailResult['messageId'] ?? null,
+                'sentByUserId' => $sentByUserId
+            ]);
+            $newBalance = $storage->adjustEmailCreditBalance($propertyId, null, -1);
+            $storage->recordCreditUsage([
+                'landlordId' => null,
+                'propertyId' => $propertyId,
+                'channel' => 'email',
+                'units' => 1,
+                'balanceAfter' => $newBalance,
+                'meta' => json_encode(['recipient' => $tenant['email'], 'category' => 'payment_confirmation'])
+            ]);
+        }
+    }
+}
+
 // Route handler
 try {
     // ========== HEALTH CHECK ==========
@@ -93,6 +449,7 @@ try {
             if (empty($body['username']) || empty($body['password'])) {
                 sendJson(['error' => 'Username and password are required'], 400);
             }
+            $loginType = $body['loginType'] ?? null;
             
             $user = $storage->getUserByUsername($body['username']);
             if (!$user) {
@@ -154,15 +511,37 @@ try {
                 }
             }
             
+            $updatedUser = $storage->getUser($user['id']);
+            $otpRequired = shouldRequireOtpForUser($updatedUser, $loginType);
+            if ($otpRequired) {
+                $otpResult = sendLoginOtp(
+                    $storage,
+                    $messagingService,
+                    $updatedUser['id'],
+                    null,
+                    $updatedUser['full_name'] ?? $updatedUser['username'],
+                    $updatedUser['username'],
+                    $updatedUser['phone'] ?? null
+                );
+                if (!empty($otpResult['error'])) {
+                    $status = isset($otpResult['retryAfter']) ? 429 : 500;
+                    sendJson(['error' => $otpResult['error'], 'retryAfter' => $otpResult['retryAfter'] ?? null], $status);
+                }
+                $_SESSION['pendingUserId'] = $updatedUser['id'];
+                $_SESSION['pendingOtpId'] = $otpResult['otpId'];
+                sendJson([
+                    'otpRequired' => true,
+                    'channels' => $otpResult['channels'],
+                    'retryAfter' => 60
+                ]);
+            }
+
             // Successful login - reset login attempts and update status (security feature)
             $storage->recordSuccessfulLogin($user['id']);
             
             // Set session
             $_SESSION['userId'] = $user['id'];
             $_SESSION['username'] = $user['username'];
-            
-            // Get updated user data with role
-            $updatedUser = $storage->getUser($user['id']);
             
             // Check if user must change password (for landlords on first login)
             $mustChangePassword = false;
@@ -179,6 +558,188 @@ try {
                     'mustChangePassword' => $mustChangePassword
                 ]
             ]);
+        }
+
+        if ($action === 'tenant-login' && $method === 'POST') {
+            $identifier = $body['identifier'] ?? '';
+            $accessCode = $body['accessCode'] ?? '';
+            if (empty($identifier) || empty($accessCode)) {
+                sendJson(['error' => 'Email/phone and access code are required'], 400);
+            }
+
+            $tenant = $storage->authenticateTenant($identifier, $accessCode);
+            if (!$tenant) {
+                sendJson(['error' => 'Invalid login details'], 401);
+            }
+
+            $profile = $storage->getTenantPortalProfile($tenant['id']);
+            $otpResult = sendLoginOtp(
+                $storage,
+                $messagingService,
+                null,
+                $tenant['id'],
+                $tenant['full_name'] ?? 'Tenant',
+                $tenant['email'] ?? null,
+                $tenant['phone'] ?? null
+            );
+            if (!empty($otpResult['error'])) {
+                $status = isset($otpResult['retryAfter']) ? 429 : 500;
+                sendJson(['error' => $otpResult['error'], 'retryAfter' => $otpResult['retryAfter'] ?? null], $status);
+            }
+
+            $_SESSION['pendingTenantId'] = $tenant['id'];
+            $_SESSION['pendingOtpId'] = $otpResult['otpId'];
+
+            sendJson([
+                'otpRequired' => true,
+                'channels' => $otpResult['channels'],
+                'retryAfter' => 60
+            ]);
+        }
+
+        if ($action === 'verify-otp' && $method === 'POST') {
+            $code = $body['code'] ?? '';
+            if (!$code) {
+                sendJson(['error' => 'OTP code is required'], 400);
+            }
+
+            $otpId = $_SESSION['pendingOtpId'] ?? null;
+            $pendingUserId = $_SESSION['pendingUserId'] ?? null;
+            $pendingTenantId = $_SESSION['pendingTenantId'] ?? null;
+            if (!$otpId || (!$pendingUserId && !$pendingTenantId)) {
+                sendJson(['error' => 'No pending OTP session'], 400);
+            }
+
+            $otp = $storage->getLoginOtp($otpId);
+            if (!$otp || (!empty($otp['used_at']))) {
+                sendJson(['error' => 'OTP is invalid'], 400);
+            }
+            if (!empty($otp['expires_at']) && strtotime($otp['expires_at']) < time()) {
+                sendJson(['error' => 'OTP expired'], 400);
+            }
+            if (!password_verify($code, $otp['code_hash'])) {
+                sendJson(['error' => 'OTP is incorrect'], 401);
+            }
+
+            $storage->markLoginOtpUsed($otpId);
+            unset($_SESSION['pendingOtpId']);
+
+            if ($pendingUserId) {
+                $user = $storage->getUser($pendingUserId);
+                if (!$user) {
+                    sendJson(['error' => 'User not found'], 404);
+                }
+                $storage->recordSuccessfulLogin($user['id']);
+                $_SESSION['userId'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                unset($_SESSION['pendingUserId']);
+                $mustChangePassword = false;
+                if (isset($user['must_change_password'])) {
+                    $mustChangePassword = $user['must_change_password'] == 1;
+                }
+                sendJson([
+                    'success' => true,
+                    'user' => [
+                        'id' => $user['id'],
+                        'username' => $user['username'],
+                        'role' => $user['role'] ?? 'client',
+                        'mustChangePassword' => $mustChangePassword
+                    ]
+                ]);
+            }
+
+            if ($pendingTenantId) {
+                $_SESSION['tenantId'] = $pendingTenantId;
+                unset($_SESSION['pendingTenantId']);
+                $profile = $storage->getTenantPortalProfile($pendingTenantId);
+                if (!$profile) {
+                    sendJson(['error' => 'Tenant not found'], 404);
+                }
+                $storage->logActivity([
+                    'action' => 'Tenant Portal Login',
+                    'details' => "Tenant \"{$profile['full_name']}\" logged in to portal",
+                    'type' => 'tenant',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $profile['property_id'] ?? null
+                ]);
+                sendJson([
+                    'success' => true,
+                    'tenant' => $profile
+                ]);
+            }
+        }
+
+        if ($action === 'resend-otp' && $method === 'POST') {
+            $pendingUserId = $_SESSION['pendingUserId'] ?? null;
+            $pendingTenantId = $_SESSION['pendingTenantId'] ?? null;
+            if (!$pendingUserId && !$pendingTenantId) {
+                sendJson(['error' => 'No pending OTP session'], 400);
+            }
+
+            if ($pendingUserId) {
+                $user = $storage->getUser($pendingUserId);
+                if (!$user) {
+                    sendJson(['error' => 'User not found'], 404);
+                }
+                $otpResult = sendLoginOtp(
+                    $storage,
+                    $messagingService,
+                    $user['id'],
+                    null,
+                    $user['full_name'] ?? $user['username'],
+                    $user['username'],
+                    $user['phone'] ?? null
+                );
+                if (!empty($otpResult['error'])) {
+                    $status = isset($otpResult['retryAfter']) ? 429 : 500;
+                    sendJson(['error' => $otpResult['error'], 'retryAfter' => $otpResult['retryAfter'] ?? null], $status);
+                }
+                $_SESSION['pendingOtpId'] = $otpResult['otpId'];
+                sendJson(['success' => true, 'channels' => $otpResult['channels'], 'retryAfter' => 60]);
+            }
+
+            if ($pendingTenantId) {
+                $tenant = $storage->getTenant($pendingTenantId);
+                if (!$tenant) {
+                    sendJson(['error' => 'Tenant not found'], 404);
+                }
+                $otpResult = sendLoginOtp(
+                    $storage,
+                    $messagingService,
+                    null,
+                    $tenant['id'],
+                    $tenant['full_name'] ?? 'Tenant',
+                    $tenant['email'] ?? null,
+                    $tenant['phone'] ?? null
+                );
+                if (!empty($otpResult['error'])) {
+                    $status = isset($otpResult['retryAfter']) ? 429 : 500;
+                    sendJson(['error' => $otpResult['error'], 'retryAfter' => $otpResult['retryAfter'] ?? null], $status);
+                }
+                $_SESSION['pendingOtpId'] = $otpResult['otpId'];
+                sendJson(['success' => true, 'channels' => $otpResult['channels'], 'retryAfter' => 60]);
+            }
+        }
+
+        if ($action === 'tenant-check' && $method === 'GET') {
+            $tenantId = $_SESSION['tenantId'] ?? null;
+            if (!$tenantId) {
+                sendJson(['error' => 'Not authenticated'], 401);
+            }
+            $profile = $storage->getTenantPortalProfile($tenantId);
+            if (!$profile) {
+                sendJson(['error' => 'Tenant not found'], 404);
+            }
+            sendJson([
+                'success' => true,
+                'tenant' => $profile
+            ]);
+        }
+
+        if ($action === 'tenant-logout' && $method === 'POST') {
+            unset($_SESSION['tenantId']);
+            sendJson(['success' => true]);
         }
         
         if ($action === 'check' && $method === 'GET') {
@@ -299,10 +860,30 @@ try {
         if ($method === 'GET' && $id) {
             if ($action === 'disable' && $method === 'POST') {
                 $property = $storage->disableProperty($id);
+                if ($property) {
+                    $storage->logActivity([
+                        'action' => 'Property Disabled',
+                        'details' => "Property \"{$property['name']}\" disabled",
+                        'type' => 'property',
+                        'status' => 'warning',
+                        'userId' => $_SESSION['userId'] ?? null,
+                        'propertyId' => $property['id'] ?? $id
+                    ]);
+                }
                 sendJson($property ?: ['error' => 'Property not found'], $property ? 200 : 404);
             }
             if ($action === 'enable' && $method === 'POST') {
                 $property = $storage->enableProperty($id);
+                if ($property) {
+                    $storage->logActivity([
+                        'action' => 'Property Enabled',
+                        'details' => "Property \"{$property['name']}\" enabled",
+                        'type' => 'property',
+                        'status' => 'success',
+                        'userId' => $_SESSION['userId'] ?? null,
+                        'propertyId' => $property['id'] ?? $id
+                    ]);
+                }
                 sendJson($property ?: ['error' => 'Property not found'], $property ? 200 : 404);
             }
             $property = $storage->getProperty($id);
@@ -319,6 +900,14 @@ try {
         if ($method === 'POST') {
             try {
                 $property = $storage->createProperty($body);
+                $storage->logActivity([
+                    'action' => 'Property Created',
+                    'details' => "Property \"{$property['name']}\" created",
+                    'type' => 'property',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $property['id'] ?? null
+                ]);
                 sendJson($property, 201);
             } catch (Exception $e) {
                 sendJson(['error' => $e->getMessage()], 400);
@@ -327,11 +916,31 @@ try {
         
         if ($method === 'PUT' && $id) {
             $property = $storage->updateProperty($id, $body);
+            if ($property) {
+                $storage->logActivity([
+                    'action' => 'Property Updated',
+                    'details' => "Property \"{$property['name']}\" updated",
+                    'type' => 'property',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $property['id'] ?? null
+                ]);
+            }
             sendJson($property ?: ['error' => 'Property not found'], $property ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
             $success = $storage->deleteProperty($id);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Property Deleted',
+                    'details' => "Property deleted",
+                    'type' => 'property',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $id
+                ]);
+            }
             sendJson([], $success ? 204 : 404);
         }
     }
@@ -499,6 +1108,13 @@ try {
                 if (!$verifyLandlord) {
                     throw new Exception('Landlord creation failed - user not found in database after creation');
                 }
+                $storage->logActivity([
+                    'action' => 'Landlord Created',
+                    'details' => "Landlord \"{$landlord['username']}\" created",
+                    'type' => 'user',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
                 sendJson($landlord, 201);
             } catch (Exception $e) {
                 sendJson(['error' => $e->getMessage()], 400);
@@ -507,12 +1123,31 @@ try {
         
         if ($method === 'PUT' && $id) {
             $landlord = $storage->updateLandlord($id, $body);
+            if ($landlord) {
+                $storage->logActivity([
+                    'action' => 'Landlord Updated',
+                    'details' => "Landlord \"{$landlord['username']}\" updated",
+                    'type' => 'user',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
             sendJson($landlord ?: ['error' => 'Landlord not found'], $landlord ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
+            $landlord = $storage->getLandlord($id);
             $success = $storage->deleteLandlord($id);
             sendJson([], $success ? 204 : 404);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Landlord Deleted',
+                    'details' => $landlord ? "Landlord \"{$landlord['username']}\" deleted" : 'Landlord deleted',
+                    'type' => 'user',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
         }
     }
     
@@ -536,17 +1171,48 @@ try {
         
         if ($method === 'POST') {
             $houseType = $storage->createHouseType($body);
+            if ($houseType) {
+                $storage->logActivity([
+                    'action' => 'House Type Created',
+                    'details' => "House type \"{$houseType['name']}\" created",
+                    'type' => 'house_type',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $houseType['property_id'] ?? null
+                ]);
+            }
             sendJson($houseType, 201);
         }
         
         if ($method === 'PUT' && $id) {
             $houseType = $storage->updateHouseType($id, $body);
+            if ($houseType) {
+                $storage->logActivity([
+                    'action' => 'House Type Updated',
+                    'details' => "House type \"{$houseType['name']}\" updated",
+                    'type' => 'house_type',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $houseType['property_id'] ?? null
+                ]);
+            }
             sendJson($houseType ?: ['error' => 'House type not found'], $houseType ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
+            $houseType = $storage->getHouseType($id);
             $success = $storage->deleteHouseType($id);
             sendJson([], $success ? 204 : 404);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'House Type Deleted',
+                    'details' => $houseType ? "House type \"{$houseType['name']}\" deleted" : 'House type deleted',
+                    'type' => 'house_type',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $houseType['property_id'] ?? null
+                ]);
+            }
         }
     }
     
@@ -579,28 +1245,161 @@ try {
                         $failed[] = ['id' => $unitId, 'error' => $e->getMessage()];
                     }
                 }
+                if (!empty($success)) {
+                    $storage->logActivity([
+                        'action' => 'Units Deleted',
+                        'details' => 'Bulk delete of ' . count($success) . ' unit(s)',
+                        'type' => 'unit',
+                        'status' => 'warning',
+                        'userId' => $_SESSION['userId'] ?? null
+                    ]);
+                }
                 sendJson(['success' => $success, 'failed' => $failed]);
             } else {
                 $unit = $storage->createUnit($body);
+                if ($unit) {
+                    $storage->logActivity([
+                        'action' => 'Unit Created',
+                        'details' => "Unit \"{$unit['unit_number']}\" created",
+                        'type' => 'unit',
+                        'status' => 'success',
+                        'userId' => $_SESSION['userId'] ?? null,
+                        'propertyId' => $unit['property_id'] ?? null
+                    ]);
+                }
                 sendJson($unit, 201);
             }
         }
         
         if ($method === 'PUT' && $id) {
             $unit = $storage->updateUnit($id, $body);
+            if ($unit) {
+                $storage->logActivity([
+                    'action' => 'Unit Updated',
+                    'details' => "Unit \"{$unit['unit_number']}\" updated",
+                    'type' => 'unit',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
             sendJson($unit ?: ['error' => 'Unit not found'], $unit ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
+            $unit = $storage->getUnit($id);
             $success = $storage->deleteUnit($id);
             sendJson([], $success ? 204 : 404);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Unit Deleted',
+                    'details' => $unit ? "Unit \"{$unit['unit_number']}\" deleted" : 'Unit deleted',
+                    'type' => 'unit',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
         }
     }
     
     // ========== TENANTS ==========
     elseif ($endpoint === 'tenants') {
+        if ($id && $action === 'send-login-details' && $method === 'POST') {
+            $result = sendTenantLoginDetails($storage, $messagingService, $id, [
+                'generateNew' => $body['generateNewAccessCode'] ?? true,
+                'sendSms' => $body['sendSms'] ?? true,
+                'sendEmail' => $body['sendEmail'] ?? true,
+            ]);
+
+            if (!empty($result['error'])) {
+                sendJson(['error' => $result['error']], 400);
+            }
+
+            $channels = [];
+            if (isset($result['sent']['sms'])) $channels[] = 'SMS';
+            if (isset($result['sent']['email'])) $channels[] = 'Email';
+            $channelLabel = empty($channels) ? 'no channels' : implode(' & ', $channels);
+
+            $storage->logActivity([
+                'action' => 'Tenant Login Details Sent',
+                'details' => "Tenant \"{$result['tenant']['full_name']}\" login sent via {$channelLabel}",
+                'type' => 'tenant',
+                'status' => $result['success'] ? 'success' : 'warning',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $result['profile']['property_id'] ?? null
+            ]);
+
+            sendJson([
+                'success' => $result['success'],
+                'accessCode' => $result['accessCode'],
+                'sent' => $result['sent']
+            ]);
+        }
+
+        if ($id === 'bulk-send-login-details' && $method === 'POST') {
+            $tenantIds = $body['tenantIds'] ?? [];
+            if (!is_array($tenantIds) || empty($tenantIds)) {
+                sendJson(['error' => 'tenantIds array is required'], 400);
+            }
+
+            $results = [];
+            $successCount = 0;
+            $failCount = 0;
+
+            foreach ($tenantIds as $tenantId) {
+                $result = sendTenantLoginDetails($storage, $messagingService, $tenantId, [
+                    'generateNew' => $body['generateNewAccessCode'] ?? true,
+                    'sendSms' => $body['sendSms'] ?? true,
+                    'sendEmail' => $body['sendEmail'] ?? true,
+                ]);
+
+                if ($result['success']) {
+                    $successCount++;
+                } else {
+                    $failCount++;
+                }
+
+                $tenantName = $result['tenant']['full_name'] ?? $tenantId;
+                $channels = [];
+                if (isset($result['sent']['sms'])) $channels[] = 'SMS';
+                if (isset($result['sent']['email'])) $channels[] = 'Email';
+                $channelLabel = empty($channels) ? 'no channels' : implode(' & ', $channels);
+
+                $storage->logActivity([
+                    'action' => 'Tenant Login Details Sent',
+                    'details' => "Tenant \"{$tenantName}\" login sent via {$channelLabel}",
+                    'type' => 'tenant',
+                    'status' => $result['success'] ? 'success' : 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $result['profile']['property_id'] ?? null
+                ]);
+
+                $results[] = [
+                    'tenantId' => $tenantId,
+                    'success' => $result['success'],
+                    'error' => $result['error'] ?? null
+                ];
+            }
+
+            sendJson([
+                'success' => $failCount === 0,
+                'sent' => $successCount,
+                'failed' => $failCount,
+                'results' => $results
+            ]);
+        }
+
         if ($method === 'GET' && !$id) {
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
+            if ($propertyId) {
+                sendJson($storage->getTenantsByProperty($propertyId));
+            } elseif ($landlordId) {
+                sendJson($storage->getTenantsByLandlord($landlordId));
+            } else {
             sendJson($storage->getAllTenants());
+            }
         }
         
         if ($method === 'GET' && $id) {
@@ -610,16 +1409,41 @@ try {
         
         if ($method === 'POST') {
             $tenant = $storage->createTenant($body);
+            $storage->logActivity([
+                'action' => 'Tenant Created',
+                'details' => "Tenant \"{$tenant['full_name']}\" created",
+                'type' => 'tenant',
+                'status' => 'success',
+                'userId' => $_SESSION['userId'] ?? null
+            ]);
             sendJson($tenant, 201);
         }
         
         if ($method === 'PUT' && $id) {
             $tenant = $storage->updateTenant($id, $body);
+            if ($tenant) {
+                $storage->logActivity([
+                    'action' => 'Tenant Updated',
+                    'details' => "Tenant \"{$tenant['full_name']}\" updated",
+                    'type' => 'tenant',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
             sendJson($tenant ?: ['error' => 'Tenant not found'], $tenant ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
             $success = $storage->deleteTenant($id);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Tenant Deleted',
+                    'details' => "Tenant deleted",
+                    'type' => 'tenant',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
             sendJson([], $success ? 204 : 404);
         }
     }
@@ -654,17 +1478,51 @@ try {
         
         if ($method === 'POST') {
             $lease = $storage->createLease($body);
+            if ($lease) {
+                $unit = $storage->getUnit($lease['unit_id'] ?? null);
+                $storage->logActivity([
+                    'action' => 'Lease Created',
+                    'details' => "Lease created for unit \"{$unit['unit_number']}\"",
+                    'type' => 'lease',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
             sendJson($lease, 201);
         }
         
         if ($method === 'PUT' && $id) {
             $lease = $storage->updateLease($id, $body);
+            if ($lease) {
+                $unit = $storage->getUnit($lease['unit_id'] ?? null);
+                $storage->logActivity([
+                    'action' => 'Lease Updated',
+                    'details' => "Lease updated for unit \"{$unit['unit_number']}\"",
+                    'type' => 'lease',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
             sendJson($lease ?: ['error' => 'Lease not found'], $lease ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
+            $lease = $storage->getLease($id);
+            $unit = $lease ? $storage->getUnit($lease['unit_id'] ?? null) : null;
             $success = $storage->deleteLease($id);
             sendJson([], $success ? 204 : 404);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Lease Deleted',
+                    'details' => $unit ? "Lease deleted for unit \"{$unit['unit_number']}\"" : 'Lease deleted',
+                    'type' => 'lease',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
         }
     }
     
@@ -697,20 +1555,68 @@ try {
                 $month = $body['month'] ?? date('n');
                 $year = $body['year'] ?? date('Y');
                 $invoices = $storage->generateMonthlyInvoices($month, $year);
+                $storage->logActivity([
+                    'action' => 'Invoices Generated',
+                    'details' => "Generated " . count($invoices) . " invoices for {$month}/{$year}",
+                    'type' => 'invoice',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
                 sendJson(['message' => "Generated " . count($invoices) . " invoices for $month/$year", 'invoices' => $invoices]);
             } else {
                 $invoice = $storage->createInvoice($body);
+                $propertyId = getPropertyIdByLease($storage, $body['leaseId'] ?? null);
+                $storage->logActivity([
+                    'action' => 'Invoice Created',
+                    'details' => "Invoice {$invoice['invoice_number']} created",
+                    'type' => 'invoice',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $propertyId
+                ]);
                 sendJson($invoice, 201);
             }
         }
         
         if ($method === 'PUT' && $id) {
+            $existingInvoice = $storage->getInvoice($id);
             $invoice = $storage->updateInvoice($id, $body);
+            if ($invoice) {
+                $propertyId = getPropertyIdByLease($storage, $invoice['lease_id'] ?? null);
+                $actionLabel = 'Invoice Updated';
+                if (isset($body['status']) && $existingInvoice && $body['status'] !== $existingInvoice['status']) {
+                    $status = strtolower($body['status']);
+                    if ($status === 'approved') {
+                        $actionLabel = 'Invoice Approved';
+                    } elseif ($status === 'sent') {
+                        $actionLabel = 'Invoice Sent';
+                    } elseif ($status === 'paid') {
+                        $actionLabel = 'Invoice Paid';
+                    }
+                }
+                $storage->logActivity([
+                    'action' => $actionLabel,
+                    'details' => "Invoice {$invoice['invoice_number']} updated",
+                    'type' => 'invoice',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $propertyId
+                ]);
+            }
             sendJson($invoice ?: ['error' => 'Invoice not found'], $invoice ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
             $success = $storage->deleteInvoice($id);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Invoice Deleted',
+                    'details' => "Invoice deleted",
+                    'type' => 'invoice',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
             sendJson([], $success ? 204 : 404);
         }
     }
@@ -737,17 +1643,512 @@ try {
         
         if ($method === 'POST') {
             $payment = $storage->createPayment($body);
+            $propertyId = getPropertyIdByLease($storage, $body['leaseId'] ?? null);
+            $lease = $storage->getLease($body['leaseId'] ?? null);
+            $tenantId = $lease['tenant_id'] ?? null;
+            $storage->logActivity([
+                'action' => 'Payment Received',
+                'details' => "Payment of KSh {$body['amount']} received",
+                'type' => 'payment',
+                'status' => 'success',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $propertyId
+            ]);
+            if ($tenantId) {
+                sendTenantPaymentConfirmation($storage, $messagingService, $propertyId, $tenantId, $body['amount']);
+            }
             sendJson($payment, 201);
         }
         
         if ($method === 'PUT' && $id) {
             $payment = $storage->updatePayment($id, $body);
+            if ($payment) {
+                $propertyId = getPropertyIdByLease($storage, $payment['lease_id'] ?? null);
+                $storage->logActivity([
+                    'action' => 'Payment Updated',
+                    'details' => "Payment of KSh {$payment['amount']} updated",
+                    'type' => 'payment',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $propertyId
+                ]);
+            }
             sendJson($payment ?: ['error' => 'Payment not found'], $payment ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
             $success = $storage->deletePayment($id);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Payment Deleted',
+                    'details' => "Payment deleted",
+                    'type' => 'payment',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
             sendJson([], $success ? 204 : 404);
+        }
+    }
+
+    // ========== SETTINGS ==========
+    elseif ($endpoint === 'settings') {
+        requireAuth();
+        $scopePropertyId = getQuery('propertyId') ?? ($body['propertyId'] ?? null);
+        $scopeLandlordId = getQuery('landlordId') ?? ($body['landlordId'] ?? $_SESSION['userId'] ?? null);
+        $section = $action ?? $id;
+
+        if ($section === 'invoice-logo' && $method === 'POST') {
+            try {
+                if (!$scopePropertyId) {
+                    sendJson(['error' => 'propertyId is required'], 400);
+                }
+                if (!isset($_FILES['logo'])) {
+                    sendJson(['error' => 'Logo file is required'], 400);
+                }
+                $file = $_FILES['logo'];
+                if (!empty($file['error'])) {
+                    sendJson(['error' => 'Failed to upload logo', 'code' => $file['error']], 400);
+                }
+                if ($file['size'] > 5 * 1024 * 1024) {
+                    sendJson(['error' => 'Logo exceeds 5MB limit'], 400);
+                }
+                if (!is_uploaded_file($file['tmp_name'])) {
+                    sendJson(['error' => 'Invalid upload'], 400);
+                }
+                $imageInfo = @getimagesize($file['tmp_name']);
+                $mimeType = $imageInfo['mime'] ?? null;
+                if (!$mimeType && !empty($file['type'])) {
+                    $mimeType = $file['type'];
+                }
+                $allowedTypes = ['image/png', 'image/jpeg'];
+                if (!in_array($mimeType, $allowedTypes, true)) {
+                    sendJson(['error' => 'Only PNG or JPEG logos are allowed'], 400);
+                }
+                $extension = $mimeType === 'image/png' ? 'png' : 'jpg';
+                $publicRoot = realpath(__DIR__ . '/../public') ?: (__DIR__ . '/../public');
+                $uploadDir = $publicRoot . '/uploads/invoice-logos';
+                if (!is_dir($uploadDir) && !mkdir($uploadDir, 0777, true)) {
+                    sendJson(['error' => 'Failed to create logo directory'], 500);
+                }
+                $existingSettings = $storage->getInvoiceSettings($scopePropertyId, $scopeLandlordId);
+                if (!empty($existingSettings['logo_url'])) {
+                    $existingPath = $publicRoot . $existingSettings['logo_url'];
+                    if (file_exists($existingPath)) {
+                        unlink($existingPath);
+                    }
+                }
+                $fileName = $scopePropertyId . '-' . time() . '.' . $extension;
+                $destination = $uploadDir . '/' . $fileName;
+                if (!move_uploaded_file($file['tmp_name'], $destination)) {
+                    sendJson(['error' => 'Failed to save logo'], 500);
+                }
+                $logoUrl = '/uploads/invoice-logos/' . $fileName;
+                $storage->saveInvoiceSettings($scopePropertyId, $scopeLandlordId, [
+                    'logo_url' => $logoUrl
+                ]);
+                sendJson(['logo_url' => $logoUrl], 200);
+            } catch (Exception $e) {
+                sendJson(['error' => 'Logo upload failed', 'message' => $e->getMessage()], 500);
+            }
+        }
+        if ($section === 'invoice-logo' && $method === 'DELETE') {
+            if (!$scopePropertyId) {
+                sendJson(['error' => 'propertyId is required'], 400);
+            }
+            $existingSettings = $storage->getInvoiceSettings($scopePropertyId, $scopeLandlordId);
+            if (!empty($existingSettings['logo_url'])) {
+                $existingPath = __DIR__ . '/../public' . $existingSettings['logo_url'];
+                if (file_exists($existingPath)) {
+                    unlink($existingPath);
+                }
+            }
+            $storage->saveInvoiceSettings($scopePropertyId, $scopeLandlordId, [
+                'logo_url' => ''
+            ]);
+            sendJson(['logo_url' => ''], 200);
+        }
+
+        if ($section === 'sms') {
+            if ($method === 'GET') {
+                sendJson($storage->getSmsSettings($scopePropertyId, $scopeLandlordId) ?: []);
+            }
+            if ($method === 'PUT' || $method === 'POST') {
+                $data = $body;
+                $settings = $storage->saveSmsSettings($scopePropertyId, $scopeLandlordId, $data);
+                sendJson($settings);
+            }
+        }
+        if ($section === 'email') {
+            if ($method === 'GET') {
+                sendJson($storage->getEmailSettings($scopePropertyId, $scopeLandlordId) ?: []);
+            }
+            if ($method === 'PUT' || $method === 'POST') {
+                $data = $body;
+                $settings = $storage->saveEmailSettings($scopePropertyId, $scopeLandlordId, $data);
+                sendJson($settings);
+            }
+        }
+        if ($section === 'mpesa') {
+            if ($method === 'GET') {
+                sendJson($storage->getMpesaSettings($scopePropertyId, $scopeLandlordId) ?: []);
+            }
+            if ($method === 'PUT' || $method === 'POST') {
+                $data = $body;
+                $settings = $storage->saveMpesaSettings($scopePropertyId, $scopeLandlordId, $data);
+                sendJson($settings);
+            }
+        }
+        if ($section === 'invoice') {
+            if ($method === 'GET') {
+                sendJson($storage->getInvoiceSettings($scopePropertyId, $scopeLandlordId) ?: []);
+            }
+            if ($method === 'PUT' || $method === 'POST') {
+                $data = $body;
+                $settings = $storage->saveInvoiceSettings($scopePropertyId, $scopeLandlordId, $data);
+                sendJson($settings);
+            }
+        }
+        if ($section === 'alerts') {
+            if ($method === 'GET') {
+                sendJson($storage->getAlertSettings($scopePropertyId, $scopeLandlordId));
+            }
+            if ($method === 'PUT' || $method === 'POST') {
+                $alerts = $body['alerts'] ?? [];
+                $settings = $storage->saveAlertSettings($scopePropertyId, $scopeLandlordId, $alerts);
+                sendJson($settings);
+            }
+        }
+    }
+
+    // ========== M-PESA STK PUSH ==========
+    elseif ($endpoint === 'mpesa' && $action === 'stk-push' && $method === 'POST') {
+        if (!isset($_SESSION['userId']) && !isset($_SESSION['tenantId'])) {
+            sendJson(['error' => 'Unauthorized'], 401);
+        }
+
+        $invoiceId = $body['invoiceId'] ?? null;
+        $amount = $body['amount'] ?? null;
+        $phone = $body['phone'] ?? null;
+        if (!$invoiceId || !$amount || !$phone) {
+            sendJson(['error' => 'invoiceId, amount, and phone are required'], 400);
+        }
+
+        $invoice = $storage->getInvoice($invoiceId);
+        if (!$invoice) {
+            sendJson(['error' => 'Invoice not found'], 404);
+        }
+
+        $lease = $storage->getLease($invoice['lease_id'] ?? null);
+        $unit = $storage->getUnit($lease['unit_id'] ?? null);
+        $property = $storage->getProperty($unit['property_id'] ?? null);
+        $tenantId = $lease['tenant_id'] ?? null;
+
+        $propertyId = $property['id'] ?? null;
+        $landlordId = $property['landlord_id'] ?? null;
+        $settings = $storage->getMpesaSettings($propertyId, $landlordId);
+        if (!$settings || empty($settings['enabled'])) {
+            sendJson(['error' => 'M-Pesa STK is not enabled for this property'], 400);
+        }
+
+        $accountNumber = buildTenantAccountNumber($property['account_prefix'] ?? '', $unit['unit_number'] ?? '');
+        if (!$accountNumber) {
+            sendJson(['error' => 'Account number is missing. Set property prefix and unit number.'], 400);
+        }
+
+        $response = sendMpesaStkPush($settings, [
+            'amount' => $amount,
+            'phone' => $phone,
+            'accountNumber' => $accountNumber,
+            'description' => "Invoice {$invoice['invoice_number']}"
+        ]);
+
+        $storage->createMpesaStkRequest([
+            'landlordId' => $landlordId,
+            'propertyId' => $propertyId,
+            'tenantId' => $tenantId,
+            'invoiceId' => $invoiceId,
+            'phone' => $phone,
+            'accountNumber' => $accountNumber,
+            'amount' => $amount,
+            'merchantRequestId' => $response['MerchantRequestID'] ?? null,
+            'checkoutRequestId' => $response['CheckoutRequestID'] ?? null,
+            'status' => 'pending'
+        ]);
+
+        sendJson([
+            'success' => true,
+            'checkoutRequestId' => $response['CheckoutRequestID'] ?? null,
+            'merchantRequestId' => $response['MerchantRequestID'] ?? null
+        ]);
+    }
+
+    elseif ($endpoint === 'mpesa' && $action === 'stk-callback' && $method === 'POST') {
+        $callback = $body ?: json_decode(file_get_contents('php://input'), true);
+        $stk = $callback['Body']['stkCallback'] ?? null;
+        if (!$stk) {
+            sendJson(['success' => false], 400);
+        }
+        $checkoutRequestId = $stk['CheckoutRequestID'] ?? null;
+        $resultCode = $stk['ResultCode'] ?? null;
+        $resultDesc = $stk['ResultDesc'] ?? null;
+        $metadata = $stk['CallbackMetadata']['Item'] ?? [];
+
+        $mpesaReceipt = null;
+        $transactionDate = null;
+        $amountPaid = null;
+        foreach ($metadata as $item) {
+            if (($item['Name'] ?? '') === 'MpesaReceiptNumber') $mpesaReceipt = $item['Value'] ?? null;
+            if (($item['Name'] ?? '') === 'TransactionDate') $transactionDate = $item['Value'] ?? null;
+            if (($item['Name'] ?? '') === 'Amount') $amountPaid = $item['Value'] ?? null;
+        }
+
+        $status = ($resultCode === 0 || $resultCode === '0') ? 'success' : 'failed';
+        $storage->updateMpesaStkRequestByCheckout($checkoutRequestId, [
+            'status' => $status,
+            'resultCode' => $resultCode,
+            'resultDesc' => $resultDesc,
+            'mpesaReceipt' => $mpesaReceipt,
+            'transactionDate' => $transactionDate
+        ]);
+
+        if ($status === 'success') {
+            $request = $storage->getMpesaStkRequestByCheckout($checkoutRequestId);
+            if ($request && !empty($request['invoice_id'])) {
+                $invoice = $storage->getInvoice($request['invoice_id']);
+                $leaseId = $invoice['lease_id'] ?? null;
+                $storage->createPayment([
+                    'leaseId' => $leaseId,
+                    'invoiceId' => $request['invoice_id'],
+                    'amount' => $amountPaid ?? $request['amount'] ?? 0,
+                    'paymentMethod' => 'M-Pesa',
+                    'reference' => $mpesaReceipt ?? null,
+                    'paymentDate' => date('Y-m-d')
+                ]);
+                sendTenantPaymentConfirmation($storage, $messagingService, $request['property_id'] ?? null, $request['tenant_id'] ?? null, $amountPaid ?? $request['amount'] ?? 0);
+                if ($invoice) {
+                    $totalPaid = array_sum(array_column($storage->getPaymentsByInvoice($request['invoice_id']), 'amount'));
+                    if ($totalPaid >= ($invoice['amount'] ?? 0)) {
+                        $storage->updateInvoice($request['invoice_id'], ['status' => 'paid']);
+                    }
+                    $storage->logActivity([
+                        'action' => 'Payment Received',
+                        'details' => "Payment of KSh {$amountPaid} received",
+                        'type' => 'payment',
+                        'status' => 'success',
+                        'userId' => null,
+                        'propertyId' => $request['property_id'] ?? null
+                    ]);
+                }
+            }
+        }
+
+        sendJson(['success' => true]);
+    }
+
+    elseif ($endpoint === 'mpesa' && $action === 'balance' && $method === 'GET') {
+        requireAuth();
+        $propertyId = getQuery('propertyId');
+        $landlordId = getQuery('landlordId') ?? $_SESSION['userId'] ?? null;
+        $settings = $storage->getMpesaSettings($propertyId, $landlordId);
+        if (!$settings || empty($settings['enabled'])) {
+            sendJson(['error' => 'M-Pesa is not enabled for this property'], 400);
+        }
+        // Placeholder: Daraja account balance API requires additional security credential
+        sendJson([
+            'success' => true,
+            'balance' => null,
+            'message' => 'Balance endpoint configured; requires security credential.'
+        ]);
+    }
+
+    // ========== MAINTENANCE REQUESTS ==========
+    elseif ($endpoint === 'maintenance-requests') {
+        if ($id === 'tenant' && $method === 'GET') {
+            $tenantId = $action;
+            if (!$tenantId) {
+                sendJson(['error' => 'Tenant id is required'], 400);
+            }
+            if (isset($_SESSION['tenantId'])) {
+                if ($_SESSION['tenantId'] !== $tenantId) {
+                    sendJson(['error' => 'Unauthorized'], 403);
+                }
+            } else {
+                requireAuth();
+            }
+            sendJson($storage->getMaintenanceRequests(['tenantId' => $tenantId]));
+        }
+
+        if ($method === 'GET' && !$id) {
+            requireAuth();
+            $filters = [
+                'propertyId' => getQuery('propertyId'),
+                'landlordId' => getQuery('landlordId'),
+                'status' => getQuery('status')
+            ];
+            sendJson($storage->getMaintenanceRequests($filters));
+        }
+
+        if ($method === 'GET' && $id) {
+            requireAuth();
+            $request = $storage->getMaintenanceRequest($id);
+            sendJson($request ?: ['error' => 'Maintenance request not found'], $request ? 200 : 404);
+        }
+
+        if ($method === 'POST') {
+            if (!isset($_SESSION['userId']) && !isset($_SESSION['tenantId'])) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+            if (empty($body) && !empty($_POST)) {
+                $body = $_POST;
+            }
+            if (!isset($body['tenantId']) && isset($_SESSION['tenantId'])) {
+                $body['tenantId'] = $_SESSION['tenantId'];
+            }
+            if (isset($body['tenantId']) && (!isset($body['propertyId']) || !isset($body['unitId']))) {
+                $tenantProfile = $storage->getTenantPortalProfile($body['tenantId']);
+                if ($tenantProfile) {
+                    if (!isset($body['propertyId']) && !empty($tenantProfile['property_id'])) {
+                        $body['propertyId'] = $tenantProfile['property_id'];
+                    }
+                    if (!isset($body['unitId']) && !empty($tenantProfile['unit_id'])) {
+                        $body['unitId'] = $tenantProfile['unit_id'];
+                    }
+                }
+            }
+
+            $mediaUrls = [];
+            if (!empty($_FILES['media'])) {
+                $files = $_FILES['media'];
+                $totalSize = 0;
+                $publicRoot = realpath(__DIR__ . '/../public') ?: (__DIR__ . '/../public');
+                $uploadDir = $publicRoot . '/uploads/maintenance';
+                if (!is_dir($uploadDir) && !mkdir($uploadDir, 0777, true)) {
+                    sendJson(['error' => 'Failed to create upload directory'], 500);
+                }
+                $allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'mov'];
+                if (is_array($files['name'])) {
+                    foreach ($files['name'] as $index => $name) {
+                        if ($files['error'][$index] !== UPLOAD_ERR_OK) {
+                            sendJson(['error' => 'Failed to upload media'], 400);
+                        }
+                        $size = $files['size'][$index] ?? 0;
+                        $totalSize += $size;
+                        if ($totalSize > 5 * 1024 * 1024) {
+                            sendJson(['error' => 'Media exceeds 5MB limit'], 400);
+                        }
+                        $tmpName = $files['tmp_name'][$index] ?? null;
+                        if (!$tmpName || !is_uploaded_file($tmpName)) {
+                            sendJson(['error' => 'Invalid media upload'], 400);
+                        }
+                        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                        if (!in_array($extension, $allowedExtensions, true)) {
+                            sendJson(['error' => 'Unsupported media type'], 400);
+                        }
+                        $fileName = uniqid('media_', true) . '.' . $extension;
+                        $destination = $uploadDir . '/' . $fileName;
+                        if (!move_uploaded_file($tmpName, $destination)) {
+                            sendJson(['error' => 'Failed to save media'], 500);
+                        }
+                        $mediaUrls[] = '/uploads/maintenance/' . $fileName;
+                    }
+                } else {
+                    if ($files['error'] !== UPLOAD_ERR_OK) {
+                        sendJson(['error' => 'Failed to upload media'], 400);
+                    }
+                    $size = $files['size'] ?? 0;
+                    if ($size > 5 * 1024 * 1024) {
+                        sendJson(['error' => 'Media exceeds 5MB limit'], 400);
+                    }
+                    $tmpName = $files['tmp_name'] ?? null;
+                    if (!$tmpName || !is_uploaded_file($tmpName)) {
+                        sendJson(['error' => 'Invalid media upload'], 400);
+                    }
+                    $extension = strtolower(pathinfo($files['name'] ?? '', PATHINFO_EXTENSION));
+                    if (!in_array($extension, $allowedExtensions, true)) {
+                        sendJson(['error' => 'Unsupported media type'], 400);
+                    }
+                    $fileName = uniqid('media_', true) . '.' . $extension;
+                    $destination = $uploadDir . '/' . $fileName;
+                    if (!move_uploaded_file($tmpName, $destination)) {
+                        sendJson(['error' => 'Failed to save media'], 500);
+                    }
+                    $mediaUrls[] = '/uploads/maintenance/' . $fileName;
+                }
+            }
+            if (!empty($mediaUrls)) {
+                $body['mediaUrls'] = json_encode($mediaUrls);
+            }
+            $request = $storage->createMaintenanceRequest($body);
+            $storage->logActivity([
+                'action' => 'Maintenance Request Created',
+                'details' => "Request \"{$request['title']}\" created",
+                'type' => 'maintenance',
+                'status' => 'success',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $request['property_id'] ?? null
+            ]);
+            sendJson($request, 201);
+        }
+
+        if ($method === 'PUT' && $id) {
+            requireAuth();
+            $request = $storage->updateMaintenanceRequest($id, $body);
+            if ($request) {
+                $storage->logActivity([
+                    'action' => 'Maintenance Request Updated',
+                    'details' => "Request \"{$request['title']}\" updated",
+                    'type' => 'maintenance',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $request['property_id'] ?? null
+                ]);
+            }
+            sendJson($request ?: ['error' => 'Maintenance request not found'], $request ? 200 : 404);
+        }
+
+        if ($method === 'DELETE' && $id) {
+            requireAuth();
+            $success = $storage->deleteMaintenanceRequest($id);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Maintenance Request Deleted',
+                    'details' => "Request deleted",
+                    'type' => 'maintenance',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+            }
+            sendJson([], $success ? 204 : 404);
+        }
+    }
+
+    // ========== ACTIVITY LOGS ==========
+    elseif ($endpoint === 'activity-logs') {
+        requireAuth();
+        if ($method === 'GET' && !$id) {
+            $filters = [
+                'type' => getQuery('type'),
+                'userId' => getQuery('userId'),
+                'propertyId' => getQuery('propertyId'),
+                'search' => getQuery('search'),
+                'dateFrom' => getQuery('dateFrom'),
+                'dateTo' => getQuery('dateTo'),
+                'limit' => getQuery('limit'),
+            ];
+            sendJson($storage->getActivityLogs($filters));
+        }
+        
+        if ($method === 'POST') {
+            $activityId = $storage->logActivity([
+                'action' => $body['action'] ?? 'Activity',
+                'details' => $body['details'] ?? null,
+                'type' => $body['type'] ?? 'system',
+                'status' => $body['status'] ?? 'success',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $body['propertyId'] ?? null
+            ]);
+            sendJson(['id' => $activityId, 'success' => true], 201);
         }
     }
     
@@ -931,6 +2332,9 @@ try {
         
         if ($method === 'POST') {
             $template = $storage->createMessageTemplate($body);
+            if (!$template) {
+                sendJson(['error' => 'Message templates are not configured'], 500);
+            }
             $storage->logActivity([
                 'action' => 'Template Created',
                 'details' => 'Created message template: ' . ($template['name'] ?? 'Unnamed'),
@@ -943,6 +2347,9 @@ try {
         
         if ($method === 'PUT' && $id) {
             $template = $storage->updateMessageTemplate($id, $body);
+            if (!$template) {
+                sendJson(['error' => 'Message templates are not configured'], 500);
+            }
             if ($template) {
                 $storage->logActivity([
                     'action' => 'Template Updated',
@@ -1066,33 +2473,6 @@ try {
         exit;
     }
     
-    // ========== ACTIVITY LOGS ==========
-    elseif ($endpoint === 'activity-logs') {
-        requireAuth();
-        if ($method === 'GET') {
-            $filters = [
-                'type' => getQuery('type'),
-                'userId' => getQuery('userId'),
-                'propertyId' => getQuery('propertyId'),
-                'search' => getQuery('search'),
-                'dateFrom' => getQuery('dateFrom'),
-                'dateTo' => getQuery('dateTo')
-            ];
-            sendJson($storage->getActivityLogs($filters));
-        }
-        if ($method === 'POST') {
-            $activityId = $storage->logActivity([
-                'action' => $body['action'] ?? 'Activity',
-                'details' => $body['details'] ?? null,
-                'type' => $body['type'] ?? 'system',
-                'status' => $body['status'] ?? 'success',
-                'userId' => $_SESSION['userId'] ?? null,
-                'propertyId' => $body['propertyId'] ?? null
-            ]);
-            sendJson(['id' => $activityId, 'success' => true], 201);
-        }
-    }
-    
     // ========== INVOICE ITEMS ==========
     elseif ($endpoint === 'invoice-items') {
         if ($method === 'GET' && !$id) {
@@ -1138,17 +2518,51 @@ try {
         
         if ($method === 'POST') {
             $reading = $storage->createWaterReading($body);
+            if ($reading) {
+                $unit = $storage->getUnit($reading['unit_id'] ?? null);
+                $storage->logActivity([
+                    'action' => 'Water Reading Added',
+                    'details' => $unit ? "Water reading recorded for unit \"{$unit['unit_number']}\"" : 'Water reading recorded',
+                    'type' => 'water_reading',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
             sendJson($reading, 201);
         }
         
         if ($method === 'PUT' && $id) {
             $reading = $storage->updateWaterReading($id, $body);
+            if ($reading) {
+                $unit = $storage->getUnit($reading['unit_id'] ?? null);
+                $storage->logActivity([
+                    'action' => 'Water Reading Updated',
+                    'details' => $unit ? "Water reading updated for unit \"{$unit['unit_number']}\"" : 'Water reading updated',
+                    'type' => 'water_reading',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
             sendJson($reading ?: ['error' => 'Water reading not found'], $reading ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
+            $reading = $storage->getWaterReading($id);
+            $unit = $reading ? $storage->getUnit($reading['unit_id'] ?? null) : null;
             $success = $storage->deleteWaterReading($id);
             sendJson([], $success ? 204 : 404);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Water Reading Deleted',
+                    'details' => $unit ? "Water reading deleted for unit \"{$unit['unit_number']}\"" : 'Water reading deleted',
+                    'type' => 'water_reading',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $unit['property_id'] ?? null
+                ]);
+            }
         }
     }
     
@@ -1175,17 +2589,48 @@ try {
         
         if ($method === 'POST') {
             $chargeCode = $storage->createChargeCode($body);
+            if ($chargeCode) {
+                $storage->logActivity([
+                    'action' => 'Charge Code Created',
+                    'details' => "Charge code \"{$chargeCode['name']}\" created",
+                    'type' => 'charge_code',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $chargeCode['property_id'] ?? null
+                ]);
+            }
             sendJson($chargeCode, 201);
         }
         
         if ($method === 'PUT' && $id) {
             $chargeCode = $storage->updateChargeCode($id, $body);
+            if ($chargeCode) {
+                $storage->logActivity([
+                    'action' => 'Charge Code Updated',
+                    'details' => "Charge code \"{$chargeCode['name']}\" updated",
+                    'type' => 'charge_code',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $chargeCode['property_id'] ?? null
+                ]);
+            }
             sendJson($chargeCode ?: ['error' => 'Charge code not found'], $chargeCode ? 200 : 404);
         }
         
         if ($method === 'DELETE' && $id) {
+            $chargeCode = $storage->getChargeCode($id);
             $success = $storage->deleteChargeCode($id);
             sendJson([], $success ? 204 : 404);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'Charge Code Deleted',
+                    'details' => $chargeCode ? "Charge code \"{$chargeCode['name']}\" deleted" : 'Charge code deleted',
+                    'type' => 'charge_code',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $chargeCode['property_id'] ?? null
+                ]);
+            }
         }
     }
     
@@ -1195,8 +2640,170 @@ try {
     }
     
     // ========== USERS ==========
-    elseif ($endpoint === 'users' && $method === 'GET') {
-        sendJson($storage->getUsers());
+    elseif ($endpoint === 'users') {
+        requireAuth();
+        if ($method === 'GET' && !$id) {
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
+            $filters = [];
+            if ($propertyId) {
+                $filters['propertyId'] = $propertyId;
+            }
+            if ($landlordId) {
+                $filters['landlordId'] = $landlordId;
+            }
+            sendJson($storage->getUsers($filters));
+        }
+        
+        if ($method === 'GET' && $id) {
+            $user = $storage->getUser($id);
+            sendJson($user ?: ['error' => 'User not found'], $user ? 200 : 404);
+        }
+        
+        if ($method === 'POST' && !$id) {
+            $propertyId = $body['propertyId'] ?? null;
+            if (!$propertyId) {
+                sendJson(['error' => 'propertyId is required'], 400);
+            }
+            if (empty($body['username'])) {
+                sendJson(['error' => 'username is required'], 400);
+            }
+            $password = $body['password'] ?? bin2hex(random_bytes(4));
+            $hashedPassword = $password;
+            if (strpos($password, '$2') !== 0) {
+                $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+            }
+            $user = $storage->createUser([
+                'username' => $body['username'] ?? null,
+                'password' => $hashedPassword,
+                'role' => $body['role'] ?? 'admin',
+                'fullName' => $body['fullName'] ?? null,
+                'phone' => $body['phone'] ?? null,
+                'idNumber' => $body['idNumber'] ?? null,
+                'propertyId' => $propertyId,
+                'permissions' => $body['permissions'] ?? [],
+                'otpEnabled' => $body['otpEnabled'] ?? null
+            ]);
+            if (!$user) {
+                sendJson(['error' => 'Failed to create user'], 400);
+            }
+            $storage->logActivity([
+                'action' => 'User Created',
+                'details' => "User \"{$user['username']}\" created",
+                'type' => 'user',
+                'status' => 'success',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $propertyId
+            ]);
+            sendJson(array_merge($user, ['generatedPassword' => $password]), 201);
+        }
+        
+        if ($id && $action === 'send-login-details' && $method === 'POST') {
+            $user = $storage->getUser($id);
+            if (!$user) {
+                sendJson(['error' => 'User not found'], 404);
+            }
+            $password = bin2hex(random_bytes(4));
+            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+            $storage->setUserPassword($id, $hashedPassword, true);
+            $sent = false;
+            $sentError = null;
+            $recipient = $user['username'] ?? null;
+            if ($recipient && strpos($recipient, '@') !== false) {
+                global $messagingService;
+                $emailSubject = "LeaseMaster Login Details";
+                $emailBody = "<html><body>";
+                $emailBody .= "<h3>Your LeaseMaster Login Details</h3>";
+                $emailBody .= "<p>Username: {$recipient}</p>";
+                $emailBody .= "<p>Temporary Password: {$password}</p>";
+                $emailBody .= "<p>Please change your password after logging in.</p>";
+                $emailBody .= "</body></html>";
+                $emailResult = $messagingService->sendEmail($recipient, null, $emailSubject, $emailBody);
+                $sent = $emailResult['success'] ?? false;
+                $sentError = $emailResult['error'] ?? null;
+            }
+            $storage->logActivity([
+                'action' => 'Login Details Sent',
+                'details' => "Login details sent to user \"{$user['username']}\"",
+                'type' => 'user',
+                'status' => $sent ? 'success' : 'warning',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $user['property_id'] ?? null
+            ]);
+            sendJson([
+                'success' => true,
+                'generatedPassword' => $password,
+                'emailSent' => $sent,
+                'emailError' => $sentError
+            ], 200);
+        }
+        
+        if ($id && $action === 'reset-password' && $method === 'POST') {
+            $user = $storage->getUser($id);
+            if (!$user) {
+                sendJson(['error' => 'User not found'], 404);
+            }
+            $password = bin2hex(random_bytes(4));
+            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+            $storage->setUserPassword($id, $hashedPassword, true);
+            $storage->logActivity([
+                'action' => 'Password Reset',
+                'details' => "Password reset for user \"{$user['username']}\"",
+                'type' => 'user',
+                'status' => 'warning',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $user['property_id'] ?? null
+            ]);
+            sendJson(['success' => true, 'generatedPassword' => $password], 200);
+        }
+        
+        if ($id && $action === 'otp' && $method === 'POST') {
+            $enabled = isset($body['enabled']) ? (bool)$body['enabled'] : false;
+            $user = $storage->updateUser($id, ['otpEnabled' => $enabled]);
+            if (!$user) {
+                sendJson(['error' => 'User not found'], 404);
+            }
+            $storage->logActivity([
+                'action' => $enabled ? 'OTP Enabled' : 'OTP Disabled',
+                'details' => "OTP " . ($enabled ? 'enabled' : 'disabled') . " for user \"{$user['username']}\"",
+                'type' => 'user',
+                'status' => 'success',
+                'userId' => $_SESSION['userId'] ?? null,
+                'propertyId' => $user['property_id'] ?? null
+            ]);
+            sendJson($user, 200);
+        }
+        
+        if ($method === 'PUT' && $id) {
+            $user = $storage->updateUser($id, $body);
+            if ($user) {
+                $storage->logActivity([
+                    'action' => 'User Updated',
+                    'details' => "User \"{$user['username']}\" updated",
+                    'type' => 'user',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $user['property_id'] ?? null
+                ]);
+            }
+            sendJson($user ?: ['error' => 'User not found'], $user ? 200 : 404);
+        }
+        
+        if ($method === 'DELETE' && $id) {
+            $user = $storage->getUser($id);
+            $success = $storage->deleteUser($id);
+            if ($success) {
+                $storage->logActivity([
+                    'action' => 'User Deleted',
+                    'details' => $user ? "User \"{$user['username']}\" deleted" : 'User deleted',
+                    'type' => 'user',
+                    'status' => 'warning',
+                    'userId' => $_SESSION['userId'] ?? null,
+                    'propertyId' => $user['property_id'] ?? null
+                ]);
+            }
+            sendJson([], $success ? 204 : 404);
+        }
     }
     
     // ========== PUBLIC ROUTES ==========
@@ -1367,6 +2974,20 @@ try {
             'error' => $result['error'] ?? null
         ], 200);
     }
+
+    // ========== EMAIL BALANCE ==========
+    elseif ($endpoint === 'email-balance' && $method === 'GET') {
+        requireAuth();
+        $propertyId = getQuery('propertyId');
+        $landlordId = getQuery('landlordId') ?? $_SESSION['userId'] ?? null;
+        $settings = $storage->getEmailSettings($propertyId, $landlordId);
+        $balance = isset($settings['credit_balance']) ? intval($settings['credit_balance']) : null;
+        $threshold = isset($settings['credit_threshold']) ? intval($settings['credit_threshold']) : null;
+        sendJson([
+            'balance' => $balance,
+            'threshold' => $threshold
+        ], 200);
+    }
     
     // ========== PROPERTY SMS SETTINGS ==========
     elseif ($endpoint === 'property-sms-settings') {
@@ -1461,6 +3082,16 @@ try {
             'userId' => $sentByUserId,
             'propertyId' => $propertyId
         ]);
+
+        if ($result['success']) {
+            $storage->recordCreditUsage([
+                'landlordId' => $propertyId ? null : ($sentByUserId ?? null),
+                'propertyId' => $propertyId,
+                'channel' => 'sms',
+                'units' => 1,
+                'meta' => json_encode(['recipient' => $mobile])
+            ]);
+        }
         
         sendJson([
             'success' => $result['success'],
@@ -1473,11 +3104,20 @@ try {
     elseif ($endpoint === 'send-email' && $method === 'POST') {
         global $messagingService;
         requireAuth();
+
+        if (empty($body) && !empty($_POST)) {
+            $body = $_POST;
+        }
         
         $to = $body['to'] ?? null;
         $toName = $body['toName'] ?? null;
         $subject = $body['subject'] ?? null;
-        $message = $body['message'] ?? null;
+        $messageHtml = $body['messageHtml'] ?? null;
+        $message = $messageHtml ?? ($body['message'] ?? null);
+        $isHtml = filter_var($body['isHtml'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if ($messageHtml) {
+            $isHtml = true;
+        }
         $propertyId = $body['propertyId'] ?? null;
         $recipientType = $body['recipientType'] ?? 'tenant';
         $recipientId = $body['recipientId'] ?? null;
@@ -1487,7 +3127,66 @@ try {
             sendJson(['error' => 'to, subject, and message are required'], 400);
         }
         
-        $result = $messagingService->sendEmail($to, $toName, $subject, $message);
+        $attachments = [];
+        $allowedExtensions = ['pdf', 'csv', 'xlsx', 'zip', 'rar', 'png', 'jpg', 'jpeg'];
+        if (!empty($_FILES['attachments'])) {
+            $files = $_FILES['attachments'];
+            $totalSize = 0;
+            if (is_array($files['name'])) {
+                foreach ($files['name'] as $index => $name) {
+                    if ($files['error'][$index] !== UPLOAD_ERR_OK) {
+                        sendJson(['error' => 'Failed to upload attachment'], 400);
+                    }
+                    $size = $files['size'][$index] ?? 0;
+                    $totalSize += $size;
+                    if ($totalSize > 10 * 1024 * 1024) {
+                        sendJson(['error' => 'Attachments exceed 10MB limit'], 400);
+                    }
+                    $tmpName = $files['tmp_name'][$index] ?? null;
+                    if (!$tmpName || !is_uploaded_file($tmpName)) {
+                        sendJson(['error' => 'Invalid attachment upload'], 400);
+                    }
+                    $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                    if (!in_array($extension, $allowedExtensions, true)) {
+                        sendJson(['error' => 'Unsupported attachment type'], 400);
+                    }
+                    $attachments[] = [
+                        'tmp_name' => $tmpName,
+                        'name' => $name,
+                        'type' => $files['type'][$index] ?? null
+                    ];
+                }
+            } else {
+                if ($files['error'] !== UPLOAD_ERR_OK) {
+                    sendJson(['error' => 'Failed to upload attachment'], 400);
+                }
+                $size = $files['size'] ?? 0;
+                if ($size > 10 * 1024 * 1024) {
+                    sendJson(['error' => 'Attachment exceeds 10MB limit'], 400);
+                }
+                $tmpName = $files['tmp_name'] ?? null;
+                if (!$tmpName || !is_uploaded_file($tmpName)) {
+                    sendJson(['error' => 'Invalid attachment upload'], 400);
+                }
+                $extension = strtolower(pathinfo($files['name'] ?? '', PATHINFO_EXTENSION));
+                if (!in_array($extension, $allowedExtensions, true)) {
+                    sendJson(['error' => 'Unsupported attachment type'], 400);
+                }
+                $attachments[] = [
+                    'tmp_name' => $tmpName,
+                    'name' => $files['name'] ?? 'attachment',
+                    'type' => $files['type'] ?? null
+                ];
+            }
+        }
+        
+        $landlordId = $body['landlordId'] ?? $_SESSION['userId'] ?? null;
+        $emailSettings = $storage->getEmailSettings($propertyId, $landlordId);
+        if (isset($emailSettings['credit_balance']) && intval($emailSettings['credit_balance']) <= 0) {
+            sendJson(['error' => 'Email balance is depleted'], 400);
+        }
+
+        $result = $messagingService->sendEmail($to, $toName, $subject, $message, $isHtml, $attachments);
         
         // Log the message
         $logId = $messagingService->logMessage([
@@ -1509,6 +3208,18 @@ try {
             $messagingService->updateMessageStatus($logId, 'failed', $result['error']);
         }
 
+        if ($result['success']) {
+            $newBalance = $storage->adjustEmailCreditBalance($propertyId, $landlordId, -1);
+            $storage->recordCreditUsage([
+                'landlordId' => $landlordId,
+                'propertyId' => $propertyId,
+                'channel' => 'email',
+                'units' => 1,
+                'balanceAfter' => $newBalance,
+                'meta' => json_encode(['recipient' => $to, 'subject' => $subject])
+            ]);
+        }
+
         $storage->logActivity([
             'action' => 'Email Sent',
             'details' => "Manual email sent to {$to}",
@@ -1523,6 +3234,17 @@ try {
             'messageId' => $logId,
             'emailResponse' => $result
         ], $result['success'] ? 200 : 500);
+    }
+
+    // ========== CREDIT USAGE ==========
+    elseif ($endpoint === 'credit-usage' && $method === 'GET') {
+        requireAuth();
+        $filters = [
+            'propertyId' => getQuery('propertyId'),
+            'landlordId' => getQuery('landlordId'),
+            'channel' => getQuery('channel')
+        ];
+        sendJson($storage->getCreditUsage($filters));
     }
     
     // ========== SMS CALLBACK (DLR) ==========

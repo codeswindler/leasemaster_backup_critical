@@ -75,16 +75,18 @@ export function Properties() {
       name: "",
       address: "",
       landlordName: "",
+      accountPrefix: "",
     },
   })
 
   // Update property mutation
   const updatePropertyMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string; address: string; landlordName: string }) => {
+    mutationFn: async (data: { id: string; name: string; address: string; landlordName: string; accountPrefix?: string }) => {
       return apiRequest("PUT", `/api/properties/${data.id}`, {
         name: data.name,
         address: data.address,
         landlordName: data.landlordName,
+        accountPrefix: data.accountPrefix,
       })
     },
     onSuccess: () => {
@@ -179,6 +181,7 @@ export function Properties() {
         name: selectedProperty.name || "",
         address: selectedProperty.address || "",
         landlordName: selectedProperty.landlordName || "",
+        accountPrefix: selectedProperty.accountPrefix || "",
       })
     }
   }, [selectedProperty, isEditDialogOpen, editForm])
@@ -251,6 +254,7 @@ export function Properties() {
       landlordName: "",
       landlordPhone: "",
       landlordEmail: "",
+      accountPrefix: "",
     },
   })
 
@@ -360,6 +364,7 @@ export function Properties() {
       landlordName: property.landlordName || 'Unknown Landlord',
       landlordPhone: property.landlordPhone || '',
       landlordEmail: property.landlordEmail || '',
+      accountPrefix: property.accountPrefix || property.account_prefix || '',
       status: property.status || 'active',
       createdAt: property.createdAt || new Date().toISOString(),
       ...property // Spread original property to preserve any additional fields
@@ -491,6 +496,7 @@ export function Properties() {
       ...(data.landlordName && { landlordName: data.landlordName }),
       ...(data.landlordPhone && { landlordPhone: data.landlordPhone }),
       ...(data.landlordEmail && { landlordEmail: data.landlordEmail }),
+      ...(data.accountPrefix && { accountPrefix: data.accountPrefix }),
     }
     
     createPropertyMutation.mutate(propertyData)
@@ -580,6 +586,23 @@ export function Properties() {
                         </FormItem>
                       )}
                     />
+                  <FormField
+                    control={form.control}
+                    name="accountPrefix"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Account Prefix</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., INF"
+                            data-testid="input-account-prefix"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                     <FormField
                       control={form.control}
                       name="landlordId"
@@ -965,6 +988,10 @@ export function Properties() {
                     <p className="text-sm">{freshProperty.address}</p>
                   </div>
                   <div className="space-y-2">
+                    <Label className="text-sm font-medium">Account Prefix</Label>
+                    <p className="text-sm">{freshProperty.accountPrefix || "—"}</p>
+                  </div>
+                  <div className="space-y-2">
                     <Label className="text-sm font-medium">Landlord</Label>
                     <p className="text-sm">{freshProperty.landlordName}</p>
                   </div>
@@ -1213,6 +1240,19 @@ export function Properties() {
                         <FormLabel>Address</FormLabel>
                         <FormControl>
                           <Input {...field} data-testid="input-edit-property-address" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="accountPrefix"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Account Prefix</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-edit-account-prefix" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

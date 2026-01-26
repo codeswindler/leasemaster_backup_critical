@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
-import { Send, Mail, Smartphone, MessageSquare, Users, Building2 } from "lucide-react"
+import { Send, Mail, Smartphone, MessageSquare, Users, Building2, Bold, Italic, Underline, List, Link2, Paperclip, X } from "lucide-react"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
@@ -38,6 +38,9 @@ export function MessagingCompose() {
   const [messageType, setMessageType] = useState<"email" | "sms" | "both">("email")
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
+  const [emailHtml, setEmailHtml] = useState("")
+  const [attachments, setAttachments] = useState<File[]>([])
+  const emailEditorRef = useRef<HTMLDivElement | null>(null)
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   const [templateForm, setTemplateForm] = useState({
     id: "",
@@ -124,7 +127,7 @@ export function MessagingCompose() {
     
     return {
       id: tenant.id,
-      name: tenant.fullName,
+      name: tenant.fullName || tenant.full_name,
       email: tenant.email,
       phone: tenant.phone,
       unit: tenantUnit?.unitNumber || 'No unit'
@@ -173,8 +176,111 @@ export function MessagingCompose() {
       setMessageType(templateChannel)
     }
     setSubject(template.subject || "")
-    setMessage(template.content || template.message || "")
+    const content = template.content || template.message || ""
+    setMessage(content)
+    setEmailHtml(content)
   }
+
+  useEffect(() => {
+    if (!emailEditorRef.current) return
+    if (emailEditorRef.current.innerHTML !== emailHtml) {
+      emailEditorRef.current.innerHTML = emailHtml
+    }
+  }, [emailHtml])
+
+  const updateEmailHtml = () => {
+    if (!emailEditorRef.current) return
+    setEmailHtml(emailEditorRef.current.innerHTML)
+  }
+
+  const applyEmailFormat = (command: string) => {
+    if (!emailEditorRef.current) return
+    emailEditorRef.current.focus()
+    document.execCommand(command)
+    updateEmailHtml()
+  }
+
+  const applyEmailLink = () => {
+    if (!emailEditorRef.current) return
+    const url = window.prompt("Enter link URL")
+    if (!url) return
+    emailEditorRef.current.focus()
+    document.execCommand("createLink", false, url)
+    updateEmailHtml()
+  }
+
+  const stripHtml = (html: string) => {
+    const temp = document.createElement("div")
+    temp.innerHTML = html
+    return (temp.textContent || temp.innerText || "").trim()
+  }
+
+  const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    const totalSize = [...attachments, ...files].reduce((acc, file) => acc + file.size, 0)
+    if (totalSize > 10 * 1024 * 1024) {
+      toast({
+        title: "Attachment too large",
+        description: "Total attachments must be 10MB or less.",
+        variant: "destructive"
+      })
+      return
+    }
+    setAttachments(prev => [...prev, ...files])
+    event.target.value = ""
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const gsm7Chars =
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ\u001bÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+  const gsm7Extended = "^{}\\[~]|€"
+
+  const getSmsEncoding = (text: string) => {
+    for (const char of text) {
+      if (gsm7Chars.includes(char)) continue
+      if (gsm7Extended.includes(char)) continue
+      return "UCS-2"
+    }
+    return "GSM-7"
+  }
+
+  const getSmsLength = (text: string) => {
+    let length = 0
+    for (const char of text) {
+      if (gsm7Chars.includes(char)) {
+        length += 1
+      } else if (gsm7Extended.includes(char)) {
+        length += 2
+      } else {
+        length += 1
+      }
+    }
+    return length
+  }
+
+  const getSmsSegments = (text: string) => {
+    if (!text) return { encoding: "GSM-7", length: 0, segments: 0 }
+    const encoding = getSmsEncoding(text)
+    if (encoding === "UCS-2") {
+      const length = text.length
+      const perSegment = length <= 70 ? 70 : 67
+      return { encoding, length, segments: Math.ceil(length / perSegment) }
+    }
+    const length = getSmsLength(text)
+    const perSegment = length <= 160 ? 160 : 153
+    return { encoding, length, segments: Math.ceil(length / perSegment) }
+  }
+
+  const smsStats = getSmsSegments(message)
+  const requiresEmail = messageType === "email" || messageType === "both"
+  const requiresSms = messageType === "sms" || messageType === "both"
+  const emailText = stripHtml(emailHtml)
+  const emailReady = !requiresEmail || emailText.length > 0
+  const smsReady = !requiresSms || message.trim().length > 0
 
   const resetTemplateForm = () => {
     setTemplateForm({
@@ -244,6 +350,28 @@ export function MessagingCompose() {
   const sendMessageMutation = useMutation({
     mutationFn: async (data: any) => {
       const results = []
+
+      const sendEmailRequest = async (payload: Record<string, any>) => {
+        const formData = new FormData()
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            formData.append(key, String(value))
+          }
+        })
+        attachments.forEach((file) => {
+          formData.append("attachments[]", file)
+        })
+        const response = await fetch("/api/send-email", {
+          method: "POST",
+          body: formData,
+          credentials: "include"
+        })
+        if (!response.ok) {
+          const text = (await response.text()) || response.statusText
+          throw new Error(text)
+        }
+        return await response.json()
+      }
       
       // Manual recipient mode
       if (manualRecipient) {
@@ -265,14 +393,17 @@ export function MessagingCompose() {
             payload.to = contact
             payload.toName = 'Manual'
             payload.subject = data.subject
-            payload.message = data.message
+            payload.messageHtml = data.emailHtml
+            payload.isHtml = true
           } else {
             payload.mobile = contact
             payload.message = data.message
           }
           try {
-            const response = await apiRequest('POST', endpoint, payload)
-            const result = await response.json()
+            const result =
+              channel === "email"
+                ? await sendEmailRequest(payload)
+                : await (await apiRequest('POST', endpoint, payload)).json()
             results.push({ channel, recipient: 'Manual', success: result.success, error: result.error })
           } catch (error: any) {
             results.push({ channel, recipient: 'Manual', success: false, error: error.message })
@@ -306,15 +437,18 @@ export function MessagingCompose() {
             payload.to = contact
             payload.toName = recipient.name
             payload.subject = data.subject
-            payload.message = data.message
+            payload.messageHtml = data.emailHtml
+            payload.isHtml = true
           } else {
             payload.mobile = contact
             payload.message = data.message
           }
 
           try {
-            const response = await apiRequest('POST', endpoint, payload)
-            const result = await response.json()
+            const result =
+              channel === "email"
+                ? await sendEmailRequest(payload)
+                : await (await apiRequest('POST', endpoint, payload)).json()
             results.push({ channel, recipient: recipient.name, success: result.success, error: result.error })
           } catch (error: any) {
             results.push({ channel, recipient: recipient.name, success: false, error: error.message })
@@ -361,6 +495,8 @@ export function MessagingCompose() {
       setSelectedRecipients([])
       setSubject("")
       setMessage("")
+      setEmailHtml("")
+      setAttachments([])
       setManualEmail("")
       setManualPhone("")
     },
@@ -374,13 +510,17 @@ export function MessagingCompose() {
   })
 
   const handleSendMessage = () => {
-    if (!message.trim()) return
+    const requiresEmail = messageType === "email" || messageType === "both"
+    const requiresSms = messageType === "sms" || messageType === "both"
+    const emailText = stripHtml(emailHtml)
+    if (requiresEmail && !emailText) return
+    if (requiresSms && !message.trim()) return
     if (manualRecipient) {
-      if ((messageType === 'email' || messageType === 'both') && !manualEmail.trim()) {
+      if (requiresEmail && !manualEmail.trim()) {
         toast({ title: "Missing Email", description: "Enter a recipient email.", variant: "destructive" })
         return
       }
-      if ((messageType === 'sms' || messageType === 'both') && !manualPhone.trim()) {
+      if (requiresSms && !manualPhone.trim()) {
         toast({ title: "Missing Phone", description: "Enter a recipient phone number.", variant: "destructive" })
         return
       }
@@ -393,7 +533,8 @@ export function MessagingCompose() {
       recipients: selectedRecipients,
       type: messageType,
       subject,
-      message
+      message,
+      emailHtml
     })
   }
 
@@ -567,20 +708,84 @@ export function MessagingCompose() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="message">Message</Label>
-              <Textarea
-                id="message"
-                placeholder="Type your message here..."
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                rows={8}
-                data-testid="textarea-message"
-              />
-              <p className="text-xs text-muted-foreground">
-                Use placeholders: {"{tenant_name}"}, {"{unit}"}, {"{amount}"}, {"{due_date}"}
-              </p>
-            </div>
+            {(messageType === "email" || messageType === "both") && (
+              <div className="space-y-2">
+                <Label>Email Content</Label>
+                <div className="flex flex-wrap items-center gap-2 border rounded-md p-2 bg-muted/20">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => applyEmailFormat("bold")}>
+                    <Bold className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => applyEmailFormat("italic")}>
+                    <Italic className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => applyEmailFormat("underline")}>
+                    <Underline className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => applyEmailFormat("insertUnorderedList")}>
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="icon" onClick={applyEmailLink}>
+                    <Link2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div
+                  ref={emailEditorRef}
+                  contentEditable
+                  onInput={updateEmailHtml}
+                  className="min-h-[180px] rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  data-testid="rich-email-editor"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use placeholders: {"{tenant_name}"}, {"{unit}"}, {"{amount}"}, {"{due_date}"}
+                </p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email-attachments">Attachments (max 10MB)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="email-attachments"
+                      type="file"
+                      multiple
+                      onChange={handleAttachmentChange}
+                      data-testid="input-email-attachments"
+                    />
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  {attachments.length > 0 && (
+                    <div className="space-y-2">
+                      {attachments.map((file, index) => (
+                        <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                          <span className="truncate">{file.name} • {(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeAttachment(index)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {(messageType === "sms" || messageType === "both") && (
+              <div className="space-y-2">
+                <Label htmlFor="message">SMS Message</Label>
+                <Textarea
+                  id="message"
+                  placeholder="Type your SMS here..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows={6}
+                  data-testid="textarea-message"
+                />
+                <div className="flex flex-wrap items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {smsStats.length} chars • {smsStats.segments} SMS • {smsStats.encoding}
+                  </span>
+                  <span>Use placeholders: {"{tenant_name}"}, {"{unit}"}, {"{amount}"}, {"{due_date}"}</span>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -716,11 +921,11 @@ export function MessagingCompose() {
               <Button 
                 onClick={handleSendMessage}
                 disabled={
-                  !message.trim() ||
+                  !emailReady ||
+                  !smsReady ||
                   sendMessageMutation.isPending ||
                   (manualRecipient
-                    ? ((messageType === 'email' || messageType === 'both') && !manualEmail.trim()) ||
-                      ((messageType === 'sms' || messageType === 'both') && !manualPhone.trim())
+                    ? (requiresEmail && !manualEmail.trim()) || (requiresSms && !manualPhone.trim())
                     : selectedRecipients.length === 0)
                 }
                 data-testid="button-send-message"

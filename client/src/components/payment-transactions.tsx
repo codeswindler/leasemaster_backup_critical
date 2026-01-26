@@ -68,6 +68,7 @@ export function PaymentTransactions() {
   const [isAllocateDialogOpen, setIsAllocateDialogOpen] = useState(false)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const actionsDisabled = !selectedPropertyId
 
   // Fetch payments
   const { data: payments = [], isLoading: paymentsLoading, error: paymentsError } = 
@@ -111,7 +112,12 @@ export function PaymentTransactions() {
 
   // Generate receipt mutation
   const generateReceiptMutation = useMutation({
-    mutationFn: (paymentId: string) => apiRequest("POST", `/api/payments/${paymentId}/receipt`),
+    mutationFn: (paymentId: string) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to generate receipts.")
+      }
+      return apiRequest("POST", `/api/payments/${paymentId}/receipt`)
+    },
     onSuccess: () => {
       toast({
         title: "Receipt Generated",
@@ -129,7 +135,12 @@ export function PaymentTransactions() {
 
   // Allocate payment mutation
   const allocatePaymentMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", `/api/payments/${selectedPayment.id}/allocate`, data),
+    mutationFn: (data: any) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to allocate payments.")
+      }
+      return apiRequest("POST", `/api/payments/${selectedPayment.id}/allocate`, data)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/payments"] })
       setIsAllocateDialogOpen(false)

@@ -8,12 +8,21 @@ import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useLocation } from "wouter"
 import { useFilter } from "@/contexts/FilterContext"
-import { Plus, User, Phone, Mail, Home, Calendar, DollarSign, Loader2, AlertTriangle, Download, Upload, Trash2 } from "lucide-react"
+import { Plus, User, Phone, Loader2, AlertTriangle, Download, Upload, Trash2, Undo2, Send } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ToastAction } from "@/components/ui/toast"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,16 +67,52 @@ export function Tenants() {
   const [formStep, setFormStep] = useState(1)
   const [createdTenantId, setCreatedTenantId] = useState<string | null>(null)
   const [selectedProperty, setSelectedProperty] = useState("")
-  const [selectedTenant, setSelectedTenant] = useState<any>(null)
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [selectedUnitCharges, setSelectedUnitCharges] = useState<Record<string, string>>({})
   const [selectedTenants, setSelectedTenants] = useState<string[]>([])
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pendingDeleteRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const actionsDisabled = !selectedPropertyId
+
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check")
+      return await response.json()
+    },
+  })
+  const currentUser = authData?.authenticated ? authData.user : null
+  const isAdminUser = currentUser && (currentUser.role === "admin" || currentUser.role === "super_admin")
+  const userPermissions = (() => {
+    if (!currentUser?.permissions) return []
+    if (Array.isArray(currentUser.permissions)) return currentUser.permissions
+    if (typeof currentUser.permissions === "string") {
+      try {
+        const parsed = JSON.parse(currentUser.permissions)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+    return []
+  })()
+  const canSendTenantLogin =
+    isAdminUser ||
+    userPermissions.includes("tenants.send_login") ||
+    userPermissions.includes("tenants.bulk_send_login")
 
   // Enhanced tenant Excel import function with validation
   const handleFileImport = async (event: any) => {
+    if (actionsDisabled) {
+      toast({
+        title: "Property Required",
+        description: "Select a property in the header before importing tenants.",
+        variant: "destructive",
+      })
+      return
+    }
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -267,6 +312,42 @@ export function Tenants() {
     },
   })
 
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["/api/invoices", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ["/api/payments", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/payments${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+
+  const { data: chargeCodes = [] } = useQuery({
+    queryKey: ["/api/charge-codes", selectedProperty],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedProperty) params.append("propertyId", selectedProperty)
+      const url = `/api/charge-codes${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: !!selectedProperty,
+  })
+
   // Tenant form
   const tenantForm = useForm({
     resolver: zodResolver(insertTenantSchema),
@@ -277,6 +358,10 @@ export function Tenants() {
       idNumber: "",
       emergencyContact: "",
       emergencyPhone: "",
+      secondaryContactName: "",
+      secondaryContactPhone: "",
+      secondaryContactEmail: "",
+      notifySecondary: "false",
     },
   })
 
@@ -297,6 +382,9 @@ export function Tenants() {
   // Create tenant mutation
   const createTenantMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to create tenants.")
+      }
       return apiRequest("POST", "/api/tenants", data)
     },
     onSuccess: async (response) => {
@@ -321,6 +409,9 @@ export function Tenants() {
   // Create lease mutation
   const createLeaseMutation = useMutation({
     mutationFn: async (data: any) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to create leases.")
+      }
       return apiRequest("POST", "/api/leases", data)
     },
     onSuccess: () => {
@@ -351,6 +442,9 @@ export function Tenants() {
   // Delete tenant mutation
   const deleteTenantMutation = useMutation({
     mutationFn: async (tenantId: string) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to delete tenants.")
+      }
       return apiRequest("DELETE", `/api/tenants/${tenantId}`)
     },
     onSuccess: () => {
@@ -372,13 +466,132 @@ export function Tenants() {
   })
 
   // Enhanced tenants with lease and unit information
-  const enhancedTenants = Array.isArray(tenants) ? tenants.map(tenant => {
-    const tenantLeases = Array.isArray(leases) ? leases.filter(lease => lease.tenantId === tenant.id) : []
+  const parseAmount = (value: any) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  const normalizeChargeAmounts = (value: any) => {
+    if (!value || value === 'null') return {}
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        return parsed && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        return {}
+      }
+    }
+    return typeof value === 'object' ? value : {}
+  }
+
+  const normalizedUnits = Array.isArray(units)
+    ? units.map((unit: any) => ({
+      id: unit.id,
+      propertyId: unit.propertyId ?? unit.property_id,
+      houseTypeId: unit.houseTypeId ?? unit.house_type_id,
+      unitNumber: unit.unitNumber ?? unit.unit_number,
+      rentAmount: unit.rentAmount ?? unit.rent_amount,
+      rentDepositAmount: unit.rentDepositAmount ?? unit.rent_deposit_amount,
+      waterRateAmount: unit.waterRateAmount ?? unit.water_rate_amount ?? unit.water_rate_per_unit,
+      chargeAmounts: normalizeChargeAmounts(unit.chargeAmounts ?? unit.charge_amounts),
+      status: unit.status,
+    }))
+    : []
+
+  const normalizedHouseTypes = Array.isArray(houseTypes)
+    ? houseTypes.map((houseType: any) => ({
+      id: houseType.id,
+      propertyId: houseType.propertyId ?? houseType.property_id,
+      name: houseType.name,
+      baseRentAmount: houseType.baseRentAmount ?? houseType.base_rent_amount,
+      rentDepositAmount: houseType.rentDepositAmount ?? houseType.rent_deposit_amount,
+      waterRateType: houseType.waterRateType ?? houseType.water_rate_type,
+      waterRatePerUnit: houseType.waterRatePerUnit ?? houseType.water_rate_per_unit,
+      waterFlatRate: houseType.waterFlatRate ?? houseType.water_flat_rate,
+      chargeAmounts: normalizeChargeAmounts(houseType.chargeAmounts ?? houseType.charge_amounts),
+    }))
+    : []
+
+  const normalizedLeases = Array.isArray(leases)
+    ? leases.map((lease: any) => ({
+      id: lease.id,
+      unitId: lease.unitId ?? lease.unit_id,
+      tenantId: lease.tenantId ?? lease.tenant_id,
+      startDate: lease.startDate ?? lease.start_date,
+      endDate: lease.endDate ?? lease.end_date,
+      rentAmount: lease.rentAmount ?? lease.rent_amount,
+      depositAmount: lease.depositAmount ?? lease.deposit_amount,
+      waterRatePerUnit: lease.waterRatePerUnit ?? lease.water_rate_per_unit,
+      status: lease.status,
+    }))
+    : []
+
+  const normalizedProperties = Array.isArray(properties)
+    ? properties.map((property: any) => ({
+      id: property.id,
+      name: property.name,
+      address: property.address,
+      status: property.status,
+      landlordId: property.landlordId ?? property.landlord_id,
+    }))
+    : []
+
+  const normalizedInvoices = Array.isArray(invoices)
+    ? invoices.map((invoice: any) => ({
+      id: invoice.id,
+      leaseId: invoice.leaseId ?? invoice.lease_id,
+      amount: invoice.amount,
+      issueDate: invoice.issueDate ?? invoice.issue_date,
+      dueDate: invoice.dueDate ?? invoice.due_date,
+      status: invoice.status,
+      description: invoice.description,
+      invoiceNumber: invoice.invoiceNumber ?? invoice.invoice_number,
+    }))
+    : []
+
+  const normalizedPayments = Array.isArray(payments)
+    ? payments.map((payment: any) => ({
+      id: payment.id,
+      leaseId: payment.leaseId ?? payment.lease_id,
+      invoiceId: payment.invoiceId ?? payment.invoice_id,
+      amount: payment.amount,
+      paymentDate: payment.paymentDate ?? payment.payment_date,
+      paymentMethod: payment.paymentMethod ?? payment.payment_method,
+      reference: payment.reference,
+    }))
+    : []
+
+  const chargeCodeMap = Array.isArray(chargeCodes)
+    ? chargeCodes.reduce((acc: Record<string, any>, code: any) => {
+      acc[code.id] = code
+      return acc
+    }, {})
+    : {}
+
+  const normalizedTenants = Array.isArray(tenants)
+    ? tenants.map((tenant: any) => ({
+      id: tenant.id,
+      fullName: tenant.fullName ?? tenant.full_name,
+      email: tenant.email,
+      phone: tenant.phone,
+      idNumber: tenant.idNumber ?? tenant.id_number,
+      emergencyContact: tenant.emergencyContact ?? tenant.emergency_contact,
+      emergencyPhone: tenant.emergencyPhone ?? tenant.emergency_phone,
+      secondaryContactName: tenant.secondaryContactName ?? tenant.secondary_contact_name,
+      secondaryContactPhone: tenant.secondaryContactPhone ?? tenant.secondary_contact_phone,
+      secondaryContactEmail: tenant.secondaryContactEmail ?? tenant.secondary_contact_email,
+      notifySecondary: tenant.notifySecondary ?? tenant.notify_secondary,
+      createdAt: tenant.createdAt ?? tenant.created_at,
+    }))
+    : []
+
+  const enhancedTenants = Array.isArray(normalizedTenants) ? normalizedTenants.map(tenant => {
+    const tenantLeases = Array.isArray(normalizedLeases) ? normalizedLeases.filter(lease => lease.tenantId === tenant.id) : []
     const activeLease = tenantLeases.find(lease => lease.status === 'active')
     
     if (activeLease) {
-      const unit = Array.isArray(units) ? units.find(unit => unit.id === activeLease.unitId) : null
-      const property = Array.isArray(properties) ? properties.find(prop => prop.id === unit?.propertyId) : null
+      const unit = Array.isArray(normalizedUnits) ? normalizedUnits.find(unit => unit.id === activeLease.unitId) : null
+      const property = Array.isArray(normalizedProperties) ? normalizedProperties.find(prop => prop.id === unit?.propertyId) : null
       
       return {
         ...tenant,
@@ -399,6 +612,32 @@ export function Tenants() {
       rentAmount: '0',
     }
   }) : []
+
+  const leaseById = normalizedLeases.reduce((acc: Record<string, any>, lease: any) => {
+    acc[lease.id] = lease
+    return acc
+  }, {})
+
+  const tenantBalanceMap = enhancedTenants.reduce((acc: Record<string, { invoices: number; payments: number }>, tenant: any) => {
+    acc[tenant.id] = { invoices: 0, payments: 0 }
+    return acc
+  }, {})
+
+  normalizedInvoices.forEach((invoice: any) => {
+    const lease = leaseById[invoice.leaseId]
+    if (!lease) return
+    const tenantId = lease.tenantId
+    if (!tenantBalanceMap[tenantId]) tenantBalanceMap[tenantId] = { invoices: 0, payments: 0 }
+    tenantBalanceMap[tenantId].invoices += parseAmount(invoice.amount)
+  })
+
+  normalizedPayments.forEach((payment: any) => {
+    const lease = leaseById[payment.leaseId]
+    if (!lease) return
+    const tenantId = lease.tenantId
+    if (!tenantBalanceMap[tenantId]) tenantBalanceMap[tenantId] = { invoices: 0, payments: 0 }
+    tenantBalanceMap[tenantId].payments += parseAmount(payment.amount)
+  })
 
   // Excel template download function
   const downloadTemplate = () => {
@@ -545,24 +784,97 @@ export function Tenants() {
       return
     }
 
-    // Delete all selected tenants
+    // Delete all selected tenants with undo window
     selectedTenants.forEach((id) => {
-      deleteTenantMutation.mutate(id)
+      const tenant = filteredTenants.find((t: any) => t.id === id)
+      if (!tenant) return
+      scheduleTenantDelete(tenant)
     })
     setSelectedTenants([])
   }
 
+  const sendTenantLoginMutation = useMutation({
+    mutationFn: async (tenantIds: string[]) => {
+      const response = await apiRequest("POST", "/api/tenants/bulk-send-login-details", {
+        tenantIds,
+        generateNewAccessCode: true,
+        sendSms: true,
+        sendEmail: true,
+      })
+      return await response.json()
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Tenant login details sent",
+        description: `Sent: ${data.sent || 0}, Failed: ${data.failed || 0}`,
+      })
+      setSelectedTenants([])
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send tenant login details",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const handleBulkSendLoginDetails = () => {
+    if (!selectedTenants.length) {
+      toast({
+        title: "No tenants selected",
+        description: "Select at least one tenant to send login details.",
+        variant: "destructive",
+      })
+      return
+    }
+    sendTenantLoginMutation.mutate(selectedTenants)
+  }
+
+  const scheduleTenantDelete = (tenant: any) => {
+    if (pendingDeleteRef.current[tenant.id]) {
+      clearTimeout(pendingDeleteRef.current[tenant.id])
+    }
+    const timeoutId = setTimeout(() => {
+      deleteTenantMutation.mutate(tenant.id)
+      delete pendingDeleteRef.current[tenant.id]
+    }, 5000)
+    pendingDeleteRef.current[tenant.id] = timeoutId
+
+    toast({
+      title: "Delete scheduled",
+      description: `${tenant.fullName} will be deleted in 5 seconds.`,
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => {
+            clearTimeout(timeoutId)
+            delete pendingDeleteRef.current[tenant.id]
+            toast({
+              title: "Delete canceled",
+              description: `${tenant.fullName} was not deleted.`,
+            })
+          }}
+        >
+          <Undo2 className="h-4 w-4 mr-1" />
+          Undo
+        </ToastAction>
+      ),
+    })
+  }
+
   // Filter available units by selected property and only show vacant units
-  const availableUnits = units.filter(unit => {
+  const availableUnits = normalizedUnits.filter(unit => {
     const isCorrectProperty = selectedProperty ? unit.propertyId === selectedProperty : true
     const isVacant = unit.status === 'vacant'
     return isCorrectProperty && isVacant
   }).map(unit => {
     // Add house type name to each unit
-    const houseType = houseTypes.find((ht: any) => ht.id === unit.houseTypeId)
+    const houseType = normalizedHouseTypes.find((ht: any) => ht.id === unit.houseTypeId)
     return {
       ...unit,
-      type: houseType?.name || 'Unknown Type'
+      type: houseType?.name || 'Unknown Type',
+      houseType,
     }
   })
 
@@ -574,6 +886,16 @@ export function Tenants() {
           <p className="text-muted-foreground">Manage tenant information and lease agreements</p>
         </div>
         <div className="flex gap-2">
+          {selectedTenants.length > 0 && canSendTenantLogin && (
+            <Button
+              variant="outline"
+              onClick={handleBulkSendLoginDetails}
+              disabled={sendTenantLoginMutation.isPending}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send Logins ({selectedTenants.length})
+            </Button>
+          )}
           {selectedTenants.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -641,7 +963,7 @@ export function Tenants() {
                 Add Tenant
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {formStep === 1 ? "Add New Tenant" : "Allocate Unit"}
@@ -656,7 +978,7 @@ export function Tenants() {
             
             {formStep === 1 ? (
               <Form {...tenantForm}>
-                <form className="grid gap-4 py-4">
+                <form className="grid gap-4 py-4 md:grid-cols-2">
                   <FormField
                     control={tenantForm.control}
                     name="fullName"
@@ -726,7 +1048,112 @@ export function Tenants() {
                       </FormItem>
                     )}
                   />
-                  <div className="flex justify-end gap-2">
+                  <FormField
+                    control={tenantForm.control}
+                    name="emergencyContact"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Emergency Contact Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Jane Doe"
+                            data-testid="input-emergency-contact"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tenantForm.control}
+                    name="emergencyPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Emergency Contact Phone</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="+254 700 000 001"
+                            data-testid="input-emergency-phone"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="border-t pt-3 text-sm text-muted-foreground md:col-span-2">Secondary Contact</div>
+                  <FormField
+                    control={tenantForm.control}
+                    name="secondaryContactName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Secondary Contact Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., John Smith"
+                            data-testid="input-secondary-contact-name"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tenantForm.control}
+                    name="secondaryContactPhone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Secondary Contact Phone</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="+254 700 000 002"
+                            data-testid="input-secondary-contact-phone"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tenantForm.control}
+                    name="secondaryContactEmail"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-2">
+                        <FormLabel>Secondary Contact Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="secondary@email.com"
+                            data-testid="input-secondary-contact-email"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={tenantForm.control}
+                    name="notifySecondary"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between border rounded-md p-3 md:col-span-2">
+                        <div>
+                          <FormLabel>Send Notifications to Secondary Contact</FormLabel>
+                          <p className="text-xs text-muted-foreground">Enable updates for the secondary contact</p>
+                        </div>
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value === "true"}
+                            onCheckedChange={(checked) => field.onChange(checked ? "true" : "false")}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-2 md:col-span-2">
                     <Button 
                       variant="outline" 
                       type="submit"
@@ -750,30 +1177,31 @@ export function Tenants() {
             ) : (
               <Form {...leaseForm}>
                 <form className="grid gap-4 py-4">
-                  <FormField
-                    control={leaseForm.control}
-                    name="unitId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Property</FormLabel>
-                        <FormControl>
-                          <Select value={selectedProperty} onValueChange={setSelectedProperty} data-testid="select-property">
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select property" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {properties.map((property: any) => (
-                                <SelectItem key={property.id} value={property.id}>
-                                  {property.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <FormItem>
+                    <FormLabel>Property</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={selectedProperty}
+                        onValueChange={(value) => {
+                          setSelectedProperty(value)
+                          leaseForm.setValue("unitId", "")
+                          setSelectedUnitCharges({})
+                        }}
+                        data-testid="select-property"
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select property" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {properties.map((property: any) => (
+                            <SelectItem key={property.id} value={property.id}>
+                              {property.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormItem>
                   
                   <FormField
                     control={leaseForm.control}
@@ -784,10 +1212,21 @@ export function Tenants() {
                         <FormControl>
                           <Select {...field} onValueChange={(value) => {
                             field.onChange(value)
-                            // Auto-populate rent amount from selected unit
                             const selectedUnit = availableUnits.find(unit => unit.id === value)
                             if (selectedUnit) {
-                              leaseForm.setValue("rentAmount", selectedUnit.rentAmount)
+                              const unitRent = selectedUnit.rentAmount ?? selectedUnit.houseType?.baseRentAmount ?? ""
+                              const unitDeposit = selectedUnit.rentDepositAmount ?? selectedUnit.houseType?.rentDepositAmount ?? ""
+                              const unitWaterRate = selectedUnit.waterRateAmount
+                                ?? (selectedUnit.houseType?.waterRateType === "unit_based"
+                                  ? selectedUnit.houseType?.waterRatePerUnit
+                                  : selectedUnit.houseType?.waterFlatRate)
+                                ?? "15.50"
+                              leaseForm.setValue("rentAmount", unitRent)
+                              leaseForm.setValue("depositAmount", unitDeposit)
+                              leaseForm.setValue("waterRatePerUnit", unitWaterRate)
+                              setSelectedUnitCharges(selectedUnit.chargeAmounts || {})
+                            } else {
+                              setSelectedUnitCharges({})
                             }
                           }} data-testid="select-unit">
                             <SelectTrigger>
@@ -796,7 +1235,7 @@ export function Tenants() {
                             <SelectContent>
                               {availableUnits.map((unit) => (
                                 <SelectItem key={unit.id} value={unit.id}>
-                                  {unit.unitNumber} - {unit.type} (KSH {parseFloat(unit.rentAmount).toLocaleString()})
+                                  {unit.unitNumber} - {unit.type} (KSH {parseAmount(unit.rentAmount).toLocaleString()})
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -897,6 +1336,23 @@ export function Tenants() {
                     )}
                   />
 
+                  {Object.keys(selectedUnitCharges).length > 0 && (
+                    <div className="space-y-2 border rounded-lg p-3">
+                      <div className="text-sm font-medium">Unit Charge Codes</div>
+                      <div className="space-y-1 text-sm">
+                        {Object.entries(selectedUnitCharges).map(([chargeCodeId, amount]) => {
+                          const code = chargeCodeMap[chargeCodeId]
+                          return (
+                            <div key={chargeCodeId} className="flex items-center justify-between">
+                              <span className="text-muted-foreground">{code?.name || "Charge"}</span>
+                              <span className="font-mono">KSh {parseAmount(amount).toLocaleString()}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setFormStep(1)}>
                       Back
@@ -957,103 +1413,102 @@ export function Tenants() {
         </div>
       )}
 
-      {/* Tenants Grid */}
+      {/* Tenants List */}
       {!tenantsLoading && !tenantsError && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTenants.map((tenant: any) => {
-            const isSelected = selectedTenants.includes(tenant.id)
-            return (
-            <Card key={tenant.id} className={`hover-elevate ${isSelected ? "ring-2 ring-primary" : ""}`}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => handleToggleTenant(tenant.id)}
-                  />
-                  <Avatar>
-                    <AvatarFallback>
-                      {tenant.fullName?.split(" ").map((n: any) => n[0]).join("") || "T"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{tenant.fullName}</CardTitle>
-                    <CardDescription className="flex items-center gap-1">
-                      <Home className="h-3 w-3" />
-                      {tenant.unit?.unitNumber || "No unit"} - {tenant.property?.name || "No property"}
-                    </CardDescription>
-                  </div>
-                  <Badge 
-                    variant={
-                      tenant.status === "active" ? "default" : 
-                      tenant.status === "overdue" ? "destructive" : "secondary"
-                    }
-                    data-testid={`status-${tenant.fullName?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`}
-                  >
-                    {tenant.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{tenant.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{tenant.phone}</span>
-                  </div>
-                  {tenant.lease && (
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">
-                        Lease: {new Date(tenant.lease.startDate).toLocaleDateString()} - {new Date(tenant.lease.endDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
+        <Card>
+          <CardContent className="p-0">
+            <Table className="table-fixed w-full">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-64">Tenant</TableHead>
+                  <TableHead className="w-36">Phone</TableHead>
+                  <TableHead className="w-48">Property</TableHead>
+                  <TableHead className="w-32">Active Leases</TableHead>
+                  <TableHead className="w-48 text-right pr-6">Balance</TableHead>
+                  <TableHead className="w-40 pl-6">Status</TableHead>
+                  <TableHead className="w-28 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredTenants.map((tenant: any) => {
+                  const isSelected = selectedTenants.includes(tenant.id)
+                  const totals = tenantBalanceMap[tenant.id] || { invoices: 0, payments: 0 }
+                  const tenantActiveLeases = normalizedLeases.filter(
+                    (lease: any) => lease.tenantId === tenant.id && lease.status === "active"
+                  ).length
+                  const balance = totals.invoices - totals.payments
+                  const balanceClass = balance < 0 ? "text-green-600" : balance > 0 ? "text-red-500" : "text-muted-foreground"
+                  const balanceDisplay = balance < 0
+                    ? `-KSh ${Math.abs(balance).toLocaleString()}`
+                    : `KSh ${balance.toLocaleString()}`
 
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Monthly Rent</p>
-                    <p className="font-medium font-mono">KSh {Number(tenant.rentAmount || 0).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Balance</p>
-                    <p className="font-medium font-mono text-green-600">
-                      KSh 0
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => {
-                      setSelectedTenant(tenant)
-                      setIsViewDialogOpen(true)
-                    }}
-                    data-testid={`button-view-${tenant.fullName?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`}
-                  >
-                    View Details
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    data-testid={`button-invoice-${tenant.fullName?.toLowerCase().replace(/\s+/g, '-') || 'unknown'}`}
-                  >
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    Invoice
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            )
-          })}
-        </div>
+                  return (
+                    <TableRow
+                      key={tenant.id}
+                      className={`hover-elevate cursor-pointer ${isSelected ? "bg-muted/30" : ""}`}
+                      onClick={() => setLocation(`/tenants/${tenant.id}`)}
+                    >
+                      <TableCell onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleTenant(tenant.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarFallback>
+                              {tenant.fullName?.split(" ").map((n: any) => n[0]).join("") || "T"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{tenant.fullName}</div>
+                            <div className="text-xs text-muted-foreground">{tenant.email}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Phone className="h-3 w-3" />
+                          {tenant.phone || "—"}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {tenant.property?.name || "No property"}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {tenantActiveLeases}
+                      </TableCell>
+                      <TableCell className={`text-right font-mono pr-6 ${balanceClass}`}>
+                        {balanceDisplay}
+                      </TableCell>
+                      <TableCell className="pl-6">
+                        <Badge
+                          variant={
+                            tenant.status === "active" ? "default" :
+                            tenant.status === "overdue" ? "destructive" : "secondary"
+                          }
+                        >
+                          {tenant.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLocation(`/tenants/${tenant.id}`)}
+                        >
+                          Open
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       {!tenantsLoading && !tenantsError && filteredTenants.length === 0 && (
@@ -1070,92 +1525,6 @@ export function Tenants() {
         </div>
       )}
 
-      {/* View Details Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              {selectedTenant?.fullName}
-            </DialogTitle>
-            <DialogDescription>
-              Detailed tenant information
-            </DialogDescription>
-          </DialogHeader>
-          {selectedTenant && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Full Name</Label>
-                  <p className="text-sm">{selectedTenant.fullName}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Status</Label>
-                  <Badge variant={selectedTenant.status === "active" ? "default" : "secondary"}>
-                    {selectedTenant.status}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Email</Label>
-                  <p className="text-sm">{selectedTenant.email}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Phone</Label>
-                  <p className="text-sm">{selectedTenant.phone}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">ID Number</Label>
-                  <p className="text-sm">{selectedTenant.idNumber}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Emergency Contact</Label>
-                  <p className="text-sm">{selectedTenant.emergencyContact || "Not provided"}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Emergency Phone</Label>
-                  <p className="text-sm">{selectedTenant.emergencyPhone || "Not provided"}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Property</Label>
-                  <p className="text-sm">{selectedTenant.property?.name || "Not assigned"}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Unit</Label>
-                  <p className="text-sm">{selectedTenant.unit?.unitNumber || "Not assigned"}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Monthly Rent</Label>
-                  <p className="text-sm font-mono">KSh {Number(selectedTenant.rentAmount || 0).toLocaleString()}</p>
-                </div>
-              </div>
-              
-              {selectedTenant.lease && (
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Lease Information</Label>
-                  <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-md">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Start Date</Label>
-                      <p className="text-sm">{new Date(selectedTenant.lease.startDate).toLocaleDateString()}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">End Date</Label>
-                      <p className="text-sm">{new Date(selectedTenant.lease.endDate).toLocaleDateString()}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Deposit Amount</Label>
-                      <p className="text-sm font-mono">KSh {Number(selectedTenant.lease.depositAmount || 0).toLocaleString()}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Water Rate</Label>
-                      <p className="text-sm font-mono">KSh {selectedTenant.lease.waterRatePerUnit || 15.50}/m³</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

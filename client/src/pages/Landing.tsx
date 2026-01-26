@@ -242,6 +242,17 @@ export function Landing() {
     }
   };
 
+  const getButtonContrastClass = () => {
+    const effectiveBrightness = imageBrightness * 0.35;
+    if (effectiveBrightness > 0.45) {
+      return "text-slate-900 border-slate-900/30 hover:bg-slate-900/10";
+    }
+    if (effectiveBrightness > 0.3) {
+      return isDarkTheme ? "text-slate-100 border-white/30 hover:bg-white/10" : "text-slate-900 border-slate-900/30 hover:bg-slate-900/10";
+    }
+    return "text-white border-white/40 hover:bg-white/10";
+  };
+
   const handleTryDemo = () => {
     // TODO: Implement demo logic
     alert("Demo feature coming soon!");
@@ -271,6 +282,16 @@ export function Landing() {
       // Production - redirect to admin subdomain (strip any existing subdomain first)
       const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries)\./, '');
       window.location.href = `${protocol}//admin.${rootDomain}/login`;
+    }
+  };
+
+  const handleTenantLogin = () => {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      setLocation("/tenant/login");
+    } else {
+      window.location.href = `${protocol}//${hostname}/tenant/login`;
     }
   };
 
@@ -541,7 +562,7 @@ export function Landing() {
                 >
                   Register with us
                 </button>
-                
+
                 {/* Admin Login Icon - Dynamic (show if not authenticated OR admin user) */}
                 {(!isAuthenticated || isAdminUser) && (
                   <button
@@ -602,7 +623,7 @@ export function Landing() {
             >
               <Button 
                 size="lg" 
-                className="text-lg px-8 py-6 gap-2 group"
+                className={`text-sm px-5 py-3 gap-2 group border-2 ${getButtonContrastClass()}`}
                 onClick={handleTryDemo}
               >
                 <Play className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -611,17 +632,27 @@ export function Landing() {
               <Button 
                 size="lg" 
                 variant="outline" 
-                className="text-lg px-8 py-6 gap-2 group"
+                className={`text-sm px-5 py-3 gap-2 group border-2 ${getButtonContrastClass()}`}
                 onClick={handleClientLogin}
               >
                 <ArrowRight className="h-5 w-5 animated-login-arrow" />
                 <span style={{ marginLeft: '2px' }}>]</span>
                 <span style={{ marginLeft: '8px' }}>Sign In</span>
               </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className={`text-sm px-5 py-3 gap-2 border-2 ${getButtonContrastClass()}`}
+                onClick={handleTenantLogin}
+              >
+                <User className="h-5 w-5" />
+                Login as Tenant
+              </Button>
             </motion.div>
           </motion.div>
         </div>
       </section>
+
 
       {/* Features Grid */}
       <section className="relative z-[2] container mx-auto px-4 py-20">

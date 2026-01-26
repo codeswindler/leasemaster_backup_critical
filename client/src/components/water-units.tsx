@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,19 +11,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
-import { Plus, Save, Eye, FileText, Calculator, Droplets, History } from "lucide-react"
+import { Plus, Save, Eye, FileText, Calculator, Droplets } from "lucide-react"
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import type { Unit, WaterReading } from "@shared/schema"
 
 export function WaterUnits() {
   const { toast } = useToast()
   const { selectedPropertyId: globalSelectedPropertyId, selectedLandlordId } = useFilter()
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all-properties")
-  const [currentReading, setCurrentReading] = useState<{ unitId: string; reading: string }>({ unitId: "", reading: "" })
+  const [consumptionMonth, setConsumptionMonth] = useState<string>(() => {
+    const now = new Date()
+    const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    return previousMonth.toISOString().slice(0, 7)
+  })
+  const [currentReading, setCurrentReading] = useState<{ unitId: string; reading: string; previousReading: string }>({
+    unitId: "",
+    reading: "",
+    previousReading: "",
+  })
+  const actionsDisabled = !globalSelectedPropertyId || globalSelectedPropertyId === "all"
   
   // Bulk editing state
   const [bulkReadings, setBulkReadings] = useState<Record<string, string>>({})
+  const [bulkPreviousReadings, setBulkPreviousReadings] = useState<Record<string, string>>({})
   const [savingUnits, setSavingUnits] = useState<Set<string>>(new Set())
   const [savedUnits, setSavedUnits] = useState<Set<string>>(new Set())
+  const [editingUnits, setEditingUnits] = useState<Set<string>>(new Set())
+  const [showTrendBreakdown, setShowTrendBreakdown] = useState(false)
   // Removed unitSaveTimes - now using database timestamps from water readings
 
   // Fetch units for dropdown
@@ -78,9 +99,36 @@ export function WaterUnits() {
     },
   })
 
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["/api/invoices", globalSelectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (globalSelectedPropertyId && globalSelectedPropertyId !== "all") params.append("propertyId", globalSelectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+
+  const { data: tenants = [] } = useQuery({
+    queryKey: ["/api/tenants", globalSelectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (globalSelectedPropertyId && globalSelectedPropertyId !== "all") params.append("propertyId", globalSelectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+
   // Create new water reading mutation
   const createReadingMutation = useMutation({
-    mutationFn: async (data: { unitId: string; currentReading: string; readingDate: string }) => {
+    mutationFn: async (data: { unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to save water readings.")
+      }
       return await apiRequest("POST", "/api/water-readings", data)
     },
     onSuccess: () => {
@@ -102,7 +150,10 @@ export function WaterUnits() {
 
   // Bulk save single reading mutation
   const bulkSaveReadingMutation = useMutation({
-    mutationFn: async (data: { unitId: string; currentReading: string; readingDate: string }) => {
+    mutationFn: async (data: { unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to save water readings.")
+      }
       console.log("🚀 Bulk save mutation starting for unit:", data.unitId)
       return await apiRequest("POST", "/api/water-readings", data)
     },
@@ -154,9 +205,62 @@ export function WaterUnits() {
   // Store timeout refs for each unit
   const [timeoutRefs, setTimeoutRefs] = useState<Record<string, NodeJS.Timeout>>({})
 
+  const normalizedUnits = useMemo(() => {
+    return units.map((unit: any) => ({
+      ...unit,
+      id: unit.id,
+      propertyId: unit.propertyId ?? unit.property_id,
+      unitNumber: unit.unitNumber ?? unit.unit_number,
+      waterRateAmount: unit.waterRateAmount ?? unit.water_rate_amount,
+      houseTypeId: unit.houseTypeId ?? unit.house_type_id,
+    }))
+  }, [units])
+
+  const normalizedProperties = useMemo(() => {
+    return properties.map((property: any) => ({
+      ...property,
+      id: property.id,
+      name: property.name,
+    }))
+  }, [properties])
+
+  const normalizedLeases = useMemo(() => {
+    return leases.map((lease: any) => ({
+      ...lease,
+      id: lease.id,
+      unitId: lease.unitId ?? lease.unit_id,
+      tenantId: lease.tenantId ?? lease.tenant_id,
+      waterRatePerUnit: lease.waterRatePerUnit ?? lease.water_rate_per_unit,
+      status: lease.status,
+    }))
+  }, [leases])
+
+  const normalizedTenants = useMemo(() => {
+    return tenants.map((tenant: any) => ({
+      ...tenant,
+      id: tenant.id,
+      fullName: tenant.fullName ?? tenant.full_name,
+    }))
+  }, [tenants])
+
+  const normalizedInvoices = useMemo(() => {
+    return invoices.map((invoice: any) => ({
+      id: invoice.id,
+      leaseId: invoice.leaseId ?? invoice.lease_id,
+      issueDate: invoice.issueDate ?? invoice.issue_date,
+      status: invoice.status,
+    }))
+  }, [invoices])
+
   // Handle bulk reading input change with immediate state management
-  const handleBulkReadingChange = (unitId: string, value: string) => {
+  const handleBulkReadingChange = (unitId: string, value: string, previousReading: number) => {
+    if (actionsDisabled) return
     console.log("📝 Input change for unit:", unitId, "value:", value)
+    setEditingUnits(prev => {
+      const next = new Set(prev)
+      next.add(unitId)
+      return next
+    })
     setBulkReadings(prev => ({ ...prev, [unitId]: value }))
     
     // Clear any existing saved status for this unit
@@ -186,10 +290,14 @@ export function WaterUnits() {
           return newSet
         })
         
-        const readingDate = new Date().toISOString().split('T')[0]
+        const monthParts = consumptionMonth.split("-")
+        const readingDate = monthParts.length === 2
+          ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0]
         bulkSaveReadingMutation.mutate({
           unitId,
           currentReading: value,
+          previousReading: previousReading.toString(),
           readingDate,
         })
       }, 1500) // Save after 1.5 seconds of no changes
@@ -199,37 +307,192 @@ export function WaterUnits() {
     }
   }
 
-  // Filter units by selected property (show all if "all" is selected)
-  const filteredUnits = selectedPropertyId === "all"
-    ? units
-    : units.filter(unit => unit.propertyId === selectedPropertyId)
+  const activeLeasesByUnit = useMemo(() => {
+    const map = new Map<string, any>()
+    normalizedLeases
+      .filter((lease: any) => lease.status === "active")
+      .forEach((lease: any) => {
+        map.set(lease.unitId, lease)
+      })
+    return map
+  }, [normalizedLeases])
+
+  const getWaterRateForUnit = (unitId: string) => {
+    const unit = normalizedUnits.find((u: any) => u.id === unitId)
+    if (unit?.waterRateAmount) return parseFloat(unit.waterRateAmount)
+    const lease = activeLeasesByUnit.get(unitId)
+    return lease ? parseFloat(lease.waterRatePerUnit) : 15.50 // fallback to default
+  }
+
+  // Filter units by selected property (header filter) and active leases
+  const filteredUnits = (globalSelectedPropertyId && globalSelectedPropertyId !== "all")
+    ? normalizedUnits.filter((unit) => unit.propertyId === globalSelectedPropertyId && activeLeasesByUnit.has(unit.id))
+    : normalizedUnits.filter((unit) => activeLeasesByUnit.has(unit.id))
 
   // Get unit IDs for the selected property filter
   const filteredUnitIds = new Set(filteredUnits.map(unit => unit.id))
 
   // Filter water readings to match the filtered units
-  const filteredWaterReadings = waterReadings.filter(reading => 
-    filteredUnitIds.has(reading.unitId)
-  )
+  const filteredWaterReadings = waterReadings.filter((reading: any) => {
+    const unitId = reading.unitId ?? reading.unit_id
+    if (!filteredUnitIds.has(unitId)) return false
+    if (!consumptionMonth) return true
+    const readingDate = new Date(reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at)
+    const monthKey = `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, "0")}`
+    return monthKey === consumptionMonth
+  })
+
+  const parseNumber = (value: any) => {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : NaN
+  }
+
+  const getReadingConsumption = (reading: any) => {
+    const consumptionValue = parseNumber(reading.consumption ?? reading.unitsConsumed ?? reading.units_consumed)
+    if (Number.isFinite(consumptionValue)) return Math.max(0, consumptionValue)
+    const currentValue = parseNumber(reading.currentReading ?? reading.current_reading)
+    const previousValue = parseNumber(reading.previousReading ?? reading.previous_reading)
+    if (Number.isFinite(currentValue) && Number.isFinite(previousValue)) {
+      return Math.max(0, currentValue - previousValue)
+    }
+    return 0
+  }
+
+  const latestReadingByUnit = useMemo(() => {
+    const map = new Map<string, any>()
+    filteredWaterReadings.forEach((reading: any) => {
+      const unitId = reading.unitId ?? reading.unit_id
+      if (!unitId) return
+      const timestampValue = reading.lastModifiedAt || reading.createdAt || reading.last_modified_at || reading.created_at || reading.readingDate || reading.reading_date
+      const timestamp = timestampValue ? new Date(timestampValue).getTime() : 0
+      const existing = map.get(unitId)
+      if (!existing) {
+        map.set(unitId, reading)
+        return
+      }
+      const existingTimestampValue = existing.lastModifiedAt || existing.createdAt || existing.last_modified_at || existing.created_at || existing.readingDate || existing.reading_date
+      const existingTimestamp = existingTimestampValue ? new Date(existingTimestampValue).getTime() : 0
+      if (timestamp >= existingTimestamp) {
+        map.set(unitId, reading)
+      }
+    })
+    return map
+  }, [filteredWaterReadings])
+
+  useEffect(() => {
+    if (!filteredUnits.length) {
+      setBulkReadings({})
+      setBulkPreviousReadings({})
+      return
+    }
+    setBulkReadings((prev) => {
+      const next: Record<string, string> = { ...prev }
+      filteredUnits.forEach((unit) => {
+        const unitId = unit.id
+        if (savingUnits.has(unitId) || editingUnits.has(unitId)) return
+        const reading = latestReadingByUnit.get(unitId)
+        const currentValue = reading?.currentReading ?? reading?.current_reading
+        if (currentValue !== undefined && currentValue !== null && currentValue !== "") {
+          next[unitId] = String(currentValue)
+        } else {
+          delete next[unitId]
+        }
+      })
+      return next
+    })
+    setBulkPreviousReadings((prev) => {
+      const next: Record<string, string> = { ...prev }
+      filteredUnits.forEach((unit) => {
+        const unitId = unit.id
+        if (savingUnits.has(unitId) || editingUnits.has(unitId)) return
+        const reading = latestReadingByUnit.get(unitId)
+        const previousValue = reading?.previousReading ?? reading?.previous_reading
+        if (previousValue !== undefined && previousValue !== null && previousValue !== "") {
+          next[unitId] = String(previousValue)
+        } else {
+          delete next[unitId]
+        }
+      })
+      return next
+    })
+  }, [filteredUnits, latestReadingByUnit, savingUnits, editingUnits])
 
   // Get water readings summary for dashboard cards (scoped to selected property)
-  const readingsThisMonth = filteredWaterReadings.filter(reading => {
-    const readingDate = new Date(reading.readingDate)
-    const currentDate = new Date()
-    return readingDate.getMonth() === currentDate.getMonth() && 
-           readingDate.getFullYear() === currentDate.getFullYear()
+  const readingsThisMonth = filteredWaterReadings.filter((reading: any) => {
+    if (!consumptionMonth) return true
+    const readingDate = new Date(reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at)
+    const monthKey = `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, "0")}`
+    return monthKey === consumptionMonth
   })
 
   // Count unique units with readings this month
-  const unitsWithReadingsThisMonth = new Set(readingsThisMonth.map(reading => reading.unitId)).size
+  const unitsWithReadingsThisMonth = new Set(readingsThisMonth.map((reading: any) => reading.unitId ?? reading.unit_id)).size
 
+  const latestReadingsThisMonth = Array.from(latestReadingByUnit.values())
   const readingsSummary = {
     totalUnits: filteredUnits.length,
     unitsWithReadingsThisMonth,
     readingsThisMonth: readingsThisMonth.length,
-    totalConsumption: filteredWaterReadings.reduce((sum, reading) => sum + parseFloat(reading.consumption), 0),
-    totalAmountConsumed: filteredWaterReadings.reduce((sum, reading) => sum + parseFloat(reading.totalAmount), 0),
+    totalConsumption: latestReadingsThisMonth.reduce((sum, reading: any) => sum + getReadingConsumption(reading), 0),
+    totalAmountConsumed: latestReadingsThisMonth.reduce((sum, reading: any) => {
+      const unitId = reading.unitId ?? reading.unit_id
+      const rate = getWaterRateForUnit(unitId)
+      const consumption = getReadingConsumption(reading)
+      return sum + (Number.isFinite(rate) ? consumption * rate : 0)
+    }, 0),
   }
+
+  const consumptionTrend = useMemo(() => {
+    if (!consumptionMonth) return []
+    const [selectedYear, selectedMonth] = consumptionMonth.split("-").map(Number)
+    if (!selectedYear || !selectedMonth) return []
+
+    const trend: Array<{ monthKey: string; label: string; consumption: number; totalCost: number }> = []
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const date = new Date(selectedYear, selectedMonth - 1 - offset, 1)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      const label = date.toLocaleString(undefined, { month: "short", year: "numeric" })
+
+      const monthlyReadings = waterReadings.filter((reading: any) => {
+        const unitId = reading.unitId ?? reading.unit_id
+        if (!filteredUnitIds.has(unitId)) return false
+        const readingDate = new Date(reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at)
+        const key = `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, "0")}`
+        return key === monthKey
+      })
+
+      const latestByUnit = new Map<string, any>()
+      monthlyReadings.forEach((reading: any) => {
+        const unitId = reading.unitId ?? reading.unit_id
+        if (!unitId) return
+        const timestampValue = reading.lastModifiedAt || reading.createdAt || reading.last_modified_at || reading.created_at || reading.readingDate || reading.reading_date
+        const timestamp = timestampValue ? new Date(timestampValue).getTime() : 0
+        const existing = latestByUnit.get(unitId)
+        if (!existing) {
+          latestByUnit.set(unitId, reading)
+          return
+        }
+        const existingTimestampValue = existing.lastModifiedAt || existing.createdAt || existing.last_modified_at || existing.created_at || existing.readingDate || existing.reading_date
+        const existingTimestamp = existingTimestampValue ? new Date(existingTimestampValue).getTime() : 0
+        if (timestamp >= existingTimestamp) {
+          latestByUnit.set(unitId, reading)
+        }
+      })
+
+      const latestReadings = Array.from(latestByUnit.values())
+      const consumption = latestReadings.reduce((sum, reading: any) => sum + getReadingConsumption(reading), 0)
+      const totalCost = latestReadings.reduce((sum, reading: any) => {
+        const unitId = reading.unitId ?? reading.unit_id
+        const rate = getWaterRateForUnit(unitId)
+        const units = getReadingConsumption(reading)
+        return sum + (Number.isFinite(rate) ? units * rate : 0)
+      }, 0)
+
+      trend.push({ monthKey, label, consumption, totalCost })
+    }
+
+    return trend
+  }, [consumptionMonth, waterReadings, filteredUnitIds, getReadingConsumption, getWaterRateForUnit])
 
   const handleSaveReading = () => {
     if (!currentReading.unitId || !currentReading.reading) {
@@ -254,92 +517,101 @@ export function WaterUnits() {
 
     // Find the latest reading for this unit to validate against previous reading
     const unitReadings = waterReadings
-      .filter(reading => reading.unitId === currentReading.unitId)
-      .sort((a, b) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime())
+      .filter((reading: any) => (reading.unitId ?? reading.unit_id) === currentReading.unitId)
+      .sort((a: any, b: any) => new Date(b.readingDate ?? b.reading_date).getTime() - new Date(a.readingDate ?? a.reading_date).getTime())
     
     const latestReading = unitReadings[0]
-    if (latestReading && readingValue < parseFloat(latestReading.currentReading)) {
+    const overridePrevious = currentReading.previousReading ? parseFloat(currentReading.previousReading) : null
+    const previousValue = overridePrevious ?? (latestReading ? parseFloat(latestReading.currentReading) : 0)
+    if (readingValue < previousValue) {
       toast({
         title: "Error",
-        description: `Current reading (${readingValue}) cannot be less than the previous reading (${latestReading.currentReading})`,
+        description: `Current reading (${readingValue}) cannot be less than the previous reading (${previousValue})`,
         variant: "destructive",
       })
       return
     }
 
-    const selectedUnit = units.find(unit => unit.id === currentReading.unitId)
+    const selectedUnit = normalizedUnits.find((unit: any) => unit.id === currentReading.unitId)
     if (!selectedUnit) return
 
     // Get water rate from the unit's lease
     const waterRate = getWaterRateForUnit(currentReading.unitId)
 
     // Get current date for reading
-    const readingDate = new Date().toISOString().split('T')[0]
+    const monthParts = consumptionMonth.split("-")
+    const readingDate = monthParts.length === 2
+      ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0]
 
     createReadingMutation.mutate({
       unitId: currentReading.unitId,
       currentReading: readingValue.toString(),
+      previousReading: previousValue.toString(),
       readingDate,
     })
   }
 
   const getUnitName = (unitId: string) => {
-    const unit = units.find(u => u.id === unitId)
+    const unit = normalizedUnits.find((u: any) => u.id === unitId)
     return unit ? unit.unitNumber : "Unknown"
   }
 
-  const getPropertyName = (unitId: string) => {
-    const unit = units.find(u => u.id === unitId)
-    if (!unit) return "Unknown"
-    const property = properties.find((p: any) => p.id === unit.propertyId)
-    return property ? property.name : "Unknown"
-  }
-
-  const getWaterRateForUnit = (unitId: string) => {
-    const lease = leases.find(lease => lease.unitId === unitId)
-    return lease ? parseFloat(lease.waterRatePerUnit) : 15.50 // fallback to default
+  const getAccountName = (unitId: string) => {
+    const activeLease = activeLeasesByUnit.get(unitId)
+    if (!activeLease) return "Vacant"
+    const tenant = normalizedTenants.find((t: any) => t.id === activeLease.tenantId)
+    return tenant?.fullName || "Unknown"
   }
 
   const getLastReadingForUnit = (unitId: string) => {
     const unitReadings = waterReadings
-      .filter(reading => reading.unitId === unitId)
-      .sort((a, b) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime())
+      .filter((reading: any) => (reading.unitId ?? reading.unit_id) === unitId)
+      .sort((a: any, b: any) => new Date(b.readingDate ?? b.reading_date).getTime() - new Date(a.readingDate ?? a.reading_date).getTime())
     return unitReadings[0] || null
   }
 
   // Get the last modification timestamp for a unit from database (persistent across page reloads)
-  const getLastModifiedTime = (unitId: string) => {
-    const currentMonth = new Date().getMonth()
-    const currentYear = new Date().getFullYear()
-    
-    // Find the most recent reading for this unit from the current month
+  const getLastModifiedInfo = (unitId: string) => {
+    if (!consumptionMonth) return null
+    const [year, month] = consumptionMonth.split("-").map(Number)
+
+    // Find the most recent reading for this unit from the selected month
     const recentReading = waterReadings
-      .filter(reading => {
-        const timestampValue = reading.lastModifiedAt || reading.createdAt
-        if (!timestampValue) return false
-        const readingDate = new Date(timestampValue)
-        return reading.unitId === unitId && 
-               readingDate.getMonth() === currentMonth && 
-               readingDate.getFullYear() === currentYear
+      .filter((reading: any) => {
+        const readingDateValue = reading.readingDate ?? reading.reading_date
+        if (!readingDateValue) return false
+        const readingDate = new Date(readingDateValue)
+        const readingUnitId = reading.unitId ?? reading.unit_id
+        return readingUnitId === unitId &&
+               readingDate.getMonth() === month - 1 &&
+               readingDate.getFullYear() === year
       })
-      .sort((a, b) => {
-        const aTimestamp = a.lastModifiedAt || a.createdAt
-        const bTimestamp = b.lastModifiedAt || b.createdAt
-        if (!aTimestamp || !bTimestamp) return 0
-        const aTime = new Date(aTimestamp).getTime()
-        const bTime = new Date(bTimestamp).getTime()
+      .sort((a: any, b: any) => {
+        const aDate = a.lastModifiedAt || a.createdAt || a.last_modified_at || a.created_at || a.readingDate || a.reading_date
+        const bDate = b.lastModifiedAt || b.createdAt || b.last_modified_at || b.created_at || b.readingDate || b.reading_date
+        if (!aDate || !bDate) return 0
+        const aTime = new Date(aDate).getTime()
+        const bTime = new Date(bDate).getTime()
         return bTime - aTime
       })[0]
 
-    if (recentReading) {
-      const timestampValue = recentReading.lastModifiedAt || recentReading.createdAt
-      if (timestampValue) {
-        const modifiedTime = new Date(timestampValue)
-        return modifiedTime.toLocaleString()
-      }
-    }
-    
-    return null
+    if (!recentReading) return null
+    const timestampValue = recentReading.lastModifiedAt || recentReading.createdAt || recentReading.last_modified_at || recentReading.created_at || recentReading.readingDate || recentReading.reading_date
+    if (!timestampValue) return null
+    const modifiedTime = new Date(timestampValue)
+    const label = modifiedTime.toLocaleString()
+
+    const lease = activeLeasesByUnit.get(unitId)
+    const invoiceCutoff = normalizedInvoices
+      .filter((invoice: any) => invoice.leaseId === lease?.id && invoice.issueDate)
+      .filter((invoice: any) => ["approved", "submitted"].includes((invoice.status || "").toLowerCase()))
+      .map((invoice: any) => new Date(invoice.issueDate).getTime())
+      .sort((a: number, b: number) => b - a)[0]
+
+    const isLate = invoiceCutoff ? modifiedTime.getTime() > invoiceCutoff : false
+
+    return { label, isLate }
   }
 
   return (
@@ -353,37 +625,23 @@ export function WaterUnits() {
         </div>
       </div>
 
-      {/* Property Filter */}
-      <div className="flex items-center gap-4">
+      {/* Consumption Month */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-center gap-2">
-          <Label htmlFor="property-filter">Filter by Property:</Label>
-          <Select 
-            value={selectedPropertyId} 
-            onValueChange={setSelectedPropertyId}
-          >
-            <SelectTrigger className="w-64" data-testid="select-property-filter">
-              <SelectValue placeholder="All Properties" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all-properties">All Properties</SelectItem>
-              {Array.isArray(properties) ? properties.map((property: any) => (
-                <SelectItem key={property.id} value={property.id}>
-                  {property.name}
-                </SelectItem>
-              )) : null}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="consumption-month">Consumption Month:</Label>
+          <Input
+            id="consumption-month"
+            type="month"
+            value={consumptionMonth}
+            onChange={(event) => setConsumptionMonth(event.target.value)}
+            className="w-64"
+          />
         </div>
-        {selectedPropertyId !== "all-properties" && (
-          <p className="text-sm text-muted-foreground">
-            Showing water readings for {Array.isArray(properties) ? properties.find((p: any) => p.id === selectedPropertyId)?.name : "Unknown"} ({filteredUnits.length} units)
-          </p>
-        )}
-        {selectedPropertyId === "all-properties" && (
-          <p className="text-sm text-muted-foreground">
-            Showing water readings for all properties ({filteredUnits.length} units)
-          </p>
-        )}
+        <p className="text-sm text-muted-foreground">
+          {globalSelectedPropertyId
+            ? `Showing water readings for ${Array.isArray(properties) ? properties.find((p: any) => p.id === globalSelectedPropertyId)?.name : "Unknown"} (${filteredUnits.length} units)`
+            : `Showing water readings for all properties (${filteredUnits.length} units)`}
+        </p>
       </div>
 
       {/* Summary Cards */}
@@ -401,11 +659,13 @@ export function WaterUnits() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
+            <CardTitle className="text-sm font-medium">Consumption Month</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-readings-this-month">{readingsSummary.unitsWithReadingsThisMonth}/{readingsSummary.totalUnits}</div>
+            <div className="text-2xl font-bold" data-testid="text-readings-this-month">
+              {readingsSummary.unitsWithReadingsThisMonth}/{readingsSummary.totalUnits}
+            </div>
             <p className="text-xs text-muted-foreground">Recorded units/Total units</p>
           </CardContent>
         </Card>
@@ -433,23 +693,9 @@ export function WaterUnits() {
         </Card>
       </div>
 
-      {/* Property Filter */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Property Accounts</CardTitle>
-          <CardDescription>Showing water readings for all properties and units</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-muted-foreground">
-            Property filtering removed - displaying all accounts by default as requested
-          </div>
-        </CardContent>
-      </Card>
-
       <Tabs defaultValue="bulk-entry" className="space-y-6">
         <TabsList>
           <TabsTrigger value="bulk-entry">Bulk Entry</TabsTrigger>
-          <TabsTrigger value="readings-history">Readings History</TabsTrigger>
           <TabsTrigger value="consumption-analysis">Consumption Analysis</TabsTrigger>
         </TabsList>
 
@@ -469,6 +715,7 @@ export function WaterUnits() {
                     value={currentReading.unitId} 
                     onValueChange={(value) => setCurrentReading(prev => ({ ...prev, unitId: value }))}
                     data-testid="select-unit"
+                    disabled={actionsDisabled}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select unit" />
@@ -476,11 +723,24 @@ export function WaterUnits() {
                     <SelectContent>
                       {filteredUnits.map(unit => (
                         <SelectItem key={unit.id} value={unit.id}>
-                          {unit.unitNumber} - {getPropertyName(unit.id)}
+                          {unit.unitNumber} - {getAccountName(unit.id)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="previous-reading">Previous Reading (Override)</Label>
+                  <Input
+                    id="previous-reading"
+                    type="number"
+                    placeholder="Auto from last reading"
+                    value={currentReading.previousReading}
+                    onChange={(e) => setCurrentReading(prev => ({ ...prev, previousReading: e.target.value }))}
+                    disabled={actionsDisabled}
+                    data-testid="input-previous-reading"
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -491,14 +751,15 @@ export function WaterUnits() {
                     placeholder="Enter meter reading"
                     value={currentReading.reading}
                     onChange={(e) => setCurrentReading(prev => ({ ...prev, reading: e.target.value }))}
+                    disabled={actionsDisabled}
                     data-testid="input-current-reading"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Rate per Unit</Label>
-                  <Input 
-                    value={currentReading.unitId 
+                    <Input 
+                      value={currentReading.unitId 
                       ? `KSH ${getWaterRateForUnit(currentReading.unitId).toFixed(2)} per m³` 
                       : "Select unit to see rate"
                     } 
@@ -510,7 +771,7 @@ export function WaterUnits() {
               <div className="flex gap-4">
                 <Button 
                   onClick={handleSaveReading}
-                  disabled={createReadingMutation.isPending || !currentReading.unitId || !currentReading.reading}
+                  disabled={actionsDisabled || createReadingMutation.isPending || !currentReading.unitId || !currentReading.reading}
                   data-testid="button-save-reading"
                 >
                   <Save className="h-4 w-4 mr-2" />
@@ -531,6 +792,11 @@ export function WaterUnits() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {actionsDisabled && (
+                <div className="text-sm text-muted-foreground mb-4">
+                  Select a property in the header to edit readings.
+                </div>
+              )}
               {isLoadingUnits ? (
                 <div className="text-center py-8">Loading units...</div>
               ) : filteredUnits.length === 0 ? (
@@ -544,16 +810,16 @@ export function WaterUnits() {
                   </div>
                   
                   <div className="border rounded-md">
-                    <Table>
+                    <Table className="table-fixed w-full">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-32">Unit</TableHead>
-                          <TableHead>Property</TableHead>
+                          <TableHead>Account</TableHead>
                           <TableHead className="w-40">Water Rate</TableHead>
-                          <TableHead className="w-40">Last Reading</TableHead>
+                          <TableHead className="w-40">Previous Reading</TableHead>
                           <TableHead className="w-48">New Reading (m³)</TableHead>
-                          <TableHead className="w-32 text-right">Amount</TableHead>
-                          <TableHead className="w-40 text-center">Date Modified</TableHead>
+                          <TableHead className="w-32">Units Consumed</TableHead>
+                          <TableHead className="w-32 text-right">Total Cost</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -561,8 +827,18 @@ export function WaterUnits() {
                           const lastReading = getLastReadingForUnit(unit.id)
                           const waterRate = getWaterRateForUnit(unit.id)
                           const currentValue = bulkReadings[unit.id] || ""
+                          const previousOverride = bulkPreviousReadings[unit.id]
+                          const previousValue = previousOverride !== undefined && previousOverride !== ""
+                            ? parseFloat(previousOverride)
+                            : lastReading
+                              ? parseFloat(lastReading.currentReading)
+                              : 0
+                          const newValue = currentValue !== "" ? parseFloat(currentValue) : NaN
+                          const unitsConsumed = Number.isFinite(newValue) ? Math.max(0, newValue - previousValue) : 0
+                          const totalCost = unitsConsumed * waterRate
                           const isSaving = savingUnits.has(unit.id)
                           const isSaved = savedUnits.has(unit.id)
+                          const lastModifiedInfo = getLastModifiedInfo(unit.id)
                           
                           // Debug logging for rendering
                           console.log("🎨 RENDER unit:", unit.id, "isSaving:", isSaving, "isSaved:", isSaved, "savedUnits:", Array.from(savedUnits), "savingUnits:", Array.from(savingUnits))
@@ -573,13 +849,51 @@ export function WaterUnits() {
                                 {unit.unitNumber}
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
-                                {getPropertyName(unit.id)}
+                                {getAccountName(unit.id)}
                               </TableCell>
                               <TableCell className="text-sm">
                                 KSH {waterRate.toFixed(2)} per m³
                               </TableCell>
                               <TableCell className="text-sm">
-                                {lastReading ? `${lastReading.currentReading} m³` : "No previous reading"}
+                                <Input
+                                  type="number"
+                                  placeholder={lastReading ? `${lastReading.currentReading}` : "0"}
+                                  value={bulkPreviousReadings[unit.id] ?? ""}
+                                  onChange={(e) => {
+                                    setEditingUnits(prev => {
+                                      const next = new Set(prev)
+                                      next.add(unit.id)
+                                      return next
+                                    })
+                                    setBulkPreviousReadings(prev => ({ ...prev, [unit.id]: e.target.value }))
+                                  }}
+                                  onFocus={() => {
+                                    setEditingUnits(prev => {
+                                      const next = new Set(prev)
+                                      next.add(unit.id)
+                                      return next
+                                    })
+                                  }}
+                                  onBlur={() => {
+                                    setEditingUnits(prev => {
+                                      const next = new Set(prev)
+                                      next.delete(unit.id)
+                                      return next
+                                    })
+                                  }}
+                                  className="h-8 w-24"
+                                  disabled={actionsDisabled}
+                                  data-testid={`input-prev-reading-${unit.id}`}
+                                />
+                                <div className="mt-1 text-xs w-40">
+                                  {lastModifiedInfo ? (
+                                    <span className={lastModifiedInfo.isLate ? "text-red-500" : "text-green-600"}>
+                                      Prev updated: {lastModifiedInfo.label}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">Prev updated: --:--</span>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <div className="relative">
@@ -587,8 +901,23 @@ export function WaterUnits() {
                                     type="number"
                                     placeholder="Enter reading"
                                     value={currentValue}
-                                    onChange={(e) => handleBulkReadingChange(unit.id, e.target.value)}
-                                    className={`pr-8 ${isSaved ? 'border-green-500' : ''}`}
+                                    onChange={(e) => handleBulkReadingChange(unit.id, e.target.value, previousValue)}
+                                    onFocus={() => {
+                                      setEditingUnits(prev => {
+                                        const next = new Set(prev)
+                                        next.add(unit.id)
+                                        return next
+                                      })
+                                    }}
+                                    onBlur={() => {
+                                      setEditingUnits(prev => {
+                                        const next = new Set(prev)
+                                        next.delete(unit.id)
+                                        return next
+                                      })
+                                    }}
+                                    className={`pr-8 h-8 w-24 ${isSaved ? 'border-green-500' : ''}`}
+                                    disabled={actionsDisabled}
                                     data-testid={`input-bulk-reading-${unit.id}`}
                                   />
                                   {isSaving && (
@@ -597,33 +926,31 @@ export function WaterUnits() {
                                     </div>
                                   )}
                                 </div>
+                                <div className="mt-1 text-xs w-40">
+                                  {lastModifiedInfo ? (
+                                    <span className={lastModifiedInfo.isLate ? "text-red-500" : "text-green-600"}>
+                                      Last updated: {lastModifiedInfo.label}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">Last updated: --:--</span>
+                                  )}
+                                </div>
+                                {isSaved && (
+                                  <div className="mt-1 text-xs text-green-600 w-40">
+                                    ✓ Saved
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {currentValue ? unitsConsumed.toFixed(2) : "-"}
                               </TableCell>
                               <TableCell className="text-right">
-                                {currentValue && (
+                                {currentValue ? (
                                   <div className="font-medium text-primary">
-                                    KSH {(parseFloat(currentValue) * waterRate).toFixed(2)}
+                                    KSH {totalCost.toFixed(2)}
                                   </div>
-                                )}
-                                {!currentValue && (
-                                  <div className="text-muted-foreground text-sm">
-                                    -
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {isSaving && (
-                                  <div className="flex items-center justify-center">
-                                    <Badge variant="secondary">
-                                      Saving...
-                                    </Badge>
-                                  </div>
-                                )}
-                                {!isSaving && getLastModifiedTime(unit.id) && (
-                                  <div className="flex items-center justify-center">
-                                    <Badge variant="secondary" className={`text-xs ${isSaved ? 'bg-green-100 text-green-800 animate-pulse' : 'bg-gray-100 text-gray-700'}`}>
-                                      ✓ {getLastModifiedTime(unit.id)}
-                                    </Badge>
-                                  </div>
+                                ) : (
+                                  <div className="text-muted-foreground text-sm">-</div>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -643,75 +970,71 @@ export function WaterUnits() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="readings-history" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Water Readings History</CardTitle>
-              <CardDescription>View all recorded water meter readings and calculated consumption</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingReadings ? (
-                <div className="text-center py-8">Loading readings...</div>
-              ) : filteredWaterReadings.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No water readings recorded yet. Use bulk entry to get started.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Property</TableHead>
-                      <TableHead>Reading Date</TableHead>
-                      <TableHead>Current Reading</TableHead>
-                      <TableHead>Previous Reading</TableHead>
-                      <TableHead>Consumption (m³)</TableHead>
-                      <TableHead>Total Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredWaterReadings.map(reading => (
-                      <TableRow key={reading.id} data-testid={`row-reading-${reading.id}`}>
-                        <TableCell className="font-medium">
-                          {getUnitName(reading.unitId)}
-                        </TableCell>
-                        <TableCell>
-                          {getPropertyName(reading.unitId)}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(reading.readingDate).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>{reading.currentReading}</TableCell>
-                        <TableCell>{reading.previousReading}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {parseFloat(reading.consumption).toFixed(2)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          KSH {parseFloat(reading.totalAmount).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="consumption-analysis" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Consumption Analysis</CardTitle>
-              <CardDescription>Analyze water consumption patterns and trends</CardDescription>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Consumption Analysis</CardTitle>
+                  <CardDescription>Analyze water consumption patterns and trends</CardDescription>
+                </div>
+                {consumptionTrend.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTrendBreakdown(prev => !prev)}
+                  >
+                    {showTrendBreakdown ? "Hide breakdown" : "View breakdown"}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Consumption analysis charts and trends will be implemented here.
-                <br />
-                This feature will show consumption patterns, usage trends, and cost analysis.
-              </div>
+              {consumptionTrend.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No readings available to build a trend yet.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={consumptionTrend}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" />
+                        <YAxis />
+                        <Tooltip
+                          formatter={(value: number, name: string) => {
+                            if (name === "totalCost") return [`KSH ${value.toFixed(2)}`, "Total Cost"]
+                            return [`${value.toFixed(2)} m³`, "Units Consumed"]
+                          }}
+                        />
+                        <Line type="monotone" dataKey="consumption" stroke="#38bdf8" strokeWidth={2} dot />
+                        <Line type="monotone" dataKey="totalCost" stroke="#22c55e" strokeWidth={2} dot />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {showTrendBreakdown && (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-40">Month</TableHead>
+                          <TableHead className="w-40 text-right">Units Consumed (m³)</TableHead>
+                          <TableHead className="w-40 text-right">Total Cost</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {consumptionTrend.map((row) => (
+                          <TableRow key={row.monthKey}>
+                            <TableCell className="font-medium">{row.label}</TableCell>
+                            <TableCell className="text-right">{row.consumption.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">KSH {row.totalCost.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

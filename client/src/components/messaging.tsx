@@ -27,6 +27,7 @@ export function Messaging() {
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const actionsDisabled = !selectedPropertyId || selectedPropertyId === "all"
 
   // Fetch real tenant data
   const { data: tenantsData = [] } = useQuery({ 
@@ -88,7 +89,17 @@ export function Messaging() {
       return await response.json()
     },
   })
-  const { data: messageRecipients = [] } = useQuery({ queryKey: ['/api/message-recipients'] })
+  const { data: messageRecipients = [] } = useQuery({
+    queryKey: ['/api/message-recipients', selectedPropertyId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const url = `/api/message-recipients${params.toString() ? `?${params}` : ""}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: !actionsDisabled,
+  })
   
   const [, setLocation] = useLocation()
 
@@ -214,6 +225,19 @@ export function Messaging() {
       default:
         return <Badge variant="outline">Unknown</Badge>
     }
+  }
+
+  if (actionsDisabled) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Messaging</CardTitle>
+            <CardDescription>Select a property to send and view messages.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
   }
 
   return (

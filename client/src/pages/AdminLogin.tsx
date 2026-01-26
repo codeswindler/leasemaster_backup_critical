@@ -274,6 +274,9 @@ export function AdminLogin() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [otpRequired, setOtpRequired] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -284,6 +287,14 @@ export function AdminLogin() {
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [shakeQuickAction, setShakeQuickAction] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>("");
+
+  useEffect(() => {
+    if (!otpCooldown) return;
+    const interval = setInterval(() => {
+      setOtpCooldown((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpCooldown]);
 
   // Generate 50 luxury property image URLs
   // Using actual Unsplash photo IDs for luxury properties
@@ -487,35 +498,89 @@ export function AdminLogin() {
     setLoading(true);
 
     try {
-      // TODO: Implement actual login API call
+      if (otpRequired) {
+        const verifyResponse = await fetch("/api/auth/verify-otp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ code: otpCode }),
+        });
+        const verifyData = await verifyResponse.json();
+        if (!verifyResponse.ok) {
+          setError(verifyData.error || "Invalid OTP");
+          return;
+        }
+        setIsAuthenticated(true);
+        if (verifyData.user?.username) {
+          setCurrentUsername(verifyData.user.username);
+        }
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+        }, 3000);
+        return;
+      }
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ username, password, rememberMe }),
+        body: JSON.stringify({ username, password, rememberMe, loginType: "admin" }),
       });
 
+      const data = await response.json();
       if (response.ok) {
-        // Login successful
-        const data = await response.json();
+        if (data.otpRequired) {
+          setOtpRequired(true);
+          setOtpCode("");
+          setOtpCooldown(data.retryAfter || 60);
+          return;
+        }
         setIsAuthenticated(true);
         if (data.user?.username) {
           setCurrentUsername(data.user.username);
         }
         setShowSuccess(true);
-        // Hide success animation after 3 seconds
         setTimeout(() => {
           setShowSuccess(false);
         }, 3000);
       } else {
-        const data = await response.json();
         setError(data.error || "Invalid username or password");
       }
     } catch (err) {
       setError("Failed to connect to server. Please try again.");
       console.error("Login error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Unable to resend OTP.");
+        if (data.retryAfter) {
+          setOtpCooldown(data.retryAfter);
+        }
+        return;
+      }
+      setOtpCooldown(data.retryAfter || 60);
+    } catch (err) {
+      setError("Failed to resend OTP. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -813,60 +878,98 @@ export function AdminLogin() {
                     </motion.div>
                   )}
 
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.4 }}
-                    className="space-y-2"
-                  >
-                    <Label htmlFor="username" className={`text-base ${getTextContrastClass()}`}>Username</Label>
-                    <div className="relative">
-                      <Input
-                        id="username"
-                        type="text"
-                        placeholder="Enter your username"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                        disabled={loading}
-                        className="h-12 text-base pl-4 pr-11"
-                      />
-                      <User className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.5 }}
-                    className="space-y-2"
-                  >
-                    <Label htmlFor="password" className={`text-base ${getTextContrastClass()}`}>Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        disabled={loading}
-                        className="h-12 text-base pl-4 pr-20"
-                      />
-                      <Lock className="absolute right-12 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                  {!otpRequired ? (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.4 }}
+                        className="space-y-2"
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-5 w-5" />
-                        ) : (
-                          <Eye className="h-5 w-5" />
-                        )}
-                      </button>
-                    </div>
-                  </motion.div>
+                        <Label htmlFor="username" className={`text-base ${getTextContrastClass()}`}>Username</Label>
+                        <div className="relative">
+                          <Input
+                            id="username"
+                            type="text"
+                            placeholder="Enter your username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            required
+                            disabled={loading}
+                            className="h-12 text-base pl-4 pr-11"
+                          />
+                          <User className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.5 }}
+                        className="space-y-2"
+                      >
+                        <Label htmlFor="password" className={`text-base ${getTextContrastClass()}`}>Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Enter your password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            disabled={loading}
+                            className="h-12 text-base pl-4 pr-20"
+                          />
+                          <Lock className="absolute right-12 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                          >
+                            {showPassword ? (
+                              <EyeOff className="h-5 w-5" />
+                            ) : (
+                              <Eye className="h-5 w-5" />
+                            )}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.4 }}
+                      className="space-y-3"
+                    >
+                      <Label htmlFor="otp" className={`text-base ${getTextContrastClass()}`}>OTP Code</Label>
+                      <div className="relative">
+                        <Input
+                          id="otp"
+                          type="text"
+                          placeholder="Enter the 6-digit code"
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value)}
+                          required
+                          disabled={loading}
+                          className="h-12 text-base pl-4 pr-11"
+                        />
+                        <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className={getTextContrastClass()}>OTP valid for 5 minutes.</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleResendOtp}
+                          disabled={loading || otpCooldown > 0}
+                        >
+                          {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : "Resend OTP"}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
 
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}

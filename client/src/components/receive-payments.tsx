@@ -41,6 +41,8 @@ export function ReceivePayments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { selectedPropertyId, selectedLandlordId } = useFilter()
 
+  const actionsDisabled = !selectedPropertyId
+
   // Fetch real tenant data
   const { data: tenants = [] } = useQuery({ 
     queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
@@ -106,6 +108,10 @@ export function ReceivePayments() {
   const selectedTenantData = enhancedTenants.find((t: any) => t.id === selectedTenant)
 
   const handleRecordPayment = () => {
+    if (actionsDisabled) {
+      alert("Select a property in the header before recording payments.")
+      return
+    }
     if (!selectedTenant || !amount || !paymentMethod) {
       alert("Please fill in all required fields")
       return
@@ -257,7 +263,7 @@ export function ReceivePayments() {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleRecordPayment} data-testid="button-submit-payment">
+              <Button onClick={handleRecordPayment} disabled={actionsDisabled} data-testid="button-submit-payment">
                 Record Payment
               </Button>
             </div>

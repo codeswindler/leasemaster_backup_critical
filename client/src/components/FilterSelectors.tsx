@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Building2 } from "lucide-react";
@@ -10,6 +11,8 @@ interface FilterSelectorsProps {
 
 export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
   const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId, setSelectedLandlordId } = useFilter();
+  const role = (currentUser?.role || "").toLowerCase();
+  const isAdmin = role === "admin" || role === "super_admin" || role === "administrator";
 
   // Fetch landlords (only for admin)
   const { data: landlords = [] } = useQuery({
@@ -18,7 +21,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
       const response = await apiRequest("GET", "/api/landlords");
       return await response.json();
     },
-    enabled: currentUser?.role === "admin",
+    enabled: isAdmin,
   });
 
   // Fetch properties
@@ -30,10 +33,49 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
     },
   });
 
+  const getPropertyLandlordId = (property: any) => property?.landlordId ?? property?.landlord_id;
+
+  useEffect(() => {
+    if (!selectedPropertyId) return;
+    const matchProperty = (properties as any[]).find((property: any) => property.id === selectedPropertyId);
+    if (!matchProperty) return;
+    const ownerId = getPropertyLandlordId(matchProperty);
+    if (ownerId && ownerId !== selectedLandlordId) {
+      setSelectedLandlordId(ownerId);
+      queryClient.invalidateQueries();
+    }
+  }, [selectedPropertyId, properties, selectedLandlordId, setSelectedLandlordId]);
+
+  useEffect(() => {
+    if (!selectedLandlordId) return;
+    const ownedProperties = (properties as any[]).filter((property: any) => getPropertyLandlordId(property) === selectedLandlordId);
+    if (ownedProperties.length === 1) {
+      if (selectedPropertyId !== ownedProperties[0].id) {
+        setSelectedPropertyId(ownedProperties[0].id);
+        queryClient.invalidateQueries();
+      }
+      return;
+    }
+    if (ownedProperties.length > 1 && selectedPropertyId && !ownedProperties.find((p: any) => p.id === selectedPropertyId)) {
+      setSelectedPropertyId(null);
+      queryClient.invalidateQueries();
+    }
+  }, [selectedLandlordId, selectedPropertyId, properties, setSelectedPropertyId]);
+
+  useEffect(() => {
+    if (currentUser?.role !== "client") return;
+    if (selectedPropertyId) return;
+    const firstProperty = (properties as any[])[0];
+    if (firstProperty?.id) {
+      setSelectedPropertyId(firstProperty.id);
+      queryClient.invalidateQueries();
+    }
+  }, [currentUser?.role, properties, selectedPropertyId, setSelectedPropertyId]);
+
   return (
     <>
       {/* Landlord Selector - Only for Admin */}
-      {currentUser?.role === "admin" && (
+      {isAdmin && (
         <Select
           value={selectedLandlordId || "all"}
           onValueChange={(value) => {
@@ -64,9 +106,9 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
         </Select>
       )}
 
-      {/* Property Selector - Admin sees "View All", Clients see only their property (no "View All" option) */}
+      {/* Property Selector - Admin sees "View All", Clients see only their property */}
       <Select
-        value={selectedPropertyId || (currentUser?.role === "client" ? properties?.[0]?.id || "" : "all")}
+        value={selectedPropertyId || "all"}
         onValueChange={(value) => {
           if (value === "all") {
             setSelectedPropertyId(null);
@@ -82,13 +124,13 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
           <SelectValue placeholder="Select Property" />
         </SelectTrigger>
         <SelectContent>
-          {currentUser?.role === "admin" && <SelectItem value="all">View All Properties</SelectItem>}
+          {isAdmin && <SelectItem value="all">View All Properties</SelectItem>}
           {Array.isArray(properties) &&
             properties
               .filter((property: any) => {
                 // If landlord is selected, only show properties for that landlord
                 if (selectedLandlordId) {
-                  return property.landlordId === selectedLandlordId;
+                  return getPropertyLandlordId(property) === selectedLandlordId;
                 }
                 return true;
               })

@@ -19,6 +19,20 @@ export function MessagingEmailOutbox() {
   const { selectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+  const actionsDisabled = !selectedPropertyId || selectedPropertyId === "all"
+
+  if (actionsDisabled) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Email Outbox</CardTitle>
+            <CardDescription>Select a property to view messages.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
 
   // Fetch Email messages
   const { data: messages = [], isLoading, refetch } = useQuery({ 

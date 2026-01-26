@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label"
 export function MessagingSmsOutbox() {
   const { selectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
+  const actionsDisabled = !selectedPropertyId || selectedPropertyId === "all"
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [senderFilter, setSenderFilter] = useState("")
@@ -35,6 +36,19 @@ export function MessagingSmsOutbox() {
   const [exportTo, setExportTo] = useState("")
   const [exportSearch, setExportSearch] = useState("")
   const [exportSender, setExportSender] = useState("")
+
+  if (actionsDisabled) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>SMS Outbox</CardTitle>
+            <CardDescription>Select a property to view messages.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
 
   // Fetch SMS messages
   const { data: messages = [], isLoading, refetch } = useQuery({ 

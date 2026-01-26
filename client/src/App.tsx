@@ -11,6 +11,7 @@ import { Landing } from "@/pages/Landing";
 import { About } from "@/pages/About";
 import { AdminLogin } from "@/pages/AdminLogin";
 import { ClientLogin } from "@/pages/ClientLogin";
+import { TenantLogin } from "@/pages/TenantLogin";
 import { AdminPortal } from "@/pages/AdminPortal";
 import { ClientPortal } from "@/pages/ClientPortal";
 import { ClientsPage } from "@/pages/ClientsPage";
@@ -29,6 +30,8 @@ const Houses = lazy(() => import("@/components/houses").then(m => ({ default: m.
 const LeaseManagement = lazy(() => import("@/components/lease-management").then(m => ({ default: m.LeaseManagement })));
 const UploadData = lazy(() => import("@/components/upload-data").then(m => ({ default: m.UploadData })));
 const Tenants = lazy(() => import("@/components/tenants").then(m => ({ default: m.Tenants })));
+const TerminatedLeases = lazy(() => import("@/components/terminated-leases").then(m => ({ default: m.TerminatedLeases })));
+const TenantDetail = lazy(() => import("@/components/tenant-detail").then(m => ({ default: m.TenantDetail })));
 const BulkInvoicing = lazy(() => import("@/components/bulk-invoicing").then(m => ({ default: m.BulkInvoicing })));
 const SingleInvoicing = lazy(() => import("@/components/single-invoicing").then(m => ({ default: m.SingleInvoicing })));
 const Invoices = lazy(() => import("@/components/invoices").then(m => ({ default: m.Invoices })));
@@ -46,8 +49,10 @@ const MessagingEmailOutbox = lazy(() => import("@/components/messaging-email-out
 const MessageDetails = lazy(() => import("@/components/message-details").then(m => ({ default: m.MessageDetails })));
 const Reports = lazy(() => import("@/components/reports").then(m => ({ default: m.Reports })));
 const UserManagement = lazy(() => import("@/components/user-management").then(m => ({ default: m.UserManagement })));
+const CreditUsage = lazy(() => import("@/components/credit-usage").then(m => ({ default: m.CreditUsage })));
 const Settings = lazy(() => import("@/components/settings").then(m => ({ default: m.Settings })));
 const FullActivity = lazy(() => import("@/components/full-activity").then(m => ({ default: m.FullActivity })));
+const UserDetail = lazy(() => import("@/components/user-detail").then(m => ({ default: m.UserDetail })));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -58,7 +63,7 @@ const LoadingSpinner = () => (
     </div>
   </div>
 );
-import { MessageSquare, Bell, CreditCard, User, LogOut, ArrowLeft, Building2, Users } from "lucide-react";
+import { MessageSquare, Bell, CreditCard, User, LogOut, ArrowLeft, Building2, Users, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
@@ -72,8 +77,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { FilterProvider } from "@/contexts/FilterContext";
+import { FilterProvider, useFilter } from "@/contexts/FilterContext";
 import { FilterSelectors } from "@/components/FilterSelectors";
+import { useToast } from "@/hooks/use-toast";
 
 function Router({ showLanding = false }: { showLanding?: boolean }) {
   // Show landing page routes when not on portal
@@ -98,6 +104,8 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
           </Route>
           <Route path="/about" component={About} />
           <Route path="/register" component={EnquiryForm} />
+          <Route path="/tenant/login" component={TenantLogin} />
+          <Route path="/landing" component={Landing} />
           <Route path="/" component={Landing} />
           <Route component={NotFound} />
         </Switch>
@@ -113,6 +121,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         {/* Login routes */}
         <Route path="/admin/login" component={AdminLogin} />
         <Route path="/portal/login" component={ClientLogin} />
+        <Route path="/tenant/login" component={TenantLogin} />
         <Route path="/login">
           {() => {
             const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -185,6 +194,12 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         <Route path="/upload-data">
           {() => <UploadData />}
         </Route>
+        <Route path="/tenants/terminated">
+          {() => <TerminatedLeases />}
+        </Route>
+        <Route path="/tenants/:id">
+          {() => <TenantDetail />}
+        </Route>
         <Route path="/tenants">
           {() => <Tenants />}
         </Route>
@@ -212,8 +227,14 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         <Route path="/reports">
           {() => <Reports />}
         </Route>
+        <Route path="/users/:id">
+          {() => <UserDetail />}
+        </Route>
         <Route path="/users">
           {() => <UserManagement />}
+        </Route>
+        <Route path="/credit-usage">
+          {() => <CreditUsage />}
         </Route>
         <Route path="/settings">
           {() => <Settings />}
@@ -256,6 +277,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
 
 function AppContent() {
   const [smsBalance, setSmsBalance] = useState(0)
+  const [emailBalance, setEmailBalance] = useState(0)
   const [paymentNotifications, setPaymentNotifications] = useState(0)
   const [recentPayment, setRecentPayment] = useState<any>(null)
   const [location, setLocation] = useLocation()
@@ -264,6 +286,15 @@ function AppContent() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string; role?: string } | null>(null)
+  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { toast } = useToast()
+  const [smsBalanceNotified, setSmsBalanceNotified] = useState(false)
+  const [emailBalanceNotified, setEmailBalanceNotified] = useState(false)
+  const portalModuleRoutes = [
+    '/properties', '/houses', '/tenants', '/accounting', '/maintenance',
+    '/messaging', '/reports', '/users', '/credit-usage', '/settings', '/activity',
+    '/payments', '/upload-data', '/leases', '/water-units'
+  ]
   
   // Check if we're on portal subdomain
   useEffect(() => {
@@ -283,7 +314,8 @@ function AppContent() {
       // Production: admin subdomain includes /clients and /enquiries routes
       // Localhost: path-based detection
       const isAdminContextLocal = !isLocalhost && hostname.startsWith('admin.') || (isLocalhost && (pathname.startsWith('/admin') || pathname.startsWith('/clients') || pathname.startsWith('/enquiries')));
-      const isPortalContextLocal = !isLocalhost && hostname.startsWith('portal.') || (isLocalhost && pathname.startsWith('/portal'));
+    const isPortalModuleRouteLocal = isLocalhost && portalModuleRoutes.some(route => pathname.startsWith(route));
+    const isPortalContextLocal = !isLocalhost && hostname.startsWith('portal.') || (isLocalhost && (pathname.startsWith('/portal') || isPortalModuleRouteLocal));
       // Clients and enquiries are now routes under admin subdomain, not separate subdomains
       const isAppContextLocal = isAdminContextLocal || isPortalContextLocal;
       
@@ -380,11 +412,50 @@ function AppContent() {
   const { data: smsData } = useQuery({
     queryKey: ["/api/sms-balance"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/sms-balance");
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const response = await apiRequest("GET", `/api/sms-balance${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
     enabled: isAuthenticated,
     refetchInterval: 30000, // Refetch every 30 seconds
+  })
+
+  const { data: emailData } = useQuery({
+    queryKey: ["/api/email-balance", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const response = await apiRequest("GET", `/api/email-balance${params.toString() ? `?${params}` : ""}`)
+      return await response.json()
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 30000,
+  })
+
+  const { data: smsSettingsData } = useQuery({
+    queryKey: ["/api/settings/sms", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const response = await apiRequest("GET", `/api/settings/sms${params.toString() ? `?${params}` : ""}`)
+      return await response.json()
+    },
+    enabled: isAuthenticated,
+  })
+
+  const { data: emailSettingsData } = useQuery({
+    queryKey: ["/api/settings/email", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const response = await apiRequest("GET", `/api/settings/email${params.toString() ? `?${params}` : ""}`)
+      return await response.json()
+    },
+    enabled: isAuthenticated,
   })
 
   // Fetch properties for selector (admin sees all, clients see only their property)
@@ -412,6 +483,48 @@ function AppContent() {
       setSmsBalance((smsData as any).balance);
     }
   }, [smsData])
+
+  useEffect(() => {
+    if (emailData && typeof emailData === 'object' && 'balance' in emailData) {
+      setEmailBalance((emailData as any).balance ?? 0)
+    }
+  }, [emailData])
+
+  useEffect(() => {
+    const threshold = smsSettingsData?.balance_threshold
+    if (threshold !== undefined && threshold !== null) {
+      const limit = Number(threshold)
+      if (!Number.isNaN(limit) && smsBalance <= limit && !smsBalanceNotified) {
+        toast({
+          title: "SMS balance low",
+          description: `SMS balance is ${smsBalance}, below threshold ${limit}.`,
+          variant: "destructive"
+        })
+        setSmsBalanceNotified(true)
+      }
+      if (smsBalance > limit) {
+        setSmsBalanceNotified(false)
+      }
+    }
+  }, [smsBalance, smsSettingsData, smsBalanceNotified, toast])
+
+  useEffect(() => {
+    const threshold = emailSettingsData?.credit_threshold
+    if (threshold !== undefined && threshold !== null) {
+      const limit = Number(threshold)
+      if (!Number.isNaN(limit) && emailBalance <= limit && !emailBalanceNotified) {
+        toast({
+          title: "Email balance low",
+          description: `Email balance is ${emailBalance}, below threshold ${limit}.`,
+          variant: "destructive"
+        })
+        setEmailBalanceNotified(true)
+      }
+      if (emailBalance > limit) {
+        setEmailBalanceNotified(false)
+      }
+    }
+  }, [emailBalance, emailSettingsData, emailBalanceNotified, toast])
 
   // Fetch recent payments for notifications (only when authenticated)
   const { data: recentPayments } = useQuery({
@@ -469,10 +582,13 @@ function AppContent() {
   const isPortalSubdomain = !isLocalhost && hostname.startsWith('portal.');
   const isRootDomain = !isLocalhost && !isAdminSubdomain && !isPortalSubdomain;
   
+  // Portal module routes (existing routes that should use app router)
+  const isPortalModuleRoute = isLocalhost && portalModuleRoutes.some(route => pathname.startsWith(route));
+  
   // Path-based detection (for localhost)
   // Clients and enquiries are part of admin context (admin-authenticated pages)
   const isAdminPath = isLocalhost && (pathname.startsWith('/admin') || pathname.startsWith('/clients') || pathname.startsWith('/enquiries'));
-  const isPortalPath = isLocalhost && pathname.startsWith('/portal');
+  const isPortalPath = isLocalhost && (pathname.startsWith('/portal') || isPortalModuleRoute);
   
   // Determine context
   // In production: admin subdomain includes /clients and /enquiries routes
@@ -481,19 +597,16 @@ function AppContent() {
   const isPortalContext = isPortalSubdomain || isPortalPath;
   const isAppContext = isAdminContext || isPortalContext;
   
-  // Portal module routes (existing routes that should use app router)
-  const portalModuleRoutes = [
-    '/properties', '/houses', '/tenants', '/accounting', '/maintenance',
-    '/messaging', '/reports', '/users', '/settings', '/activity',
-    '/payments', '/upload-data', '/leases', '/water-units', '/tenant-portal'
-  ];
-  const isPortalModuleRoute = isLocalhost && portalModuleRoutes.some(route => pathname.startsWith(route));
-  
   // Early return for login routes and standalone pages - render WITHOUT app layout
   // This MUST be checked BEFORE isAppContext to prevent sidebar from rendering
   const isLoginRoute = pathname === '/admin/login' || 
                        pathname === '/portal/login' || 
+                       pathname === '/tenant/login' ||
                        pathname === '/login';
+  const isTenantRoute =
+    pathname === '/tenant/login' ||
+    pathname.startsWith('/tenant/') ||
+    pathname.startsWith('/tenant-portal');
   // Clients and enquiries are standalone pages (no sidebar) but require admin auth
   const isStandalonePage = pathname === '/clients' || pathname === '/enquiries';
   
@@ -535,7 +648,7 @@ function AppContent() {
     );
   }
   
-  if (isLoginRoute) {
+  if (isLoginRoute || isTenantRoute) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -549,7 +662,7 @@ function AppContent() {
   }
   
   // Show landing page only on root domain (production) or root path (localhost) without app context
-  if ((isRootDomain || (isLocalhost && !isAppContext && !isPortalModuleRoute)) && (pathname === '/' || pathname === '/about')) {
+  if ((isRootDomain || (isLocalhost && !isAppContext && !isPortalModuleRoute)) && (pathname === '/' || pathname === '/about' || pathname === '/landing')) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -591,7 +704,7 @@ function AppContent() {
     // IMPORTANT: Check subdomain FIRST, then path, to avoid incorrect redirects
     // Clients and enquiries are part of admin context (they're admin-authenticated)
     const shouldShowAdminLogin = isAdminSubdomain || (isLocalhost && (currentPathname.startsWith('/admin') || currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries')));
-    const shouldShowClientLogin = isPortalSubdomain || (isLocalhost && currentPathname.startsWith('/portal') && !currentPathname.includes('/admin'));
+    const shouldShowClientLogin = isPortalSubdomain || (isLocalhost && (currentPathname.startsWith('/portal') || isPortalModuleRoute) && !currentPathname.includes('/admin'));
     
     if (!isAuthenticated) {
       // Redirect to appropriate login page
@@ -680,7 +793,6 @@ function AppContent() {
     // Show full app with sidebar when authenticated
     return (
       <QueryClientProvider client={queryClient}>
-        <FilterProvider>
           <TooltipProvider>
             <ThemeProvider>
             <AnimatedBackground />
@@ -751,12 +863,14 @@ function AppContent() {
                       {isAuthenticated && <FilterSelectors currentUser={currentUser} />}
                       <div className="flex items-center gap-4">
                         <ThemeToggle />
-                        {smsBalance > 0 && (
                           <Badge variant="outline" className="gap-1">
                             <MessageSquare className="h-3 w-3" />
                             SMS: {smsBalance}
                           </Badge>
-                        )}
+                      <Badge variant="outline" className="gap-1">
+                        <Mail className="h-3 w-3" />
+                        Email: {emailBalance}
+                      </Badge>
                         {paymentNotifications > 0 && (
                           <Button
                             variant="outline"
@@ -822,7 +936,6 @@ function AppContent() {
             <Toaster />
           </ThemeProvider>
         </TooltipProvider>
-        </FilterProvider>
       </QueryClientProvider>
     );
   }
@@ -843,7 +956,9 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <FilterProvider>
       <AppContent />
+      </FilterProvider>
     </QueryClientProvider>
   );
 }

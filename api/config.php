@@ -157,6 +157,14 @@ function requireAuth() {
     return $_SESSION['userId'];
 }
 
+// Helper function to check tenant authentication
+function requireTenant() {
+    if (!isset($_SESSION['tenantId'])) {
+        sendJson(['error' => 'Unauthorized', 'authenticated' => false], 401);
+    }
+    return $_SESSION['tenantId'];
+}
+
 // CORS headers (if needed for development)
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');

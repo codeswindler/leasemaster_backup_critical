@@ -12,6 +12,12 @@ export const users = pgTable("users", {
   idNumber: text("id_number"),
   role: text("role").notNull().default("admin"), // admin, client, super_admin
   mustChangePassword: integer("must_change_password").notNull().default(1), // 1 = must change, 0 = no
+  propertyId: varchar("property_id"),
+  propertyLimit: integer("property_limit"),
+  permissions: text("permissions"), // JSON string of permissions
+  otpEnabled: integer("otp_enabled").notNull().default(1),
+  status: integer("status").notNull().default(1),
+  lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -76,6 +82,10 @@ export const tenants = pgTable("tenants", {
   idNumber: text("id_number").notNull().unique(),
   emergencyContact: text("emergency_contact"),
   emergencyPhone: text("emergency_phone"),
+  secondaryContactName: text("secondary_contact_name"),
+  secondaryContactPhone: text("secondary_contact_phone"),
+  secondaryContactEmail: text("secondary_contact_email"),
+  notifySecondary: text("notify_secondary").notNull().default("false"), // true, false
   createdAt: timestamp("created_at").defaultNow(),
 });
 

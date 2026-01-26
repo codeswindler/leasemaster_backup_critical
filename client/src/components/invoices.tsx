@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { 
@@ -13,7 +13,9 @@ import {
   Smartphone,
   FileText,
   Download,
-  Loader2
+  Loader2,
+  Trash2,
+  Undo2
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -44,7 +46,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
 import { useFilter } from "@/contexts/FilterContext"
+import { getPaletteByIndex } from "@/lib/palette"
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Label } from "@/components/ui/label"
@@ -60,10 +64,44 @@ export function Invoices() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const actionsDisabled = !selectedPropertyId
+  const pendingDeleteRef = useRef<Record<string, NodeJS.Timeout>>({})
+  const latestPaymentActivityRef = useRef<string | null>(null)
+
+  const formatInvoiceId = (id: string) => {
+    if (!id) return "INV-UNKNOWN"
+    const suffix = id.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase()
+    return `INV-${suffix}`
+  }
+
+  const loadImageAsDataUrl = async (url: string) => {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error("Failed to read logo"))
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  const statusCardStyles: Record<string, string> = {
+    all: "border-primary/40 bg-primary/10 text-primary",
+    pending: "border-amber-500/40 bg-amber-500/10 text-amber-100",
+    partially_paid: "border-sky-500/40 bg-sky-500/10 text-sky-100",
+    paid: "border-green-500/40 bg-green-500/10 text-green-100"
+  }
+
+  const updateInvoiceStatus = async (invoiceId: string, status: string) => {
+    await apiRequest("PUT", `/api/invoices/${invoiceId}`, { status })
+  }
 
   // Edit invoice mutation
   const editInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId, data }: { invoiceId: string, data: any }) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to edit invoices.")
+      }
       return await apiRequest('PUT', `/api/invoices/${invoiceId}`, data)
     },
     onSuccess: () => {
@@ -87,13 +125,19 @@ export function Invoices() {
   // Send email mutation
   const sendEmailMutation = useMutation({
     mutationFn: async (invoiceId: string) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to send invoices.")
+      }
       return await apiRequest('POST', `/api/invoices/${invoiceId}/send-email`)
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      if (selectedInvoice?.id) {
+        await updateInvoiceStatus(selectedInvoice.id, "sent")
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
       toast({
         title: "Email Sent",
-        description: `Invoice ${selectedInvoice?.id} has been sent via email.`,
+        description: `Sent 1 email successfully.`,
       })
       setSendDialogOpen(false)
     },
@@ -109,13 +153,19 @@ export function Invoices() {
   // Send SMS mutation
   const sendSMSMutation = useMutation({
     mutationFn: async (invoiceId: string) => {
+      if (actionsDisabled) {
+        throw new Error("Select a property in the header to send invoices.")
+      }
       return await apiRequest('POST', `/api/invoices/${invoiceId}/send-sms`)
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      if (selectedInvoice?.id) {
+        await updateInvoiceStatus(selectedInvoice.id, "sent")
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
       toast({
         title: "SMS Sent",
-        description: `Invoice ${selectedInvoice?.id} notification has been sent via SMS.`,
+        description: `Sent 1 SMS successfully.`,
       })
       setSendDialogOpen(false)
     },
@@ -174,6 +224,48 @@ export function Invoices() {
       return await response.json()
     },
   })
+
+  const invoiceSettingsQuery = useQuery({
+    queryKey: ['/api/settings/invoice', selectedLandlordId, selectedPropertyId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+
+  const paymentActivityQuery = useQuery({
+    queryKey: ["/api/activity-logs", "payment", selectedPropertyId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      params.append("type", "payment")
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const response = await apiRequest("GET", `/api/activity-logs?${params.toString()}`)
+      return await response.json()
+    },
+    enabled: Boolean(selectedPropertyId),
+    refetchInterval: 30000,
+  })
+
+  useEffect(() => {
+    const activities = paymentActivityQuery.data
+    if (!Array.isArray(activities) || activities.length === 0) return
+    const latest = activities[0]
+    if (!latestPaymentActivityRef.current) {
+      latestPaymentActivityRef.current = latest.id
+      return
+    }
+    if (latest.id !== latestPaymentActivityRef.current) {
+      latestPaymentActivityRef.current = latest.id
+      toast({
+        title: "Payment received",
+        description: latest.details || "A new payment was recorded.",
+      })
+    }
+  }, [paymentActivityQuery.data, toast])
   const leasesQuery = useQuery({ 
     queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
@@ -185,6 +277,13 @@ export function Invoices() {
       return await response.json()
     },
   })
+  const paymentsQuery = useQuery({
+    queryKey: ['/api/payments'],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/payments")
+      return await response.json()
+    },
+  })
 
   // Extract data with fallbacks
   const invoicesData = invoicesQuery.data || []
@@ -193,6 +292,7 @@ export function Invoices() {
   const unitsData = unitsQuery.data || []
   const propertiesData = propertiesQuery.data || []
   const leasesData = leasesQuery.data || []
+  const paymentsData = paymentsQuery.data || []
 
   // Check for complete success - all queries must have succeeded
   const allQueriesSuccessful = [
@@ -201,7 +301,8 @@ export function Invoices() {
     tenantsQuery.status === 'success', 
     unitsQuery.status === 'success',
     propertiesQuery.status === 'success',
-    leasesQuery.status === 'success'
+    leasesQuery.status === 'success',
+    paymentsQuery.status === 'success'
   ].every(Boolean)
 
   // Check for any loading or pending states
@@ -211,7 +312,8 @@ export function Invoices() {
     tenantsQuery.isLoading,
     unitsQuery.isLoading, 
     propertiesQuery.isLoading,
-    leasesQuery.isLoading
+    leasesQuery.isLoading,
+    paymentsQuery.isLoading
   ].some(Boolean)
 
   // Check for any errors
@@ -221,7 +323,8 @@ export function Invoices() {
     tenantsQuery.error,
     unitsQuery.error,
     propertiesQuery.error,
-    leasesQuery.error
+    leasesQuery.error,
+    paymentsQuery.error
   ].some(Boolean)
 
   // Show error state FIRST if ANY data failed to load
@@ -284,12 +387,80 @@ export function Invoices() {
   }
 
   // Enrich invoices with related data (only after all data is loaded)
-  const enrichedInvoices = Array.isArray(invoicesData) ? invoicesData.map((invoice: any) => {
-    const lease = leasesData.find((l: any) => l.id === invoice.leaseId)
-    const tenant = lease && lease.tenantId ? tenantsData.find((t: any) => t.id === lease.tenantId) : null
-    const unit = lease && lease.unitId ? unitsData.find((u: any) => u.id === lease.unitId) : null
-    const property = unit && unit.propertyId ? propertiesData.find((p: any) => p.id === unit.propertyId) : null
+  const normalizedInvoices = Array.isArray(invoicesData)
+    ? invoicesData.map((invoice: any) => ({
+        ...invoice,
+        leaseId: invoice.leaseId ?? invoice.lease_id,
+        unitId: invoice.unitId ?? invoice.unit_id,
+        propertyId: invoice.propertyId ?? invoice.property_id,
+        tenantId: invoice.tenantId ?? invoice.tenant_id,
+        dueDate: invoice.dueDate ?? invoice.due_date,
+        issueDate: invoice.issueDate ?? invoice.issue_date,
+        invoiceNumber: invoice.invoiceNumber ?? invoice.invoice_number,
+        createdAt: invoice.createdAt ?? invoice.created_at,
+      }))
+    : []
+
+  const normalizedLeases = Array.isArray(leasesData)
+    ? leasesData.map((lease: any) => ({
+        ...lease,
+        tenantId: lease.tenantId ?? lease.tenant_id,
+        unitId: lease.unitId ?? lease.unit_id,
+      }))
+    : []
+
+  const normalizedTenants = Array.isArray(tenantsData)
+    ? tenantsData.map((tenant: any) => ({
+        ...tenant,
+        fullName: tenant.fullName ?? tenant.full_name,
+      }))
+    : []
+
+  const normalizedUnits = Array.isArray(unitsData)
+    ? unitsData.map((unit: any) => ({
+        ...unit,
+        unitNumber: unit.unitNumber ?? unit.unit_number,
+        propertyId: unit.propertyId ?? unit.property_id,
+      }))
+    : []
+
+  const normalizedProperties = Array.isArray(propertiesData)
+    ? propertiesData.map((property: any) => ({
+        ...property,
+      }))
+    : []
+
+  const normalizedPayments = Array.isArray(paymentsData)
+    ? paymentsData.map((payment: any) => ({
+        ...payment,
+        invoiceId: payment.invoiceId ?? payment.invoice_id,
+        amount: parseFloat(payment.amount ?? 0),
+      }))
+    : []
+
+  const paymentsByInvoice = normalizedPayments.reduce((acc: Record<string, number>, payment: any) => {
+    if (!payment.invoiceId) return acc
+    acc[payment.invoiceId] = (acc[payment.invoiceId] || 0) + (payment.amount || 0)
+    return acc
+  }, {})
+
+  const enrichedInvoices = normalizedInvoices.map((invoice: any) => {
+    const lease = normalizedLeases.find((l: any) => l.id === invoice.leaseId)
+    const tenantId = invoice.tenantId ?? lease?.tenantId
+    const tenant = tenantId ? normalizedTenants.find((t: any) => t.id === tenantId) : null
+    const unitId = invoice.unitId ?? lease?.unitId
+    const unit = unitId ? normalizedUnits.find((u: any) => u.id === unitId) : null
+    const propertyId = invoice.propertyId ?? unit?.propertyId
+    const property = propertyId ? normalizedProperties.find((p: any) => p.id === propertyId) : null
     const charges = invoiceItemsData.filter((item: any) => item.invoiceId === invoice.id)
+    const amount = parseFloat(invoice.amount ?? 0)
+    const paidAmount = paymentsByInvoice[invoice.id] || 0
+    const balance = Math.max(0, amount - paidAmount)
+    const paymentStatus = balance <= 0 && amount > 0
+      ? "paid"
+      : paidAmount > 0
+        ? "partially_paid"
+        : "pending"
 
     return {
       ...invoice,
@@ -300,12 +471,17 @@ export function Invoices() {
       unitData: unit,
       propertyData: property,
       leaseData: lease,
+      amount,
+      paidAmount,
+      balance,
+      paymentStatus,
+      workflowStatus: invoice.status,
       charges: charges.map((charge: any) => ({
         name: charge.description,
         amount: parseFloat(charge.amount)
       }))
     }
-  }) : []
+  })
 
   const filteredInvoices = enrichedInvoices.filter((invoice: any) => {
     const searchLower = searchTerm.toLowerCase()
@@ -316,7 +492,7 @@ export function Invoices() {
       (invoice.property || '').toLowerCase().includes(searchLower)
     )
     
-    const matchesStatus = statusFilter === "all" || invoice.status === statusFilter
+    const matchesStatus = statusFilter === "all" || invoice.paymentStatus === statusFilter
     
     return matchesSearch && matchesStatus
   })
@@ -337,56 +513,102 @@ export function Invoices() {
     setSendDialogOpen(true)
   }
 
-  const handleDownloadInvoice = (invoice: any) => {
+  const handleDownloadInvoice = async (invoice: any) => {
     try {
       const doc = new jsPDF()
-      
-      // Header
-      doc.setFontSize(20)
-      doc.text('INVOICE', 20, 30)
-      
-      // Invoice details
-      doc.setFontSize(12)
-      doc.text(`Invoice ID: ${invoice.id}`, 20, 50)
-      doc.text(`Date: ${new Date(invoice.createdAt || Date.now()).toLocaleDateString()}`, 20, 60)
-      doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`, 20, 70)
-      doc.text(`Status: ${invoice.status.toUpperCase()}`, 20, 80)
-      
-      // Tenant information
-      doc.text('BILL TO:', 20, 100)
-      doc.text(`${invoice.tenant}`, 20, 110)
-      if (invoice.tenantData?.email) doc.text(`${invoice.tenantData.email}`, 20, 120)
-      if (invoice.tenantData?.phone) doc.text(`${invoice.tenantData.phone}`, 20, 130)
-      
-      // Property information
-      doc.text('PROPERTY:', 120, 100)
-      doc.text(`${invoice.property}`, 120, 110)
-      doc.text(`Unit: ${invoice.unit}`, 120, 120)
-      
-      // Charges table
-      const tableData = invoice.charges.map((charge: any) => [
-        charge.name,
-        `KSh ${charge.amount.toLocaleString()}`
-      ])
-      
-      autoTable(doc, {
-        head: [['Description', 'Amount']],
-        body: tableData,
-        startY: 150,
-        theme: 'striped'
-      })
-      
-      // Total
-      const finalY = (doc as any).lastAutoTable?.finalY || 200
+      const invoiceDate = invoice.issueDate || invoice.createdAt || Date.now()
+      const formattedDate = new Date(invoiceDate).toISOString().slice(0, 10)
+      const unitLabel = invoice.unit ? String(invoice.unit).replace(/\s+/g, "-") : "unit"
+      const invoiceNumber = invoice.invoiceNumber ?? invoice.invoice_number ?? invoice.id
+      const invoiceSettings = invoiceSettingsQuery.data || {}
+      const logoUrl = invoiceSettings.logo_url || ""
+      const companyName = invoiceSettings.company_name || "Company"
+      const companyPhone = invoiceSettings.company_phone || ""
+      const companyEmail = invoiceSettings.company_email || ""
+      const companyAddress = invoiceSettings.company_address || ""
+      const paymentOptions = String(invoiceSettings.payment_options || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+      const properties = Array.isArray(propertiesQuery.data) ? propertiesQuery.data : []
+      const propertyMatch = properties.find((property: any) => property.id === invoice.propertyId || property.name === invoice.property)
+      const accountPrefix = propertyMatch?.accountPrefix ?? propertyMatch?.account_prefix ?? ""
+      const accountNumber = accountPrefix && invoice.unit ? `${accountPrefix}${invoice.unit}` : ""
+
+      let headerStartX = 20
+      if (logoUrl) {
+        try {
+          const logoDataUrl = await loadImageAsDataUrl(logoUrl)
+          const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
+          doc.addImage(logoDataUrl, format, 20, 12, 24, 18)
+          headerStartX = 50
+        } catch {
+          headerStartX = 20
+        }
+      }
+
       doc.setFontSize(14)
-      doc.text(`TOTAL: KSh ${invoice.amount.toLocaleString()}`, 20, finalY + 20)
-      
-      // Save the PDF
-      doc.save(`invoice-${invoice.id}.pdf`)
+      doc.text(companyName.toUpperCase(), headerStartX, 20)
+      doc.setFontSize(9)
+      if (companyAddress) doc.text(companyAddress, headerStartX, 26)
+      if (companyPhone) doc.text(`Tel: ${companyPhone}`, headerStartX, 31)
+      if (companyEmail) doc.text(`Email: ${companyEmail}`, headerStartX, 36)
+
+      doc.setFontSize(11)
+      doc.text(`Invoice #${invoiceNumber}`, 150, 20)
+      doc.setFontSize(9)
+      doc.text(`Date: ${new Date(invoiceDate).toLocaleDateString()}`, 150, 26)
+      doc.text(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`, 150, 31)
+
+      doc.line(20, 42, 190, 42)
+
+      doc.setFontSize(10)
+      doc.text("BILL TO", 20, 52)
+      doc.text(String(invoice.tenant || "Tenant"), 20, 58)
+      if (invoice.tenantData?.email) doc.text(String(invoice.tenantData.email), 20, 63)
+      if (invoice.tenantData?.phone) doc.text(String(invoice.tenantData.phone), 20, 68)
+
+      doc.text("PROPERTY", 120, 52)
+      doc.text(String(invoice.property || "—"), 120, 58)
+      doc.text(`House: ${invoice.unit || "—"}`, 120, 63)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, 68)
+
+      const tableData = invoice.charges.map((charge: any, index: number) => [
+        String(index + 1),
+        charge.name,
+        charge.description || "",
+        `KES ${Number(charge.amount || 0).toLocaleString()}`
+      ])
+
+      autoTable(doc, {
+        head: [["#", "Item", "Description", "Total"]],
+        body: tableData,
+        startY: 78,
+        theme: "grid",
+        headStyles: { fillColor: [56, 78, 84], textColor: 255 },
+        styles: { fontSize: 9 }
+      })
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 140
+      const paid = Number(invoice.paidAmount || 0)
+      const balance = Number(invoice.balance || 0)
+      doc.setFontSize(10)
+      doc.text(`Sub - Total: KES ${Number(invoice.amount || 0).toLocaleString()}`, 120, finalY + 12)
+      doc.text(`Paid: KES ${paid.toLocaleString()}`, 120, finalY + 18)
+      doc.text(`Balance: KES ${balance.toLocaleString()}`, 120, finalY + 24)
+
+      if (paymentOptions.length) {
+        doc.text("Payment Options:", 20, finalY + 12)
+        paymentOptions.forEach((line, idx) => {
+          doc.text(`- ${line}`, 20, finalY + 18 + idx * 5)
+        })
+      }
+
+      doc.save(`${unitLabel}-${formattedDate}-invoice.pdf`)
       
       toast({
         title: "Invoice Downloaded",
-        description: `Invoice ${invoice.id} has been downloaded as PDF.`,
+        description: `Invoice ${invoiceNumber} has been downloaded as PDF.`,
       })
     } catch (error) {
       console.error('Error generating PDF:', error)
@@ -419,14 +641,10 @@ export function Invoices() {
     const descriptionElement = form.querySelector('[name="description"]') as HTMLTextAreaElement
     const amountElement = form.querySelector('[name="amount"]') as HTMLInputElement
     const dueDateElement = form.querySelector('[name="dueDate"]') as HTMLInputElement
-    const statusElement = form.querySelector('[name="status"]') as HTMLSelectElement
-    
-    
     const updatedData = {
       description: descriptionElement?.value || invoice.description,
       amount: String(amountElement?.value || invoice.amount),
-      dueDate: dueDateElement?.value || invoice.dueDate,
-      status: statusElement?.value || invoice.status
+      dueDate: dueDateElement?.value || invoice.dueDate
     }
     
     console.log('🔧 Frontend: Sending update data:', updatedData)
@@ -454,13 +672,75 @@ export function Invoices() {
     console.log(`Performing ${action} on invoices:`, selectedInvoices)
     switch (action) {
       case "approve":
-        alert(`${selectedInvoices.length} invoices approved!`)
+        Promise.resolve().then(async () => {
+          const invoicesToApprove = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id) && inv.status !== "approved")
+          const results = await Promise.allSettled(invoicesToApprove.map(inv => updateInvoiceStatus(inv.id, "approved")))
+          const successCount = results.filter(result => result.status === "fulfilled").length
+          const failureCount = results.length - successCount
+          if (successCount > 0) {
+            toast({
+              title: "Invoices Approved",
+              description: `Approved ${successCount} invoice${successCount === 1 ? "" : "s"} successfully.`,
+            })
+          }
+          if (failureCount > 0) {
+            toast({
+              title: "Approval Issues",
+              description: `${failureCount} invoice${failureCount === 1 ? "" : "s"} failed to approve.`,
+              variant: "destructive",
+            })
+          }
+          queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+        })
         break
       case "send-email":
-        alert(`Email sent for ${selectedInvoices.length} invoices!`)
+        Promise.resolve().then(async () => {
+          const invoicesToSend = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id))
+          const results = await Promise.allSettled(invoicesToSend.map(inv => apiRequest('POST', `/api/invoices/${inv.id}/send-email`)))
+          const successCount = results.filter(result => result.status === "fulfilled").length
+          const failureCount = results.length - successCount
+          if (successCount > 0) {
+            await Promise.allSettled(invoicesToSend.map(inv => updateInvoiceStatus(inv.id, "sent")))
+            toast({
+              title: "Emails Sent",
+              description: `Sent ${successCount} email${successCount === 1 ? "" : "s"} successfully.`,
+            })
+          }
+          if (failureCount > 0) {
+            toast({
+              title: "Email Issues",
+              description: `${failureCount} email${failureCount === 1 ? "" : "s"} failed to send.`,
+              variant: "destructive",
+            })
+          }
+          queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+        })
         break
       case "send-sms":
-        alert(`SMS sent for ${selectedInvoices.length} invoices!`)
+        Promise.resolve().then(async () => {
+          const invoicesToSend = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id))
+          const results = await Promise.allSettled(invoicesToSend.map(inv => apiRequest('POST', `/api/invoices/${inv.id}/send-sms`)))
+          const successCount = results.filter(result => result.status === "fulfilled").length
+          const failureCount = results.length - successCount
+          if (successCount > 0) {
+            await Promise.allSettled(invoicesToSend.map(inv => updateInvoiceStatus(inv.id, "sent")))
+            toast({
+              title: "SMS Sent",
+              description: `Sent ${successCount} SMS message${successCount === 1 ? "" : "s"} successfully.`,
+            })
+          }
+          if (failureCount > 0) {
+            toast({
+              title: "SMS Issues",
+              description: `${failureCount} SMS message${failureCount === 1 ? "" : "s"} failed to send.`,
+              variant: "destructive",
+            })
+          }
+          queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+        })
+        break
+      case "delete":
+        selectedInvoices.forEach((invoiceId) => scheduleInvoiceDelete(invoiceId))
         break
       default:
         break
@@ -468,7 +748,61 @@ export function Invoices() {
     setSelectedInvoices([])
   }
 
+  const scheduleInvoiceDelete = (invoiceId: string) => {
+    if (actionsDisabled) {
+      toast({
+        title: "Property Required",
+        description: "Select a property in the header before deleting invoices.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (pendingDeleteRef.current[invoiceId]) {
+      clearTimeout(pendingDeleteRef.current[invoiceId])
+    }
+    const timeoutId = setTimeout(async () => {
+      await apiRequest("DELETE", `/api/invoices/${invoiceId}`)
+      delete pendingDeleteRef.current[invoiceId]
+      queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/invoice-items'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/stats'] })
+    }, 5000)
+    pendingDeleteRef.current[invoiceId] = timeoutId
+
+    toast({
+      title: "Invoice delete scheduled",
+      description: "Invoice will be deleted in 5 seconds.",
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => {
+            clearTimeout(timeoutId)
+            delete pendingDeleteRef.current[invoiceId]
+            toast({
+              title: "Delete canceled",
+              description: "The invoice was not deleted.",
+            })
+          }}
+        >
+          <Undo2 className="h-4 w-4 mr-1" />
+          Undo
+        </ToastAction>
+      ),
+    })
+  }
+
   const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "paid":
+        return <Badge variant="default" className="bg-green-100 text-green-800">Paid</Badge>
+      case "partially_paid":
+        return <Badge variant="outline" className="bg-blue-100 text-blue-800">Partially Paid</Badge>
+      default:
+        return <Badge variant="outline" className="bg-amber-100 text-amber-800">Pending</Badge>
+    }
+  }
+
+  const getWorkflowBadge = (status?: string) => {
     switch (status) {
       case "draft":
         return <Badge variant="secondary">Draft</Badge>
@@ -476,22 +810,22 @@ export function Invoices() {
         return <Badge variant="default">Approved</Badge>
       case "sent":
         return <Badge variant="outline">Sent</Badge>
-      case "paid":
-        return <Badge variant="default" className="bg-green-100 text-green-800">Paid</Badge>
-      case "overdue":
-        return <Badge variant="destructive">Overdue</Badge>
       default:
-        return <Badge variant="outline">Unknown</Badge>
+        return null
     }
   }
 
   const statusCounts = {
     all: enrichedInvoices.length,
-    draft: enrichedInvoices.filter((inv: any) => inv.status === "draft").length,
-    approved: enrichedInvoices.filter((inv: any) => inv.status === "approved").length,
-    sent: enrichedInvoices.filter((inv: any) => inv.status === "sent").length,
-    paid: enrichedInvoices.filter((inv: any) => inv.status === "paid").length,
-    overdue: enrichedInvoices.filter((inv: any) => inv.status === "overdue").length
+    pending: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "pending").length,
+    partially_paid: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "partially_paid").length,
+    paid: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "paid").length
+  }
+
+  const formatStatusLabel = (status: string) => {
+    if (status === "all") return "Total"
+    if (status === "partially_paid") return "Partially Paid"
+    return status.charAt(0).toUpperCase() + status.slice(1)
   }
 
   return (
@@ -530,26 +864,38 @@ export function Invoices() {
               <Smartphone className="h-4 w-4 mr-2" />
               SMS
             </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => handleBulkAction("delete")}
+              data-testid="button-bulk-delete"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
           </div>
         )}
       </div>
 
       {/* Status Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        {Object.entries(statusCounts).map(([status, count]) => (
-          <Card 
-            key={status}
-            className={`cursor-pointer hover-elevate ${statusFilter === status ? 'ring-2 ring-primary' : ''}`}
-            onClick={() => setStatusFilter(status)}
-          >
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{count}</div>
-              <div className="text-sm text-muted-foreground capitalize">
-                {status === "all" ? "Total" : status}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {Object.entries(statusCounts).map(([status, count], index) => {
+          const palette = getPaletteByIndex(index)
+          return (
+            <Card 
+              key={status}
+              className={`cursor-pointer hover-elevate border ${statusCardStyles[status] ?? ""} ${statusFilter === status ? 'ring-2 ring-primary' : ''}`}
+              onClick={() => setStatusFilter(status)}
+            >
+              <CardContent className="p-4 text-center">
+                <div className={`text-2xl font-bold ${palette.accentText}`}>{count}</div>
+                <div className="text-sm text-muted-foreground">
+                  {formatStatusLabel(status)}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Filters and Search */}
@@ -569,11 +915,9 @@ export function Invoices() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="sent">Sent</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="partially_paid">Partially Paid</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -606,9 +950,11 @@ export function Invoices() {
                 <TableHead>Unit</TableHead>
                 <TableHead>Property</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Balance</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
+                <TableHead>Note</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -621,13 +967,21 @@ export function Invoices() {
                       data-testid={`checkbox-${invoice.id}`}
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{invoice.id}</TableCell>
-                  <TableCell className="font-medium">{invoice.tenant}</TableCell>
+                  <TableCell className="font-mono text-sm">{formatInvoiceId(invoice.id)}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{invoice.tenant}</div>
+                    <div className="text-xs text-muted-foreground">{invoice.tenantData?.phone || "—"}</div>
+                  </TableCell>
                   <TableCell>{invoice.unit}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{invoice.property}</TableCell>
                   <TableCell className="font-mono">KSh {invoice.amount.toLocaleString()}</TableCell>
-                  <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
-                  <TableCell>{getStatusBadge(invoice.status)}</TableCell>
+                  <TableCell className="font-mono">KSh {invoice.balance.toLocaleString()}</TableCell>
+                  <TableCell>
+                    {invoice.dueDate && !Number.isNaN(new Date(invoice.dueDate).getTime())
+                      ? new Date(invoice.dueDate).toLocaleDateString()
+                      : "—"}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(invoice.paymentStatus)}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button 
@@ -666,8 +1020,17 @@ export function Invoices() {
                       >
                         <Download className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => scheduleInvoiceDelete(invoice.id)}
+                        data-testid={`button-delete-${invoice.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
+                  <TableCell>{getWorkflowBadge(invoice.workflowStatus)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -694,7 +1057,7 @@ export function Invoices() {
           <DialogHeader>
             <DialogTitle>Invoice Details</DialogTitle>
             <DialogDescription>
-              Complete details for invoice {selectedInvoice?.id}
+              Complete details for invoice {formatInvoiceId(selectedInvoice?.id)}
             </DialogDescription>
           </DialogHeader>
           {selectedInvoice && (
@@ -704,10 +1067,10 @@ export function Invoices() {
                 <div>
                   <h3 className="font-semibold mb-2">Invoice Information</h3>
                   <div className="space-y-1 text-sm">
-                    <div><strong>Invoice ID:</strong> {selectedInvoice.id}</div>
+                    <div><strong>Invoice ID:</strong> {formatInvoiceId(selectedInvoice.id)}</div>
                     <div><strong>Date:</strong> {new Date(selectedInvoice.createdAt || Date.now()).toLocaleDateString()}</div>
                     <div><strong>Due Date:</strong> {new Date(selectedInvoice.dueDate).toLocaleDateString()}</div>
-                    <div><strong>Status:</strong> {getStatusBadge(selectedInvoice.status)}</div>
+                    <div><strong>Status:</strong> {getStatusBadge(selectedInvoice.paymentStatus)}</div>
                   </div>
                 </div>
                 <div>
@@ -843,7 +1206,7 @@ export function Invoices() {
           <DialogHeader>
             <DialogTitle>Edit Invoice</DialogTitle>
             <DialogDescription>
-              Edit invoice {selectedInvoice?.id}
+              Edit invoice {formatInvoiceId(selectedInvoice?.id)}
             </DialogDescription>
           </DialogHeader>
           {selectedInvoice && (
@@ -880,19 +1243,8 @@ export function Invoices() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="status">Status</Label>
-                  <Select name="status" defaultValue={selectedInvoice.status}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="sent">Sent</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="overdue">Overdue</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label>Status</Label>
+                  <div className="mt-2">{getStatusBadge(selectedInvoice.paymentStatus)}</div>
                 </div>
               </div>
               

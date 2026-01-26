@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
@@ -71,6 +71,7 @@ export function MaintenanceRequests() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [responseText, setResponseText] = useState("")
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
 
@@ -83,7 +84,8 @@ export function MaintenanceRequests() {
         if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
         if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
         const url = `/api/maintenance-requests${params.toString() ? `?${params}` : ''}`
-        return await apiRequest("GET", url)
+        const response = await apiRequest("GET", url)
+        return await response.json()
       },
     })
 
@@ -95,7 +97,8 @@ export function MaintenanceRequests() {
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
-      return await apiRequest("GET", url)
+      const response = await apiRequest("GET", url)
+      return await response.json()
     },
   })
 
@@ -107,7 +110,8 @@ export function MaintenanceRequests() {
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
-      return await apiRequest("GET", url)
+      const response = await apiRequest("GET", url)
+      return await response.json()
     },
   })
 
@@ -119,7 +123,8 @@ export function MaintenanceRequests() {
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
-      return await apiRequest("GET", url)
+      const response = await apiRequest("GET", url)
+      return await response.json()
     },
   })
 
@@ -138,6 +143,27 @@ export function MaintenanceRequests() {
       toast({
         title: "Error",
         description: error.message || "Failed to update status",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const respondMutation = useMutation({
+    mutationFn: ({ id, response }: { id: string, response: string }) =>
+      apiRequest("PUT", `/api/maintenance-requests/${id}`, { response }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] })
+      toast({
+        title: "Response sent",
+        description: "Tenant will see your response in the portal.",
+      })
+      setResponseText("")
+      setIsViewDialogOpen(false)
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send response",
         variant: "destructive",
       })
     },
@@ -183,6 +209,12 @@ export function MaintenanceRequests() {
   const handleAddRequest = (data: any) => {
     addRequestMutation.mutate(data)
   }
+
+  useEffect(() => {
+    if (selectedRequest) {
+      setResponseText(selectedRequest.response || "")
+    }
+  }, [selectedRequest])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -494,6 +526,31 @@ export function MaintenanceRequests() {
                   <p className="text-sm">{selectedRequest.notes}</p>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Response to Tenant</Label>
+                {selectedRequest.response && (
+                  <div className="p-3 bg-muted rounded-lg text-sm">
+                    {selectedRequest.response}
+                  </div>
+                )}
+                <Textarea
+                  placeholder="Write a response the tenant will see..."
+                  rows={3}
+                  value={responseText}
+                  onChange={(event) => setResponseText(event.target.value)}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={() => selectedRequest?.id && respondMutation.mutate({ id: selectedRequest.id, response: responseText })}
+                    disabled={!responseText.trim() || respondMutation.isPending}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Send Response
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>
