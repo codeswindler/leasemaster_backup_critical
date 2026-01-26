@@ -9,7 +9,7 @@ import {
   X
 } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
-import jsPDF from 'jspdf'
+import { jsPDF } from "jspdf"
 import autoTable from 'jspdf-autotable'
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest } from "@/lib/queryClient"

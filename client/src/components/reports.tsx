@@ -24,8 +24,8 @@ import {
   Plus,
   Eye
 } from "lucide-react"
-import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
+import ExcelJS from "exceljs"
+import { jsPDF } from "jspdf"
 import autoTable from 'jspdf-autotable'
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest } from "@/lib/queryClient"
@@ -167,23 +167,36 @@ export function Reports() {
   }
 
   // Generate Excel file
-  const generateExcelReport = (reportType: string, data: any[]) => {
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, "Report")
-    
-    // Add report metadata
-    XLSX.utils.sheet_add_aoa(ws, [
-      [`${reportType} Report`],
-      [`Generated: ${new Date().toLocaleDateString()}`],
-      [`Period: ${startDate} to ${endDate}`],
-      [`Property: ${properties.find(p => p.id === selectedProperty)?.name || 'All Properties'}`],
-      [] // Empty row before data
-    ], { origin: 'A1' })
-    
+  const generateExcelReport = async (reportType: string, data: any[]) => {
+    const workbook = new ExcelJS.Workbook()
+    const ws = workbook.addWorksheet("Report")
+
+    ws.addRow([`${reportType} Report`])
+    ws.addRow([`Generated: ${new Date().toLocaleDateString()}`])
+    ws.addRow([`Period: ${startDate} to ${endDate}`])
+    ws.addRow([`Property: ${properties.find(p => p.id === selectedProperty)?.name || 'All Properties'}`])
+    ws.addRow([])
+
+    if (data.length > 0) {
+      const headers = Object.keys(data[0])
+      ws.columns = headers.map((key) => ({ header: key, key }))
+      ws.addRows(data)
+    } else {
+      ws.addRow(["No data available"])
+    }
+
     const fileName = `${reportType.replace(/\s+/g, '_')}_${startDate}_to_${endDate}.xlsx`
-    XLSX.writeFile(wb, fileName)
-    
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = fileName
+    link.click()
+    URL.revokeObjectURL(url)
+
     return fileName
   }
 
@@ -345,7 +358,7 @@ export function Reports() {
       
       let fileName = ''
       if (format === "excel") {
-        fileName = generateExcelReport(reportType, reportData)
+        fileName = await generateExcelReport(reportType, reportData)
       } else if (format === "pdf") {
         fileName = generatePDFReport(reportType, reportData)
       }

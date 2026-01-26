@@ -59,7 +59,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form"
-import * as XLSX from 'xlsx'
+import ExcelJS from "exceljs"
 
 export function Tenants() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -103,6 +103,94 @@ export function Tenants() {
     userPermissions.includes("tenants.send_login") ||
     userPermissions.includes("tenants.bulk_send_login")
 
+  const parseCsvToJson = (csvText: string) => {
+    const rows: string[][] = []
+    let currentRow: string[] = []
+    let currentValue = ""
+    let inQuotes = false
+
+    for (let i = 0; i < csvText.length; i++) {
+      const char = csvText[i]
+      const nextChar = csvText[i + 1]
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentValue += '"'
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+        continue
+      }
+
+      if (char === "," && !inQuotes) {
+        currentRow.push(currentValue)
+        currentValue = ""
+        continue
+      }
+
+      if ((char === "\n" || char === "\r") && !inQuotes) {
+        if (char === "\r" && nextChar === "\n") {
+          i++
+        }
+        currentRow.push(currentValue)
+        if (currentRow.some((value) => value.trim() !== "")) {
+          rows.push(currentRow)
+        }
+        currentRow = []
+        currentValue = ""
+        continue
+      }
+
+      currentValue += char
+    }
+
+    if (currentValue.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentValue)
+      if (currentRow.some((value) => value.trim() !== "")) {
+        rows.push(currentRow)
+      }
+    }
+
+    const headers = rows.shift()?.map((header) => header.trim()) || []
+    return rows.map((row) => {
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => {
+        if (!header) return
+        record[header] = row[index]?.trim() ?? ""
+      })
+      return record
+    })
+  }
+
+  const parseExcelToJson = async (file: File) => {
+    const workbook = new ExcelJS.Workbook()
+    const data = await file.arrayBuffer()
+    await workbook.xlsx.load(data)
+    const worksheet = workbook.worksheets[0]
+    if (!worksheet) return []
+
+    const headerRow = worksheet.getRow(1)
+    const headers = (headerRow.values || [])
+      .slice(1)
+      .map((header) => String(header ?? "").trim())
+
+    const rows: Record<string, string>[] = []
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => {
+        if (!header) return
+        record[header] = row.getCell(index + 1).text?.trim() ?? ""
+      })
+      if (Object.values(record).some((value) => value !== "")) {
+        rows.push(record)
+      }
+    })
+
+    return rows
+  }
+
   // Enhanced tenant Excel import function with validation
   const handleFileImport = async (event: any) => {
     if (actionsDisabled) {
@@ -117,11 +205,11 @@ export function Tenants() {
     if (!file) return
 
     // Validate file type
-    const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv']
+    const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv']
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid File Type",
-        description: "Please upload an Excel file (.xlsx, .xls) or CSV file.",
+        description: "Please upload an Excel file (.xlsx) or CSV file.",
         variant: "destructive",
       })
       return
@@ -138,11 +226,10 @@ export function Tenants() {
     }
 
     try {
-      const data = await file.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+      const isCsv = file.type === "text/csv" || file.name.toLowerCase().endsWith(".csv")
+      const jsonData = isCsv
+        ? parseCsvToJson(await file.text())
+        : await parseExcelToJson(file)
 
       if (jsonData.length === 0) {
         toast({
@@ -163,12 +250,12 @@ export function Tenants() {
         
         try {
           const tenantData = {
-            fullName: (row as any)['Full Name'] || (row as any)['fullName'] || '',
-            email: (row as any)['Email'] || (row as any)['email'] || '',
-            phone: (row as any)['Phone'] || (row as any)['phone'] || '',
-            idNumber: (row as any)['ID Number'] || (row as any)['idNumber'] || '',
-            emergencyContact: (row as any)['Emergency Contact'] || '',
-            emergencyPhone: (row as any)['Emergency Phone'] || ''
+            fullName: (row as any)["Full Name"] || (row as any)["fullName"] || "",
+            email: (row as any)["Email"] || (row as any)["email"] || "",
+            phone: (row as any)["Phone"] || (row as any)["phone"] || "",
+            idNumber: (row as any)["ID Number"] || (row as any)["idNumber"] || "",
+            emergencyContact: (row as any)["Emergency Contact"] || "",
+            emergencyPhone: (row as any)["Emergency Phone"] || "",
           }
 
           // Enhanced validation
@@ -639,8 +726,21 @@ export function Tenants() {
     tenantBalanceMap[tenantId].payments += parseAmount(payment.amount)
   })
 
+  const downloadWorkbook = async (workbook: ExcelJS.Workbook, filename: string) => {
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Excel template download function
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const templateData = [
       {
         "Full Name": "John Doe",
@@ -660,21 +760,20 @@ export function Tenants() {
       }
     ]
     
-    const worksheet = XLSX.utils.json_to_sheet(templateData)
-    worksheet['!cols'] = [
-      { wch: 20 }, // Full Name
-      { wch: 25 }, // Email
-      { wch: 15 }, // Phone
-      { wch: 12 }, // ID Number
-      { wch: 20 }, // Emergency Contact
-      { wch: 15 }  // Emergency Phone
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet("Tenant Template")
+    worksheet.columns = [
+      { header: "Full Name", key: "Full Name", width: 20 },
+      { header: "Email", key: "Email", width: 25 },
+      { header: "Phone", key: "Phone", width: 15 },
+      { header: "ID Number", key: "ID Number", width: 12 },
+      { header: "Emergency Contact", key: "Emergency Contact", width: 20 },
+      { header: "Emergency Phone", key: "Emergency Phone", width: 15 },
     ]
-    
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Tenant Template")
-    
+    worksheet.addRows(templateData)
+
     const filename = "tenant_import_template.xlsx"
-    XLSX.writeFile(workbook, filename)
+    await downloadWorkbook(workbook, filename)
     
     toast({
       title: "Template Downloaded",
@@ -683,7 +782,7 @@ export function Tenants() {
   }
 
   // Excel export function
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const exportData = enhancedTenants.map(tenant => ({
       "Full Name": tenant.fullName,
       "Email": tenant.email,
@@ -705,16 +804,19 @@ export function Tenants() {
       "Property Status": tenant.property?.status || "",
     }))
     
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    worksheet['!cols'] = Array(18).fill({ wch: 15 })
-    
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Tenants Data")
-    
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet("Tenants Data")
+    const headers = Object.keys(exportData[0] ?? {})
+    worksheet.columns = headers.map((header) => ({
+      header,
+      key: header,
+      width: 15,
+    }))
+    worksheet.addRows(exportData)
+
     const currentDate = new Date().toISOString().split('T')[0]
     const filename = `tenants_export_${currentDate}.xlsx`
-    
-    XLSX.writeFile(workbook, filename)
+    await downloadWorkbook(workbook, filename)
     
     toast({
       title: "Export Successful",
@@ -942,7 +1044,7 @@ export function Tenants() {
           </Button>
           <input
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx,.csv"
             onChange={handleFileImport}
             style={{ display: 'none' }}
             ref={fileInputRef}

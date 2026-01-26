@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
-import * as XLSX from 'xlsx'
+import ExcelJS from "exceljs"
 
 interface UploadProgress {
   total: number
@@ -108,8 +108,109 @@ export function UploadData() {
 
   const selectedPropertyData = properties.find((p: any) => p.id === selectedProperty)
 
+  const parseCsvToJson = (csvText: string) => {
+    const rows: string[][] = []
+    let currentRow: string[] = []
+    let currentValue = ""
+    let inQuotes = false
+
+    for (let i = 0; i < csvText.length; i++) {
+      const char = csvText[i]
+      const nextChar = csvText[i + 1]
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          currentValue += '"'
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+        continue
+      }
+
+      if (char === "," && !inQuotes) {
+        currentRow.push(currentValue)
+        currentValue = ""
+        continue
+      }
+
+      if ((char === "\n" || char === "\r") && !inQuotes) {
+        if (char === "\r" && nextChar === "\n") {
+          i++
+        }
+        currentRow.push(currentValue)
+        if (currentRow.some((value) => value.trim() !== "")) {
+          rows.push(currentRow)
+        }
+        currentRow = []
+        currentValue = ""
+        continue
+      }
+
+      currentValue += char
+    }
+
+    if (currentValue.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentValue)
+      if (currentRow.some((value) => value.trim() !== "")) {
+        rows.push(currentRow)
+      }
+    }
+
+    const headers = rows.shift()?.map((header) => header.trim()) || []
+    return rows.map((row) => {
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => {
+        if (!header) return
+        record[header] = row[index]?.trim() ?? ""
+      })
+      return record
+    })
+  }
+
+  const parseExcelToJson = async (file: File) => {
+    const workbook = new ExcelJS.Workbook()
+    const data = await file.arrayBuffer()
+    await workbook.xlsx.load(data)
+    const worksheet = workbook.worksheets[0]
+    if (!worksheet) return []
+
+    const headerRow = worksheet.getRow(1)
+    const headers = (headerRow.values || [])
+      .slice(1)
+      .map((header) => String(header ?? "").trim())
+
+    const rows: Record<string, string>[] = []
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return
+      const record: Record<string, string> = {}
+      headers.forEach((header, index) => {
+        if (!header) return
+        record[header] = row.getCell(index + 1).text?.trim() ?? ""
+      })
+      if (Object.values(record).some((value) => value !== "")) {
+        rows.push(record)
+      }
+    })
+
+    return rows
+  }
+
+  const downloadWorkbook = async (workbook: ExcelJS.Workbook, filename: string) => {
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Download template function with comprehensive structure
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const templateData = [
       {
         "Full Name": "John Doe",
@@ -147,29 +248,26 @@ export function UploadData() {
       }
     ]
 
-    const worksheet = XLSX.utils.json_to_sheet(templateData)
-    
-    // Set column widths for better readability
-    worksheet['!cols'] = [
-      { wch: 20 }, // Full Name
-      { wch: 25 }, // Email
-      { wch: 15 }, // Phone
-      { wch: 12 }, // ID Number
-      { wch: 20 }, // Emergency Contact
-      { wch: 15 }, // Emergency Phone
-      { wch: 12 }, // Unit Number
-      { wch: 15 }, // Lease Start Date
-      { wch: 15 }, // Lease End Date
-      { wch: 12 }, // Monthly Rent
-      { wch: 15 }, // Deposit Amount
-      { wch: 15 }, // Water Rate Per Unit
-      { wch: 15 }, // Opening Balance
-      { wch: 12 }, // Balance Type
-      { wch: 30 }  // Notes
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet("Tenant Upload Template")
+    worksheet.columns = [
+      { header: "Full Name", key: "Full Name", width: 20 },
+      { header: "Email", key: "Email", width: 25 },
+      { header: "Phone", key: "Phone", width: 15 },
+      { header: "ID Number", key: "ID Number", width: 12 },
+      { header: "Emergency Contact", key: "Emergency Contact", width: 20 },
+      { header: "Emergency Phone", key: "Emergency Phone", width: 15 },
+      { header: "Unit Number", key: "Unit Number", width: 12 },
+      { header: "Lease Start Date", key: "Lease Start Date", width: 15 },
+      { header: "Lease End Date", key: "Lease End Date", width: 15 },
+      { header: "Monthly Rent", key: "Monthly Rent", width: 12 },
+      { header: "Deposit Amount", key: "Deposit Amount", width: 15 },
+      { header: "Water Rate Per Unit", key: "Water Rate Per Unit", width: 15 },
+      { header: "Opening Balance", key: "Opening Balance", width: 15 },
+      { header: "Balance Type", key: "Balance Type", width: 12 },
+      { header: "Notes", key: "Notes", width: 30 },
     ]
-
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Tenant Upload Template")
+    worksheet.addRows(templateData)
 
     // Add instructions sheet
     const instructionsData = [
@@ -190,14 +288,17 @@ export function UploadData() {
       { "Field": "Notes", "Required": "No", "Description": "Additional notes about the tenant or lease", "Example": "2 months arrears from previous property" }
     ]
 
-    const instructionsSheet = XLSX.utils.json_to_sheet(instructionsData)
-    instructionsSheet['!cols'] = [
-      { wch: 20 }, { wch: 10 }, { wch: 40 }, { wch: 25 }
+    const instructionsSheet = workbook.addWorksheet("Instructions")
+    instructionsSheet.columns = [
+      { header: "Field", key: "Field", width: 20 },
+      { header: "Required", key: "Required", width: 10 },
+      { header: "Description", key: "Description", width: 40 },
+      { header: "Example", key: "Example", width: 25 },
     ]
-    XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions")
+    instructionsSheet.addRows(instructionsData)
 
     const filename = `tenant_bulk_upload_template_${selectedPropertyData?.name || 'template'}.xlsx`
-    XLSX.writeFile(workbook, filename)
+    await downloadWorkbook(workbook, filename)
 
     toast({
       title: "Template Downloaded",
@@ -213,14 +314,13 @@ export function UploadData() {
     // Validate file type
     const allowedTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
       'text/csv'
     ]
     
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid File Type",
-        description: "Please upload an Excel file (.xlsx, .xls) or CSV file.",
+        description: "Please upload an Excel file (.xlsx) or CSV file.",
         variant: "destructive",
       })
       return
@@ -255,11 +355,10 @@ export function UploadData() {
     setUploadProgress({ total: 0, processed: 0, successful: 0, failed: 0 })
     
     try {
-      const data = await selectedFile.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      const jsonData = XLSX.utils.sheet_to_json(worksheet)
+      const isCsv = selectedFile.type === "text/csv" || selectedFile.name.toLowerCase().endsWith(".csv")
+      const jsonData = isCsv
+        ? parseCsvToJson(await selectedFile.text())
+        : await parseExcelToJson(selectedFile)
 
       if (jsonData.length === 0) {
         throw new Error("The uploaded file contains no data.")
@@ -640,7 +739,7 @@ export function UploadData() {
               <Label htmlFor="file-upload">Excel File</Label>
               <Input
                 type="file"
-                accept=".xlsx,.xls,.csv"
+                accept=".xlsx,.csv"
                 onChange={handleFileSelection}
                 disabled={!selectedProperty || isUploading}
                 ref={fileInputRef}

@@ -19,7 +19,18 @@ export function MessagingEmailOutbox() {
   const { selectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
-  const actionsDisabled = !selectedPropertyId || selectedPropertyId === "all"
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check")
+      return await response.json()
+    },
+  })
+  const currentRole = (authData?.user?.role || "").toLowerCase()
+  const isAdmin = currentRole === "admin" || currentRole === "super_admin" || currentRole === "administrator"
+  const hasPropertyFilter = !!selectedPropertyId && selectedPropertyId !== "all"
+  const canViewAll = isAdmin && !hasPropertyFilter
+  const actionsDisabled = !hasPropertyFilter && !canViewAll
 
   if (actionsDisabled) {
     return (
@@ -36,16 +47,17 @@ export function MessagingEmailOutbox() {
 
   // Fetch Email messages
   const { data: messages = [], isLoading, refetch } = useQuery({ 
-    queryKey: ['/api/message-recipients', 'email', selectedPropertyId, categoryFilter],
+    queryKey: ['/api/message-recipients', 'email', hasPropertyFilter ? selectedPropertyId : "all", categoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams()
       params.append("channel", "email")
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (hasPropertyFilter) params.append("propertyId", selectedPropertyId)
       if (categoryFilter !== "all") params.append("category", categoryFilter)
       const url = `/api/message-recipients?${params.toString()}`
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: !actionsDisabled,
   })
 
   const getStatusIcon = (status: string) => {

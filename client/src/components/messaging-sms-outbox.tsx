@@ -28,7 +28,18 @@ import { Label } from "@/components/ui/label"
 export function MessagingSmsOutbox() {
   const { selectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
-  const actionsDisabled = !selectedPropertyId || selectedPropertyId === "all"
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check")
+      return await response.json()
+    },
+  })
+  const currentRole = (authData?.user?.role || "").toLowerCase()
+  const isAdmin = currentRole === "admin" || currentRole === "super_admin" || currentRole === "administrator"
+  const hasPropertyFilter = !!selectedPropertyId && selectedPropertyId !== "all"
+  const canViewAll = isAdmin && !hasPropertyFilter
+  const actionsDisabled = !hasPropertyFilter && !canViewAll
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [senderFilter, setSenderFilter] = useState("")
@@ -52,11 +63,11 @@ export function MessagingSmsOutbox() {
 
   // Fetch SMS messages
   const { data: messages = [], isLoading, refetch } = useQuery({ 
-    queryKey: ['/api/message-recipients', 'sms', selectedPropertyId, categoryFilter, searchTerm, senderFilter],
+    queryKey: ['/api/message-recipients', 'sms', hasPropertyFilter ? selectedPropertyId : "all", categoryFilter, searchTerm, senderFilter],
     queryFn: async () => {
       const params = new URLSearchParams()
       params.append("channel", "sms")
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (hasPropertyFilter) params.append("propertyId", selectedPropertyId)
       if (categoryFilter !== "all") params.append("category", categoryFilter)
       if (searchTerm) params.append("search", searchTerm)
       if (senderFilter) params.append("sender", senderFilter)
@@ -64,6 +75,7 @@ export function MessagingSmsOutbox() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: !actionsDisabled,
   })
 
   const getStatusIcon = (status: string) => {

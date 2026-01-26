@@ -49,7 +49,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { useFilter } from "@/contexts/FilterContext"
 import { getPaletteByIndex } from "@/lib/palette"
-import jsPDF from 'jspdf'
+import { jsPDF } from "jspdf"
 import autoTable from 'jspdf-autotable'
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
