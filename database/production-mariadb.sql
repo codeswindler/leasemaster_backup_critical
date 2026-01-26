@@ -28,7 +28,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Create users table (for admin authentication)
 CREATE TABLE users (
-    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'admin' NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE users (
     last_failed_attempt TIMESTAMP NULL,
     blocked_until TIMESTAMP NULL,
     must_change_password TINYINT(1) DEFAULT 0,
-    property_id VARCHAR(36),
+    property_id INT,
     property_limit INT DEFAULT NULL,
     permissions TEXT,
     otp_enabled TINYINT(1) DEFAULT 1,
@@ -50,19 +50,20 @@ CREATE TABLE users (
 
 -- Create properties table
 CREATE TABLE properties (
-    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id INT PRIMARY KEY AUTO_INCREMENT,
     name TEXT NOT NULL,
     address TEXT NOT NULL,
     landlord_name TEXT NOT NULL,
     landlord_phone VARCHAR(50),
     landlord_email VARCHAR(255),
+    landlord_id INT NULL,
     status VARCHAR(20) DEFAULT 'active' NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create tenants table
 CREATE TABLE tenants (
-    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id INT PRIMARY KEY AUTO_INCREMENT,
     full_name TEXT NOT NULL,
     email VARCHAR(255) NOT NULL UNIQUE,
     phone VARCHAR(50) NOT NULL,
@@ -79,7 +80,7 @@ CREATE TABLE tenants (
 -- Create charge_codes table (Garbage Fee, Security Fee, etc.)
 CREATE TABLE charge_codes (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    property_id VARCHAR(36) NOT NULL,
+    property_id INT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
     is_active VARCHAR(10) DEFAULT 'true' NOT NULL,
@@ -90,7 +91,7 @@ CREATE TABLE charge_codes (
 -- Create house_types table (bedsitters, 1B, 2B, etc.)
 CREATE TABLE house_types (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    property_id VARCHAR(36) NOT NULL,
+    property_id INT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
     base_rent_amount DECIMAL(12, 2) NOT NULL,
@@ -107,7 +108,7 @@ CREATE TABLE house_types (
 -- Create units table
 CREATE TABLE units (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    property_id VARCHAR(36) NOT NULL,
+    property_id INT NOT NULL,
     house_type_id VARCHAR(36) NOT NULL,
     unit_number VARCHAR(50) NOT NULL,
     rent_amount DECIMAL(12, 2) NOT NULL,
@@ -124,7 +125,7 @@ CREATE TABLE units (
 CREATE TABLE leases (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     unit_id VARCHAR(36) NOT NULL,
-    tenant_id VARCHAR(36) NOT NULL,
+    tenant_id INT NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     rent_amount DECIMAL(12, 2) NOT NULL,
@@ -202,8 +203,8 @@ CREATE TABLE activity_logs (
     details TEXT,
     type VARCHAR(50) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'success',
-    user_id VARCHAR(36),
-    property_id VARCHAR(36),
+    user_id INT,
+    property_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_activity_logs_type (type),
     INDEX idx_activity_logs_user (user_id),
@@ -226,7 +227,7 @@ CREATE TABLE bulk_messages (
 CREATE TABLE message_recipients (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     bulk_message_id VARCHAR(36) NOT NULL,
-    tenant_id VARCHAR(36) NOT NULL,
+    tenant_id INT NOT NULL,
     channel VARCHAR(20) NOT NULL,
     recipient_contact VARCHAR(255) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending' NOT NULL,
@@ -241,8 +242,8 @@ CREATE TABLE message_recipients (
 -- Create messages table (for backward compatibility)
 CREATE TABLE messages (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    tenant_id VARCHAR(36),
-    property_id VARCHAR(36),
+    tenant_id INT,
+    property_id INT,
     channel VARCHAR(20) NOT NULL,
     subject TEXT,
     content TEXT NOT NULL,

@@ -226,7 +226,6 @@ class Storage {
     }
 
     public function createUser($data) {
-        $id = $this->generateUUID();
         $role = $data['role'] ?? 'client';  // Default role is 'client'
         $status = 4;  // Initial status (user hasn't logged in yet)
         $password = $data['password'] ?? '';
@@ -246,8 +245,8 @@ class Storage {
         $hasPropertyLimit = $this->columnExists('users', 'property_limit');
         $hasAlertsEnabled = $this->columnExists('users', 'alerts_enabled');
         
-        $columns = ['id', 'username', 'password', 'role'];
-        $values = [$id, $data['username'], $password, $role];
+        $columns = ['username', 'password', 'role'];
+        $values = [$data['username'], $password, $role];
         
         if ($hasStatus) {
             $columns[] = 'status';
@@ -294,6 +293,7 @@ class Storage {
         $sql = "INSERT INTO users (" . implode(', ', $columns) . ") VALUES (" . $placeholders . ")";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
+        $id = $this->pdo->lastInsertId();
         return $this->getUser($id);
     }
 
@@ -703,8 +703,6 @@ class Storage {
             }
         }
         
-        $id = $this->generateUUID();
-        
         // Check if landlord_id column exists (for backward compatibility)
         $hasLandlordId = $this->columnExists('properties', 'landlord_id');
         
@@ -712,9 +710,8 @@ class Storage {
         
         if ($hasLandlordId) {
             // Use landlord_id foreign key (new schema)
-            $columns = ['id', 'name', 'address', 'landlord_id', 'landlord_name', 'landlord_phone', 'landlord_email', 'status'];
+            $columns = ['name', 'address', 'landlord_id', 'landlord_name', 'landlord_phone', 'landlord_email', 'status'];
             $values = [
-                $id,
                 $data['name'],
                 $data['address'],
                 $data['landlordId'],  // Foreign key
@@ -734,9 +731,8 @@ class Storage {
             $stmt->execute($values);
         } else {
             // Fallback for old schema without landlord_id column
-            $columns = ['id', 'name', 'address', 'landlord_name', 'landlord_phone', 'landlord_email', 'status'];
+            $columns = ['name', 'address', 'landlord_name', 'landlord_phone', 'landlord_email', 'status'];
             $values = [
-                $id,
                 $data['name'],
                 $data['address'],
                 $landlord['username'] ?? $data['landlordName'] ?? null,
@@ -755,6 +751,7 @@ class Storage {
             $stmt->execute($values);
         }
         
+        $id = $this->pdo->lastInsertId();
         return $this->getProperty($id);
     }
 
@@ -1181,18 +1178,16 @@ class Storage {
             throw new Exception("Tenant with email {$data['email']} already exists");
         }
         
-        $id = $this->generateUUID();
         $stmt = $this->pdo->prepare("
             INSERT INTO tenants (
-                id, full_name, email, phone, id_number,
+                full_name, email, phone, id_number,
                 emergency_contact, emergency_phone,
                 secondary_contact_name, secondary_contact_phone, secondary_contact_email,
                 notify_secondary
             ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
-            $id,
             $data['fullName'],
             $data['email'],
             $data['phone'],
@@ -1204,6 +1199,7 @@ class Storage {
             $data['secondaryContactEmail'] ?? null,
             $data['notifySecondary'] ?? 'false'
         ]);
+        $id = $this->pdo->lastInsertId();
         return $this->getTenant($id);
     }
 
