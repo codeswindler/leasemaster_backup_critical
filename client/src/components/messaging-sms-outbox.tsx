@@ -28,18 +28,7 @@ import { Label } from "@/components/ui/label"
 export function MessagingSmsOutbox() {
   const { selectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
-  const { data: authData } = useQuery({
-    queryKey: ["/api/auth/check"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/auth/check")
-      return await response.json()
-    },
-  })
-  const currentRole = (authData?.user?.role || "").toLowerCase()
-  const isAdmin = currentRole === "admin" || currentRole === "super_admin" || currentRole === "administrator"
   const hasPropertyFilter = !!selectedPropertyId && selectedPropertyId !== "all"
-  const canViewAll = isAdmin && !hasPropertyFilter
-  const actionsDisabled = !hasPropertyFilter && !canViewAll
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [senderFilter, setSenderFilter] = useState("")
@@ -47,19 +36,6 @@ export function MessagingSmsOutbox() {
   const [exportTo, setExportTo] = useState("")
   const [exportSearch, setExportSearch] = useState("")
   const [exportSender, setExportSender] = useState("")
-
-  if (actionsDisabled) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>SMS Outbox</CardTitle>
-            <CardDescription>Select a property to view messages.</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    )
-  }
 
   // Fetch SMS messages
   const { data: messages = [], isLoading, refetch } = useQuery({ 
@@ -75,7 +51,6 @@ export function MessagingSmsOutbox() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
-    enabled: !actionsDisabled,
   })
 
   const getStatusIcon = (status: string) => {
