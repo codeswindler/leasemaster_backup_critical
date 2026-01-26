@@ -525,6 +525,14 @@ export function Houses() {
   })
 
   const handleAddChargeCode = (data: any) => {
+    if (!selectedPropertyId) {
+      toast({
+        title: "Property Required",
+        description: "Please select a property in the header before adding charge codes.",
+        variant: "destructive",
+      })
+      return
+    }
     const chargeCodeData = {
       ...data,
       propertyId: selectedPropertyId
@@ -1757,7 +1765,7 @@ export function Houses() {
       {/* Customer Details Section - Only show when property is selected */}
       {selectedProperty && (
         <>
-          <Card>
+          <Card className="vibrant-panel">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
@@ -1802,7 +1810,7 @@ export function Houses() {
 
       {/* Property of Interest or Property Selector */}
       {shouldShowPropertyOfInterest() ? (
-        <Card className="border-primary/20 bg-primary/5">
+        <Card className="vibrant-card border-primary/20 bg-primary/5">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -1899,7 +1907,7 @@ export function Houses() {
             return (
           <Card 
             key={houseType.id} 
-            className={`hover:shadow-md transition-all cursor-pointer ${
+            className={`vibrant-card hover:shadow-md transition-all cursor-pointer ${
               isFiltered ? 'ring-2 ring-primary shadow-lg' : ''
             }`}
             onClick={() => toggleHouseTypeFilter(houseType.id)}
@@ -2213,7 +2221,7 @@ export function Houses() {
 
       {/* Active Filters Indicator */}
       {selectedHouseTypeFilters.length > 0 && (
-        <Card className="bg-primary/5 border-primary/20">
+        <Card className="vibrant-card bg-primary/5 border-primary/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -2254,7 +2262,7 @@ export function Houses() {
 
       </>
       ) : (
-        <Card className="border-dashed">
+        <Card className="vibrant-card border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
             Select a property in the header to view house types. Units across all properties are listed below.
           </CardContent>
@@ -2262,7 +2270,7 @@ export function Houses() {
       )}
 
       {/* Units Table */}
-      <Card>
+      <Card className="vibrant-panel">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">

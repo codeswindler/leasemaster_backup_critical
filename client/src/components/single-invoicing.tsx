@@ -406,7 +406,7 @@ export function SingleInvoicing() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Invoice Configuration */}
-        <Card className="lg:col-span-1">
+        <Card className="vibrant-panel lg:col-span-1">
           <CardHeader>
             <CardTitle>Invoice Configuration</CardTitle>
             <CardDescription>Select property, charges, and date</CardDescription>
@@ -489,7 +489,7 @@ export function SingleInvoicing() {
         </Card>
 
         {/* Unit Selection */}
-        <Card>
+        <Card className="vibrant-card">
           <CardHeader>
             <CardTitle>Select Unit</CardTitle>
             <CardDescription>Search and select the tenant unit</CardDescription>
@@ -539,7 +539,7 @@ export function SingleInvoicing() {
         </Card>
 
         {/* Invoice Details */}
-        <Card>
+        <Card className="vibrant-card">
           <CardHeader>
             <CardTitle>Invoice Details</CardTitle>
             <CardDescription>Review and customize the invoice</CardDescription>

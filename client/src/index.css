@@ -18,6 +18,24 @@
   }
 }
 
+@layer components {
+  .vibrant-card {
+    @apply border border-slate-200/60 bg-gradient-to-br from-white via-slate-50 to-sky-100/60 shadow-md;
+  }
+
+  .dark .vibrant-card {
+    @apply border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-indigo-900/50 shadow-lg;
+  }
+
+  .vibrant-panel {
+    @apply border border-slate-200/60 bg-gradient-to-br from-white via-slate-50 to-violet-100/60 shadow-md;
+  }
+
+  .dark .vibrant-panel {
+    @apply border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-900/60 to-purple-900/40 shadow-lg;
+  }
+}
+
 /* LIGHT MODE - Mixed Blue + Green Palette */
 :root {
   --button-outline: rgba(0,0,0, .10);

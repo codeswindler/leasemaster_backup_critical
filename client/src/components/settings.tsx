@@ -621,7 +621,7 @@ export function Settings() {
   if (settingsDisabled) {
     return (
       <div className="p-6">
-        <Card>
+        <Card className="vibrant-panel">
           <CardHeader>
             <CardTitle>Settings</CardTitle>
             <CardDescription>Select a client and property to manage settings.</CardDescription>
@@ -648,7 +648,7 @@ export function Settings() {
         </TabsList>
 
         <TabsContent value="sms">
-          <Card>
+          <Card className="vibrant-card">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5" />
@@ -718,7 +718,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="email">
-          <Card>
+          <Card className="vibrant-card">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
@@ -785,7 +785,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="mpesa">
-          <Card>
+          <Card className="vibrant-card">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />

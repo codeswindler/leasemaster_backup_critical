@@ -646,7 +646,7 @@ export function WaterUnits() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
+        <Card className="vibrant-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Units</CardTitle>
             <Droplets className="h-4 w-4 text-muted-foreground" />
@@ -657,7 +657,7 @@ export function WaterUnits() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="vibrant-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Consumption Month</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -670,7 +670,7 @@ export function WaterUnits() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="vibrant-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Consumption</CardTitle>
             <Calculator className="h-4 w-4 text-muted-foreground" />
@@ -681,7 +681,7 @@ export function WaterUnits() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="vibrant-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Amount Consumed</CardTitle>
             <Calculator className="h-4 w-4 text-muted-foreground" />
@@ -700,7 +700,7 @@ export function WaterUnits() {
         </TabsList>
 
         <TabsContent value="add-reading" className="space-y-6">
-          <Card>
+          <Card className="vibrant-panel">
             <CardHeader>
               <CardTitle>Add Water Reading</CardTitle>
               <CardDescription>

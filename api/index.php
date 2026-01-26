@@ -1207,7 +1207,7 @@ try {
             $propertyId = getQuery('propertyId');
             if ($propertyId) {
                 $houseTypes = array_filter($houseTypes, function($ht) use ($propertyId) {
-                    return $ht['property_id'] === $propertyId;
+                    return (string)($ht['property_id'] ?? '') === (string)$propertyId;
                 });
             }
             sendJson(array_values($houseTypes));
@@ -1219,18 +1219,26 @@ try {
         }
         
         if ($method === 'POST') {
-            $houseType = $storage->createHouseType($body);
-            if ($houseType) {
-                $storage->logActivity([
-                    'action' => 'House Type Created',
-                    'details' => "House type \"{$houseType['name']}\" created",
-                    'type' => 'house_type',
-                    'status' => 'success',
-                    'userId' => $_SESSION['userId'] ?? null,
-                    'propertyId' => $houseType['property_id'] ?? null
-                ]);
+            try {
+                if (empty($body['propertyId'])) {
+                    sendJson(['error' => 'propertyId is required'], 400);
+                }
+                $houseType = $storage->createHouseType($body);
+                if ($houseType) {
+                    $storage->logActivity([
+                        'action' => 'House Type Created',
+                        'details' => "House type \"{$houseType['name']}\" created",
+                        'type' => 'house_type',
+                        'status' => 'success',
+                        'userId' => $_SESSION['userId'] ?? null,
+                        'propertyId' => $houseType['property_id'] ?? null
+                    ]);
+                }
+                sendJson($houseType, 201);
+            } catch (Exception $e) {
+                error_log("House type create failed: " . $e->getMessage());
+                sendJson(['error' => $e->getMessage()], 400);
             }
-            sendJson($houseType, 201);
         }
         
         if ($method === 'PUT' && $id) {
@@ -1457,15 +1465,20 @@ try {
         }
         
         if ($method === 'POST') {
-            $tenant = $storage->createTenant($body);
-            $storage->logActivity([
-                'action' => 'Tenant Created',
-                'details' => "Tenant \"{$tenant['full_name']}\" created",
-                'type' => 'tenant',
-                'status' => 'success',
-                'userId' => $_SESSION['userId'] ?? null
-            ]);
-            sendJson($tenant, 201);
+            try {
+                $tenant = $storage->createTenant($body);
+                $storage->logActivity([
+                    'action' => 'Tenant Created',
+                    'details' => "Tenant \"{$tenant['full_name']}\" created",
+                    'type' => 'tenant',
+                    'status' => 'success',
+                    'userId' => $_SESSION['userId'] ?? null
+                ]);
+                sendJson($tenant, 201);
+            } catch (Exception $e) {
+                error_log("Tenant create failed: " . $e->getMessage());
+                sendJson(['error' => $e->getMessage()], 400);
+            }
         }
         
         if ($method === 'PUT' && $id) {
@@ -2637,18 +2650,26 @@ try {
         }
         
         if ($method === 'POST') {
-            $chargeCode = $storage->createChargeCode($body);
-            if ($chargeCode) {
-                $storage->logActivity([
-                    'action' => 'Charge Code Created',
-                    'details' => "Charge code \"{$chargeCode['name']}\" created",
-                    'type' => 'charge_code',
-                    'status' => 'success',
-                    'userId' => $_SESSION['userId'] ?? null,
-                    'propertyId' => $chargeCode['property_id'] ?? null
-                ]);
+            try {
+                if (empty($body['propertyId'])) {
+                    sendJson(['error' => 'propertyId is required'], 400);
+                }
+                $chargeCode = $storage->createChargeCode($body);
+                if ($chargeCode) {
+                    $storage->logActivity([
+                        'action' => 'Charge Code Created',
+                        'details' => "Charge code \"{$chargeCode['name']}\" created",
+                        'type' => 'charge_code',
+                        'status' => 'success',
+                        'userId' => $_SESSION['userId'] ?? null,
+                        'propertyId' => $chargeCode['property_id'] ?? null
+                    ]);
+                }
+                sendJson($chargeCode, 201);
+            } catch (Exception $e) {
+                error_log("Charge code create failed: " . $e->getMessage());
+                sendJson(['error' => $e->getMessage()], 400);
             }
-            sendJson($chargeCode, 201);
         }
         
         if ($method === 'PUT' && $id) {

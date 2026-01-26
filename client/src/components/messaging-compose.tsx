@@ -549,7 +549,7 @@ export function MessagingCompose() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recipients Selection */}
-        <Card>
+        <Card className="vibrant-panel">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Recipients
@@ -662,7 +662,7 @@ export function MessagingCompose() {
         </Card>
 
         {/* Message Composition */}
-        <Card className="lg:col-span-2">
+        <Card className="vibrant-panel lg:col-span-2">
           <CardHeader>
             <CardTitle>Message Details</CardTitle>
             <CardDescription>Compose your message</CardDescription>

@@ -830,7 +830,7 @@ export function Properties() {
       {!propertiesLoading && !propertiesError && enhancedProperties.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProperties.map((property: any) => (
-          <Card key={property.id} className={`hover-elevate relative ${property.status === 'inactive' ? 'opacity-60 bg-muted/30' : ''} ${disablingPropertyId === property.id ? 'animate-pulse' : ''}`}>
+          <Card key={property.id} className={`vibrant-card hover-elevate relative ${property.status === 'inactive' ? 'opacity-60 bg-muted/30' : ''} ${disablingPropertyId === property.id ? 'animate-pulse' : ''}`}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

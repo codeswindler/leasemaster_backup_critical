@@ -53,7 +53,7 @@ export function CreditUsage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card className={`border ${smsPalette.border} ${smsPalette.card}`}>
+        <Card className={`vibrant-card border ${smsPalette.border} ${smsPalette.card}`}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export function CreditUsage() {
           </CardContent>
         </Card>
 
-        <Card className={`border ${emailPalette.border} ${emailPalette.card}`}>
+        <Card className={`vibrant-card border ${emailPalette.border} ${emailPalette.card}`}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -90,7 +90,7 @@ export function CreditUsage() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="vibrant-panel">
         <CardHeader>
           <CardTitle>Usage History</CardTitle>
           <CardDescription>Latest SMS and email consumption</CardDescription>

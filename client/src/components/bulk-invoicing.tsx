@@ -502,7 +502,7 @@ export function BulkInvoicing() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Invoice Configuration */}
-        <Card className="lg:col-span-1">
+        <Card className="vibrant-panel lg:col-span-1">
           <CardHeader>
             <CardTitle>Invoice Configuration</CardTitle>
             <CardDescription>Select property, charges, and date</CardDescription>
@@ -597,7 +597,7 @@ export function BulkInvoicing() {
         {/* Tenant Accounts */}
         <div className="lg:col-span-2">
           {showAccounts ? (
-            <Card>
+            <Card className="vibrant-card">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   Tenant Accounts
@@ -685,7 +685,7 @@ export function BulkInvoicing() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="h-full flex items-center justify-center">
+            <Card className="vibrant-card h-full flex items-center justify-center">
               <CardContent className="text-center">
                 <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Configure Invoice Settings</h3>

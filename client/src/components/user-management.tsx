@@ -432,7 +432,7 @@ export function UserManagement() {
   if (!landlordSelected && !isAdmin) {
     return (
       <div className="p-6">
-        <Card>
+        <Card className="vibrant-panel">
           <CardHeader>
             <CardTitle>User Management</CardTitle>
             <CardDescription>Select a client to manage users.</CardDescription>
@@ -630,7 +630,7 @@ export function UserManagement() {
       </div>
 
       {/* Users Table */}
-      <Card>
+      <Card className="vibrant-panel">
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>

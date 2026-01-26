@@ -478,7 +478,7 @@ export function Tenants() {
       queryClient.invalidateQueries({ queryKey: ["/api/tenants"] })
       toast({
         title: "Success",
-        description: "Tenant created successfully",
+        description: "Tenant created successfully. Assign a unit to show under property filters.",
       })
       // Store created tenant ID for lease creation
       const newTenant = await response.json()
@@ -1059,12 +1059,28 @@ export function Tenants() {
             Upload Data
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-tenant">
+            {actionsDisabled ? (
+              <Button
+                data-testid="button-add-tenant"
+                onClick={() => {
+                  toast({
+                    title: "Property Required",
+                    description: "Select a property in the header before adding tenants.",
+                    variant: "destructive",
+                  })
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Tenant
               </Button>
-            </DialogTrigger>
+            ) : (
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-tenant">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Tenant
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
