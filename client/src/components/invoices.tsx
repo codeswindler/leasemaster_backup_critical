@@ -135,6 +135,7 @@ export function Invoices() {
         await updateInvoiceStatus(selectedInvoice.id, "sent")
       }
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/email-balance'] })
       toast({
         title: "Email Sent",
         description: `Sent 1 email successfully.`,
@@ -163,6 +164,7 @@ export function Invoices() {
         await updateInvoiceStatus(selectedInvoice.id, "sent")
       }
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/sms-balance'] })
       toast({
         title: "SMS Sent",
         description: `Sent 1 SMS successfully.`,
@@ -714,6 +716,7 @@ export function Invoices() {
             })
           }
           queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+          queryClient.invalidateQueries({ queryKey: ['/api/email-balance'] })
         })
         break
       case "send-sms":
@@ -737,6 +740,7 @@ export function Invoices() {
             })
           }
           queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+          queryClient.invalidateQueries({ queryKey: ['/api/sms-balance'] })
         })
         break
       case "delete":

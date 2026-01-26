@@ -11,6 +11,8 @@ class MessagingService {
     
     // System SMS credentials (from environment)
     private $systemSmsUrl;
+    private $systemSmsOtpUrl;
+    private $systemSmsBalanceUrl;
     private $systemSmsApiKey;
     private $systemSmsPartnerId;
     private $systemSmsShortcode;
@@ -27,11 +29,14 @@ class MessagingService {
         global $pdo;
         $this->pdo = $pdo;
         
-        // Load system SMS credentials from environment
-        $this->systemSmsUrl = getenv('SYSTEM_SMS_URL') ?: 'https://sms.wicaalinvestments.com/api/services/sendsms/';
-        $this->systemSmsApiKey = getenv('SYSTEM_SMS_API_KEY') ?: '';
-        $this->systemSmsPartnerId = getenv('SYSTEM_SMS_PARTNER_ID') ?: '';
-        $this->systemSmsShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
+        // Load system SMS credentials from environment (support legacy keys)
+        $smsBaseUrl = getenv('SYSTEM_SMS_BASE_URL') ?: getenv('SMS_API_BASE_URL') ?: null;
+        $this->systemSmsUrl = getenv('SYSTEM_SMS_URL') ?: ($smsBaseUrl ? rtrim($smsBaseUrl, '/') . '/api/services/sendsms' : 'https://sms.wicaalinvestments.com/api/services/sendsms');
+        $this->systemSmsOtpUrl = getenv('SYSTEM_SMS_OTP_URL') ?: ($smsBaseUrl ? rtrim($smsBaseUrl, '/') . '/api/services/sendotp' : 'https://sms.wicaalinvestments.com/api/services/sendotp');
+        $this->systemSmsBalanceUrl = getenv('SYSTEM_SMS_BALANCE_URL') ?: ($smsBaseUrl ? rtrim($smsBaseUrl, '/') . '/api/services/getbalance' : 'https://sms.wicaalinvestments.com/api/services/getbalance');
+        $this->systemSmsApiKey = getenv('SYSTEM_SMS_API_KEY') ?: getenv('SMS_API_KEY') ?: '';
+        $this->systemSmsPartnerId = getenv('SYSTEM_SMS_PARTNER_ID') ?: getenv('SMS_API_SECRET') ?: '';
+        $this->systemSmsShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: getenv('SMS_SENDER_ID') ?: 'AdvantaSMS';
         
         // Load email credentials from environment
         $this->smtpHost = getenv('SMTP_HOST') ?: 'smtpout.secureserver.net';
@@ -63,6 +68,20 @@ class MessagingService {
             $mobile, 
             $message, 
             $this->systemSmsUrl,
+            $this->systemSmsApiKey,
+            $this->systemSmsPartnerId,
+            $this->systemSmsShortcode
+        );
+    }
+
+    /**
+     * Send OTP SMS using AdvantaSMS sendotp endpoint
+     */
+    public function sendSystemOtpSMS($mobile, $message) {
+        return $this->sendSMS(
+            $mobile,
+            $message,
+            $this->systemSmsOtpUrl,
             $this->systemSmsApiKey,
             $this->systemSmsPartnerId,
             $this->systemSmsShortcode
@@ -194,7 +213,7 @@ class MessagingService {
      * Get SMS balance for system account
      */
     public function getSystemSmsBalance() {
-        return $this->getSmsBalance(
+        return $this->getSmsBalanceWithCredentials(
             $this->systemSmsApiKey,
             $this->systemSmsPartnerId
         );
@@ -214,13 +233,13 @@ class MessagingService {
             ];
         }
         
-        return $this->getSmsBalance($settings['api_key'], $settings['partner_id']);
+        return $this->getSmsBalanceWithCredentials($settings['api_key'], $settings['partner_id']);
     }
     
     /**
      * Get SMS balance from AdvantaSMS
      */
-    private function getSmsBalance($apiKey, $partnerId) {
+    public function getSmsBalanceWithCredentials($apiKey, $partnerId) {
         if (empty($apiKey) || empty($partnerId)) {
             return [
                 'success' => false,
@@ -229,7 +248,7 @@ class MessagingService {
             ];
         }
         
-        $url = 'https://sms.wicaalinvestments.com/api/services/getbalance/';
+        $url = $this->systemSmsBalanceUrl ?: 'https://sms.wicaalinvestments.com/api/services/getbalance/';
         
         $postData = [
             'apikey' => $apiKey,

@@ -171,6 +171,8 @@ export function Messaging() {
       // Invalidate and refetch message data
       queryClient.invalidateQueries({ queryKey: ['/api/bulk-messages'] });
       queryClient.invalidateQueries({ queryKey: ['/api/message-recipients'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/sms-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/email-balance'] });
       
       // Reset form
       setSelectedRecipients([]);

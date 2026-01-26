@@ -152,7 +152,7 @@ function sendLoginOtp($storage, $messagingService, $userId, $tenantId, $recipien
     $emailBody = "<p>Your LeaseMaster login OTP is <strong>{$code}</strong>.</p><p>It expires in 5 minutes.</p>";
 
     if ($phone) {
-        $smsResult = $messagingService->sendSystemSMS($phone, $message);
+        $smsResult = $messagingService->sendSystemOtpSMS($phone, $message);
         if (!empty($smsResult['success'])) {
             $channels[] = 'sms';
         }

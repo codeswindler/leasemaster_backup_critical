@@ -410,10 +410,11 @@ function AppContent() {
 
   // Fetch SMS balance from API (only when authenticated)
   const { data: smsData } = useQuery({
-    queryKey: ["/api/sms-balance"],
+    queryKey: ["/api/sms-balance", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const response = await apiRequest("GET", `/api/sms-balance${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },

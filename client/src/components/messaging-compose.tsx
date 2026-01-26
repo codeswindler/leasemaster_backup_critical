@@ -471,6 +471,8 @@ export function MessagingCompose() {
       const failCount = results.filter(r => !r.success).length
 
       queryClient.invalidateQueries({ queryKey: ['/api/message-recipients'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/sms-balance'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/email-balance'] })
 
       if (failCount === 0) {
         toast({
