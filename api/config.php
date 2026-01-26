@@ -90,6 +90,8 @@ try {
     }
     
     $pdo = new PDO($dsn, $dbUser, $dbPass, $options);
+    // Ensure DB timestamps are in UTC to avoid cross-server drift issues.
+    $pdo->exec("SET time_zone = '+00:00'");
 } catch (PDOException $e) {
     http_response_code(500);
     header('Content-Type: application/json');

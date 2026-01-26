@@ -123,9 +123,25 @@ function generateLoginOtpCode() {
 function sendLoginOtp($storage, $messagingService, $userId, $tenantId, $recipientName, $email, $phone) {
     $latest = $storage->getLatestLoginOtp($userId, $tenantId);
     if (!empty($latest['last_sent_at'])) {
-        $lastSentAt = strtotime($latest['last_sent_at']);
-        if ($lastSentAt && (time() - $lastSentAt) < 30) {
-            $retryAfter = 30 - (time() - $lastSentAt);
+        $lastSentAt = DateTimeImmutable::createFromFormat(
+            'Y-m-d H:i:s',
+            $latest['last_sent_at'],
+            new DateTimeZone('UTC')
+        );
+        $lastSentTs = $lastSentAt ? $lastSentAt->getTimestamp() : null;
+        $nowTs = null;
+        try {
+            global $pdo;
+            if (isset($pdo)) {
+                $row = $pdo->query("SELECT UNIX_TIMESTAMP(NOW()) AS ts")->fetch(PDO::FETCH_ASSOC);
+                $nowTs = isset($row['ts']) ? (int)$row['ts'] : null;
+            }
+        } catch (Throwable $e) {
+            $nowTs = null;
+        }
+        $nowTs = $nowTs ?? time();
+        if ($lastSentTs && ($nowTs - $lastSentTs) < 30) {
+            $retryAfter = 30 - ($nowTs - $lastSentTs);
             $retryAfter = max(1, min(30, $retryAfter));
             return ['error' => 'OTP recently sent', 'retryAfter' => $retryAfter];
         }
