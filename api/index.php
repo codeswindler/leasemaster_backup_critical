@@ -897,9 +897,13 @@ try {
                 $userRole = $user['role'] ?? 'client';
             }
             
-            // Admin and super_admin users see all properties (bypass filter)
+            // Admin and super_admin users can see all properties, but honor filters when provided
             if ($userRole === 'admin' || $userRole === 'super_admin') {
-                sendJson($storage->getAllProperties());
+                if ($landlordId || $propertyId) {
+                    sendJson($storage->getAllProperties($landlordId, $propertyId));
+                } else {
+                    sendJson($storage->getAllProperties());
+                }
             } else {
                 // Client users: filter by landlordId if provided
                 sendJson($storage->getAllProperties($landlordId, $propertyId));

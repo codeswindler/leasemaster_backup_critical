@@ -1833,8 +1833,8 @@ export function Houses() {
               </Button>
             </div>
             
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-background/50 p-4 rounded-lg">
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="demographic-tile">
                 <div className="flex items-center gap-2 mb-2">
                   <Home className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Property Name</span>
@@ -1842,7 +1842,7 @@ export function Houses() {
                 <p className="text-lg font-semibold">{selectedProperty?.name}</p>
               </div>
               
-              <div className="bg-background/50 p-4 rounded-lg">
+                <div className="demographic-tile">
                 <div className="flex items-center gap-2 mb-2">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Address</span>
@@ -1850,7 +1850,7 @@ export function Houses() {
                 <p className="text-sm">{selectedProperty?.address}</p>
               </div>
               
-              <div className="bg-background/50 p-4 rounded-lg">
+                <div className="demographic-tile">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Status</span>

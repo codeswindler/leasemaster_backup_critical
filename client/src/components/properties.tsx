@@ -55,7 +55,7 @@ export function Properties() {
   const [isCreateLandlordDialogOpen, setIsCreateLandlordDialogOpen] = useState(false)
   const [, setLocation] = useLocation()
   const { toast } = useToast()
-  const { selectedPropertyId, selectedLandlordId, clearFilters } = useFilter()
+  const { selectedPropertyId, selectedLandlordId, clearFilters, setSelectedPropertyId } = useFilter()
   
   // Get current user for access control
   const { data: authData } = useQuery({
@@ -840,7 +840,10 @@ export function Properties() {
                   <div>
                     <CardTitle 
                       className="text-lg cursor-pointer hover:text-primary transition-colors"
-                      onClick={() => setLocation(`/houses?property=${property.id}`)}
+                      onClick={() => {
+                        setSelectedPropertyId(property.id)
+                        setLocation(`/houses?property=${property.id}`)
+                      }}
                     >
                       {property.name}
                     </CardTitle>
@@ -860,21 +863,21 @@ export function Properties() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
+                  <div className="demographic-tile">
                   <p className="text-muted-foreground">Landlord</p>
                   <p className="font-medium">{property.landlordName}</p>
                 </div>
-                <div>
+                  <div className="demographic-tile">
                   <p className="text-muted-foreground">Address</p>
                   <p className="font-medium">{property.address}</p>
                 </div>
-                <div>
+                  <div className="demographic-tile">
                   <p className="text-muted-foreground">Occupancy</p>
                   <p className="font-medium">
                     {property.occupiedUnits}/{property.totalUnits} units
                   </p>
                 </div>
-                <div>
+                  <div className="demographic-tile">
                   <p className="text-muted-foreground">Monthly Revenue</p>
                   <p className="font-medium font-mono">{property.monthlyRevenue}</p>
                 </div>
@@ -899,7 +902,10 @@ export function Properties() {
                   variant="outline" 
                   size="sm" 
                   className="flex-1" 
-                  onClick={() => setLocation(`/houses?property=${property.id}`)}
+                  onClick={() => {
+                    setSelectedPropertyId(property.id)
+                    setLocation(`/houses?property=${property.id}`)
+                  }}
                   data-testid={`button-view-${property.name.toLowerCase().replace(/\s+/g, '-')}`}
                 >
                   <Eye className="h-4 w-4 mr-1" />
