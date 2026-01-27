@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -63,7 +63,7 @@ export function Houses() {
   const [isAddHouseTypeDialogOpen, setIsAddHouseTypeDialogOpen] = useState(false)
   const [isBulkUnitDialogOpen, setIsBulkUnitDialogOpen] = useState(false)
   const [isChargeCodesDialogOpen, setIsChargeCodesDialogOpen] = useState(false)
-  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
+  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId, setSelectedLandlordId } = useFilter()
   const [activeTab, setActiveTab] = useState<string>("all")
   const [selectedHouseType, setSelectedHouseType] = useState<any>(null)
   const [editingUnit, setEditingUnit] = useState<string | null>(null)
@@ -136,13 +136,14 @@ export function Houses() {
     status: unit.status ?? "vacant",
   })
   
-  // Get search params from URL
-  const getSearchParams = () => {
-    if (typeof window !== 'undefined') {
-      return new URLSearchParams(window.location.search)
-    }
-    return new URLSearchParams()
-  }
+  const search = useSearch()
+  const urlPropertyId = useMemo(() => {
+    if (!search) return null
+    return new URLSearchParams(search).get("property")
+  }, [search])
+
+  const effectiveLandlordId = urlPropertyId ? null : selectedLandlordId
+  const effectivePropertyId = urlPropertyId ?? selectedPropertyId
 
   // House Type form
   const houseTypeForm = useForm({
@@ -202,11 +203,11 @@ export function Houses() {
   // Fetch properties
   const { data: properties = [], isLoading: propertiesLoading } = 
     useQuery({
-      queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
+      queryKey: ["/api/properties", effectiveLandlordId, effectivePropertyId],
       queryFn: async () => {
         const params = new URLSearchParams()
-        if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
-        if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+        if (effectiveLandlordId) params.append("landlordId", effectiveLandlordId)
+        if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
         const url = `/api/properties${params.toString() ? `?${params}` : ''}`
         const response = await apiRequest("GET", url)
         return await response.json()
@@ -287,23 +288,29 @@ export function Houses() {
     queryClient.invalidateQueries({ queryKey: ["/api/charge-codes"] })
   }, [])
 
+  const getPropertyLandlordId = (property: any) =>
+    property?.landlordId ?? property?.landlord_id ?? null
+
   // Handle URL parameters to auto-select property
   useEffect(() => {
     // Don't show errors while properties are still loading
     if (propertiesLoading) return
     
-    const urlParams = getSearchParams()
-    const propertyParam = urlParams.get('property')
+    const propertyParam = urlPropertyId
     
     if (propertyParam === 'new' && Array.isArray(properties) && properties.length > 0) {
       // Auto-select the most recently created property
       const latestProperty = properties[properties.length - 1]
       setSelectedPropertyId(latestProperty.id)
+      const landlordId = getPropertyLandlordId(latestProperty)
+      if (landlordId) setSelectedLandlordId(landlordId)
     } else if (propertyParam && propertyParam !== 'new' && Array.isArray(properties) && properties.length > 0) {
       // Auto-select the specific property
       const property = properties.find((p: any) => String(p.id) === String(propertyParam))
       if (property) {
         setSelectedPropertyId(property.id)
+        const landlordId = getPropertyLandlordId(property)
+        if (landlordId) setSelectedLandlordId(landlordId)
       } else {
         // Property not found - show error toast
         toast({
@@ -313,7 +320,7 @@ export function Houses() {
         })
       }
     }
-  }, [properties, propertiesLoading, setSelectedPropertyId, toast])
+  }, [properties, propertiesLoading, setSelectedLandlordId, setSelectedPropertyId, toast, urlPropertyId])
 
   // Handle water rate type changes
   useEffect(() => {
@@ -1049,9 +1056,7 @@ export function Houses() {
 
   // Check if we should show Property of Interest section
   const shouldShowPropertyOfInterest = () => {
-    const urlParams = getSearchParams()
-    const propertyParam = urlParams.get('property')
-    return propertyParam && selectedPropertyId
+    return Boolean(urlPropertyId && selectedPropertyId)
   }
 
   // Toggle house type filter
