@@ -301,7 +301,7 @@ export function Houses() {
       setSelectedPropertyId(latestProperty.id)
     } else if (propertyParam && propertyParam !== 'new' && Array.isArray(properties) && properties.length > 0) {
       // Auto-select the specific property
-      const property = properties.find((p: any) => p.id === propertyParam)
+      const property = properties.find((p: any) => String(p.id) === String(propertyParam))
       if (property) {
         setSelectedPropertyId(property.id)
       } else {
