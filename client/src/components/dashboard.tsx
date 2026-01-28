@@ -496,23 +496,24 @@ export function Dashboard() {
       .filter((l: any) => isActiveLease(l))
       .reduce((sum: number, l: any) => sum + parseFloat(l.rentAmount || l.monthlyRent || 0), 0)
     
-  // Calculate collection rate from filtered invoices and payments
-  const totalInvoiced = filteredInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount || 0), 0)
-  const totalPaid = filteredPayments.reduce((sum: number, pay: any) => sum + parseFloat(pay.amount || 0), 0)
-  const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
-  const revenueAttainment = collectionRate
-  const vacancyPercent = totalUnitsCount > 0 ? Math.round((vacantUnitsCount / totalUnitsCount) * 100) : 0
-    
     return {
       occupiedUnits: occupiedUnitsCount,
       totalUnits: totalUnitsCount,
       vacantUnits: vacantUnitsCount,
       monthlyRevenue: monthlyRevenue,
-      collectionRate: collectionRate
+      collectionRate: 0
     }
   }
   
   const filteredStats = calculateFilteredStats()
+  const totalInvoiced = filteredInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount || 0), 0)
+  const totalPaid = filteredPayments.reduce((sum: number, pay: any) => sum + parseFloat(pay.amount || 0), 0)
+  const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
+  const revenueAttainment = collectionRate
+  const vacancyPercent =
+    filteredStats.totalUnits > 0
+      ? Math.round((filteredStats.vacantUnits / filteredStats.totalUnits) * 100)
+      : 0
   
   const vacancyLevel = getThresholdLevel(vacancyPercent, THRESHOLDS.vacancyPercent)
   const vacancyPalette = getThresholdPalette(vacancyPercent, THRESHOLDS.vacancyPercent, "lowerBetter")
@@ -564,7 +565,7 @@ export function Dashboard() {
     {
       id: "collection-rate",
       title: "Collection Rate",
-      value: `${filteredStats.collectionRate}%`,
+      value: `${collectionRate}%`,
       description: "This month",
       icon: TrendingUp,
       trend: `Paid ${collectionRate}% of invoices`,
