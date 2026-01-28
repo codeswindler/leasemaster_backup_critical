@@ -35,9 +35,9 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
 
-          // Core framework
-          if (id.includes("node_modules/react-dom")) return "react-dom";
-          if (id.includes("node_modules/react")) return "react";
+          // Core framework - keep in main bundle to guarantee availability
+          if (id.includes("node_modules/react")) return undefined;
+          if (id.includes("node_modules/react-dom")) return undefined;
 
           // UI/runtime-heavy libraries
           if (id.includes("@radix-ui")) return "radix";
