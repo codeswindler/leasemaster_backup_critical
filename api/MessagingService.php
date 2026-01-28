@@ -83,20 +83,7 @@ class MessagingService {
      * Send OTP SMS using AdvantaSMS sendotp endpoint
      */
     public function sendSystemOtpSMS($mobile, $message) {
-        $primary = $this->sendSMS(
-            $mobile,
-            $message,
-            $this->systemSmsOtpUrl,
-            $this->systemSmsApiKey,
-            $this->systemSmsPartnerId,
-            $this->systemSmsShortcode
-        );
-        if (!empty($primary['success'])) {
-            return $primary;
-        }
-
-        // Fallback to standard SMS endpoint if OTP endpoint fails.
-        $fallback = $this->sendSMS(
+        return $this->sendSMS(
             $mobile,
             $message,
             $this->systemSmsUrl,
@@ -104,16 +91,6 @@ class MessagingService {
             $this->systemSmsPartnerId,
             $this->systemSmsShortcode
         );
-        $fallback['fallback'] = true;
-        $fallback['fallbackReason'] = $primary['error'] ?? 'OTP endpoint failed';
-
-        if (!empty($fallback['success'])) {
-            return $fallback;
-        }
-
-        $primary['fallbackAttempted'] = true;
-        $primary['fallbackError'] = $fallback['error'] ?? 'Fallback SMS failed';
-        return $primary;
     }
     
     /**
