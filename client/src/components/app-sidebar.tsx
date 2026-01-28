@@ -226,7 +226,15 @@ export function AppSidebar() {
     (invoice.status === "pending" && new Date(invoice.dueDate) < new Date())
   ).length : 0
 
-  const menuItems = [
+  type NavItem = {
+    title: string;
+    url: string;
+    icon: typeof Home;
+    badge?: string | null;
+    badgeVariant?: "default" | "destructive" | "outline" | "secondary";
+  };
+
+  const menuItems: NavItem[] = [
     {
       title: "Dashboard",
       url: "/portal",
@@ -246,12 +254,12 @@ export function AppSidebar() {
     },
   ]
 
-  const tenantItems = [
+  const tenantItems: NavItem[] = [
     { title: "Active Tenants", url: "/tenants", icon: Users },
     { title: "Terminated Leases", url: "/tenants/terminated", icon: FileText },
   ]
 
-  const accountingItems = [
+  const accountingItems: NavItem[] = [
     {
       title: "Bulk Invoicing",
       url: "/accounting/bulk-invoice",
@@ -291,7 +299,7 @@ export function AppSidebar() {
     }
   ]
 
-  const otherItems = [
+  const otherItems: NavItem[] = [
     {
       title: "Maintenance",
       url: "/maintenance",

@@ -18,12 +18,29 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 
+type TenantAccount = {
+  id: string
+  unit: string
+  lease?: { id: string } | null
+  charges: Record<string, number>
+  tenant?: string
+  isVacant?: boolean
+  waterUnits?: number
+  waterRate?: number
+  lastReadingDate?: string | null
+}
+
+type PropertySummary = {
+  id: string
+  name: string
+}
+
 export function BulkInvoicing() {
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState("")
-  const [tenantAccounts, setTenantAccounts] = useState<any[]>([])
+  const [tenantAccounts, setTenantAccounts] = useState<TenantAccount[]>([])
   const [showAccounts, setShowAccounts] = useState(false)
   const [editingCharges, setEditingCharges] = useState<{[key: string]: {[key: string]: number}}>({})
   const { toast } = useToast()
@@ -52,7 +69,7 @@ export function BulkInvoicing() {
 
 
   // Fetch properties from API
-  const { data: properties = [] } = useQuery({
+  const { data: properties = [] } = useQuery<PropertySummary[]>({
     queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -391,7 +408,8 @@ export function BulkInvoicing() {
         const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now()}-${account.id.slice(0, 8)}`
         
         // Calculate total amount
-        const totalAmount = Object.values(account.charges).reduce((sum: number, amount: number) => sum + amount, 0)
+        const charges = account.charges || {}
+        const totalAmount = Object.values(charges).reduce((sum, amount) => sum + amount, 0)
 
         // Create invoice
         const invoiceResponse = await apiRequest("POST", "/api/invoices", {
@@ -406,7 +424,7 @@ export function BulkInvoicing() {
         const invoice = await invoiceResponse.json()
 
         // Create invoice items for each charge
-        for (const [chargeCode, amount] of Object.entries(account.charges)) {
+        for (const [chargeCode, amount] of Object.entries(charges)) {
           if (amount > 0) {
             await apiRequest("POST", "/api/invoice-items", {
               invoiceId: invoice.id,

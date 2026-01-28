@@ -886,12 +886,18 @@ export class DatabaseStorage implements IStorage {
 
   async createMessageRecipient(insertRecipient: InsertMessageRecipient): Promise<MessageRecipient> {
     // Check if bulk message exists
+    if (!insertRecipient.bulkMessageId) {
+      throw new Error("bulkMessageId is required");
+    }
     const bulkMessage = await this.getBulkMessage(insertRecipient.bulkMessageId);
     if (!bulkMessage) {
       throw new Error(`Bulk message with id ${insertRecipient.bulkMessageId} not found`);
     }
 
     // Check if tenant exists
+    if (!insertRecipient.tenantId) {
+      throw new Error("tenantId is required");
+    }
     const tenant = await this.getTenant(insertRecipient.tenantId);
     if (!tenant) {
       throw new Error(`Tenant with id ${insertRecipient.tenantId} not found`);

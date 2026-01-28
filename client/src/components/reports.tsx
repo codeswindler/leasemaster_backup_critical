@@ -309,7 +309,7 @@ export function Reports() {
         'Email': '',
         'Phone': '',
         'ID Number': '',
-        'Property': selectedProperty === "all" ? "All Properties" : properties.find(p => p.id === selectedProperty)?.name,
+        'Property': selectedProperty === "all" ? "All Properties" : properties.find((p: any) => p.id === selectedProperty)?.name,
         'Unit': '',
         'Monthly Rent': '',
         'Payments Received': `KSh ${totalAmount.toLocaleString()}`,
@@ -326,7 +326,7 @@ export function Reports() {
         'Tenant Name': `${reportType} Report`,
         'Email': `Generated: ${new Date().toLocaleString()}`,
         'Phone': `Period: ${startDate} to ${endDate}`,
-        'ID Number': `Property: ${selectedProperty === "all" ? "All Properties" : properties.find(p => p.id === selectedProperty)?.name}`,
+        'ID Number': `Property: ${selectedProperty === "all" ? "All Properties" : properties.find((p: any) => p.id === selectedProperty)?.name}`,
         'Property': `Total Tenants: ${tenants.length}`,
         'Unit': `Total Payments: ${filteredPayments.length}`,
         'Monthly Rent': `Total Amount: KSh ${totalAmount.toLocaleString()}`,
@@ -412,7 +412,7 @@ export function Reports() {
     setSelectedTenants(
       selectedTenants.length === tenants.length 
         ? [] 
-        : tenants.map(t => t.id)
+        : tenants.map((t: any) => t.id)
     )
   }
 
@@ -689,7 +689,7 @@ export function Reports() {
                       <SelectValue placeholder="Select tenant" />
                     </SelectTrigger>
                     <SelectContent>
-                      {tenants.map((tenant) => (
+                      {tenants.map((tenant: any) => (
                         <SelectItem key={tenant.id} value={tenant.id}>
                           {tenant.name} - {tenant.unit} ({tenant.account})
                         </SelectItem>
@@ -731,7 +731,7 @@ export function Reports() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h4 className="font-medium">
-                        Account Statement: {tenants.find(t => t.id === selectedTenant)?.name}
+                        Account Statement: {tenants.find((t: any) => t.id === selectedTenant)?.name}
                       </h4>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" onClick={() => handleExportReport("Lease Statement", "pdf")}>
@@ -822,8 +822,8 @@ export function Reports() {
                 </TableHeader>
                 <TableBody>
                   {tenants
-                    .sort((a, b) => b.balance - a.balance)
-                    .map((tenant) => (
+                    .sort((a: any, b: any) => b.balance - a.balance)
+                    .map((tenant: any) => (
                     <TableRow key={tenant.id} className="hover-elevate">
                       <TableCell>
                         <Checkbox

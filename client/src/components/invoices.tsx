@@ -181,7 +181,7 @@ export function Invoices() {
   })
 
   // Fetch all required data with complete status tracking
-  const invoicesQuery = useQuery({ 
+  const invoicesQuery = useQuery<any[]>({ 
     queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -189,11 +189,23 @@ export function Invoices() {
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
-      return await response.json()
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
     },
   })
-  const invoiceItemsQuery = useQuery({ queryKey: ['/api/invoice-items'] })
-  const tenantsQuery = useQuery({ 
+  const invoiceItemsQuery = useQuery<any[]>({
+    queryKey: ['/api/invoice-items', selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/invoice-items${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    },
+  })
+  const tenantsQuery = useQuery<any[]>({ 
     queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -201,10 +213,11 @@ export function Invoices() {
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
-      return await response.json()
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
     },
   })
-  const unitsQuery = useQuery({ 
+  const unitsQuery = useQuery<any[]>({ 
     queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -212,7 +225,8 @@ export function Invoices() {
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
-      return await response.json()
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
     },
   })
   const propertiesQuery = useQuery({ 

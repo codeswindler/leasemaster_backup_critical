@@ -304,7 +304,7 @@ export function ReceivePayments() {
             <CardDescription>Latest payment transactions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentPayments.map((payment) => (
+            {recentPayments.map((payment: any) => (
               <div key={payment.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex items-center gap-3">
                   {payment.method === "M-Pesa" ? (

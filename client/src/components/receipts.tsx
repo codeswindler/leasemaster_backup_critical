@@ -211,7 +211,7 @@ export function Receipts() {
     }
   })
 
-  const filteredReceipts = receipts.filter(receipt => {
+  const filteredReceipts = receipts.filter((receipt: any) => {
     // If search term is empty, show all results
     if (!searchTerm.trim()) {
       const matchesStatus = statusFilter === "all" || receipt.status === statusFilter
@@ -451,7 +451,7 @@ export function Receipts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredReceipts.map((receipt) => (
+              {filteredReceipts.map((receipt: any) => (
                 <TableRow key={receipt.id} className="hover-elevate">
                   <TableCell className="font-mono text-sm">{receipt.id}</TableCell>
                   <TableCell className="font-medium">{receipt.tenant}</TableCell>

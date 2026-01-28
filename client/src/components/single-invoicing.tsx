@@ -18,6 +18,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 
+type PropertySummary = {
+  id: string
+  name: string
+  landlordId?: string | null
+}
+
 export function SingleInvoicing() {
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
@@ -52,7 +58,7 @@ export function SingleInvoicing() {
   }, [invoiceDate, dueDate])
 
   // Fetch real data from API
-  const { data: propertiesData = [] } = useQuery({ 
+  const { data: propertiesData = [] } = useQuery<PropertySummary[]>({ 
     queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -210,7 +216,7 @@ export function SingleInvoicing() {
     ...propertyChargeCodes,
   ]
 
-  const uniqueLandlordIds = new Set(properties.map((property) => property.landlordId).filter(Boolean))
+  const uniqueLandlordIds = new Set(properties.map((property: any) => property.landlordId).filter(Boolean))
   const requiresLandlordSelection = uniqueLandlordIds.size > 1 && (!selectedLandlordId || selectedLandlordId === "all")
   const actionsDisabled = !selectedPropertyId || requiresLandlordSelection
 
@@ -263,6 +269,7 @@ export function SingleInvoicing() {
       lease: activeLease,
       chargeAmounts: unit.chargeAmounts,
       status: unit.status,
+      type: unit.type ?? unit.houseType ?? unit.house_type ?? "—",
     }
   })
 
@@ -432,7 +439,7 @@ export function SingleInvoicing() {
                   <SelectValue placeholder="Select property" />
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map((property) => (
+                  {properties.map((property: any) => (
                     <SelectItem key={property.id} value={property.id}>
                       {property.name}
                     </SelectItem>

@@ -44,6 +44,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+type Bill = {
+  id: string
+  vendor: string
+  property: string
+  category: string
+  amount: number
+  dueDate: string
+  issueDate: string
+  status: "draft" | "pending" | "paid" | "overdue"
+  accountNumber: string
+}
+
 export function Bills() {
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
@@ -62,10 +74,66 @@ export function Bills() {
     reference: ""
   })
 
+  // Mock bills data (keeping for fallback)
+  const mockBills: Bill[] = [
+    {
+      id: "BILL-2024-001",
+      vendor: "Kenya Power & Lighting",
+      property: "BigRock Apartments",
+      category: "Electricity",
+      amount: 45000,
+      dueDate: "2024-12-31",
+      issueDate: "2024-12-01",
+      status: "pending",
+      accountNumber: "1234567890"
+    },
+    {
+      id: "BILL-2024-002",
+      vendor: "Nairobi Water & Sewerage",
+      property: "Riverside Complex",
+      category: "Water",
+      amount: 28000,
+      dueDate: "2024-12-28",
+      issueDate: "2024-11-28",
+      status: "overdue",
+      accountNumber: "WS789012345"
+    },
+    {
+      id: "BILL-2024-003",
+      vendor: "SecureGuard Services",
+      property: "Garden View Estates",
+      category: "Security",
+      amount: 15000,
+      dueDate: "2025-01-15",
+      issueDate: "2024-12-15",
+      status: "draft",
+      accountNumber: "SG2024001"
+    },
+    {
+      id: "BILL-2024-004",
+      vendor: "CleanCorp Services",
+      property: "All Properties",
+      category: "Maintenance",
+      amount: 12000,
+      dueDate: "2024-12-20",
+      issueDate: "2024-12-05",
+      status: "paid",
+      accountNumber: "CC456789"
+    }
+  ]
+
   // Fetch bills from API (using mock data for now since we don't have bills API)
-  const { data: bills = [], isLoading: billsLoading, error: billsError } = useQuery({
+  const { data: bills = [], isLoading: billsLoading, error: billsError } = useQuery<Bill[]>({
     queryKey: ["/api/bills"],
-    queryFn: () => apiRequest("GET", "/api/bills"),
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/bills")
+      if (!response.ok) {
+        return mockBills
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? data : mockBills
+    },
+    initialData: mockBills,
   })
 
   // Payment mutation
@@ -165,54 +233,6 @@ export function Bills() {
     }
     paymentMutation.mutate(paymentData)
   }
-
-  // Mock bills data (keeping for fallback)
-  const mockBills = [
-    {
-      id: "BILL-2024-001",
-      vendor: "Kenya Power & Lighting",
-      property: "BigRock Apartments",
-      category: "Electricity",
-      amount: 45000,
-      dueDate: "2024-12-31",
-      issueDate: "2024-12-01",
-      status: "pending",
-      accountNumber: "1234567890"
-    },
-    {
-      id: "BILL-2024-002",
-      vendor: "Nairobi Water & Sewerage",
-      property: "Riverside Complex", 
-      category: "Water",
-      amount: 28000,
-      dueDate: "2024-12-28",
-      issueDate: "2024-11-28",
-      status: "overdue",
-      accountNumber: "WS789012345"
-    },
-    {
-      id: "BILL-2024-003",
-      vendor: "SecureGuard Services",
-      property: "Garden View Estates",
-      category: "Security",
-      amount: 15000,
-      dueDate: "2025-01-15",
-      issueDate: "2024-12-15",
-      status: "draft",
-      accountNumber: "SG2024001"
-    },
-    {
-      id: "BILL-2024-004",
-      vendor: "CleanCorp Services",
-      property: "All Properties",
-      category: "Maintenance",
-      amount: 12000,
-      dueDate: "2024-12-20",
-      issueDate: "2024-12-05",
-      status: "paid",
-      accountNumber: "CC456789"
-    }
-  ]
 
   const filteredBills = bills.filter(bill => {
     const matchesSearch = 

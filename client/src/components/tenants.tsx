@@ -171,7 +171,8 @@ export function Tenants() {
     if (!worksheet) return []
 
     const headerRow = worksheet.getRow(1)
-    const headers = (headerRow.values || [])
+    const headerValues = Array.isArray(headerRow.values) ? headerRow.values : []
+    const headers = headerValues
       .slice(1)
       .map((header) => String(header ?? "").trim())
 
@@ -179,7 +180,7 @@ export function Tenants() {
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) return
       const record: Record<string, string> = {}
-      headers.forEach((header, index) => {
+      headers.forEach((header: string, index: number) => {
         if (!header) return
         record[header] = row.getCell(index + 1).text?.trim() ?? ""
       })
@@ -794,7 +795,7 @@ export function Tenants() {
       "Lease Status": tenant.status || "Inactive",
       "Property": tenant.property?.name || "Not Assigned",
       "Unit Number": tenant.unit?.unitNumber || "Not Assigned",
-      "Unit Type": tenant.unit?.type || "",
+      "Unit Type": (tenant.unit as any)?.type || (tenant.unit as any)?.unitType || (tenant.unit as any)?.houseType || "",
       "Rent Amount (KSH)": tenant.lease?.rentAmount || "0",
       "Deposit Amount (KSH)": tenant.lease?.depositAmount || "0",
       "Water Rate per Unit (KSH)": tenant.lease?.waterRatePerUnit || "15.50",

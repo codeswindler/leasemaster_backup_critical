@@ -673,7 +673,7 @@ export function UserManagement() {
                     No users found for the selected property.
                   </TableCell>
                 </TableRow>
-              ) : users.map((user) => (
+              ) : users.map((user: any) => (
                 <TableRow key={user.id} className="hover-elevate">
                   <TableCell>
                     <div>
@@ -706,10 +706,10 @@ export function UserManagement() {
                             return category?.name || permissionId
                           })
                         )
-                        return Array.from(permissionSet)
+                        return Array.from(permissionSet) as string[]
                       })()
                         .slice(0, 3)
-                        .map((permission) => (
+                        .map((permission: string) => (
                         <Badge key={permission} variant="outline" className="text-xs">
                           {permission}
                         </Badge>

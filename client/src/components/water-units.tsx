@@ -133,7 +133,7 @@ export function WaterUnits() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/water-readings"] })
-      setCurrentReading({ unitId: "", reading: "" })
+      setCurrentReading({ unitId: "", reading: "", previousReading: "" })
       toast({
         title: "Success",
         description: "Water reading saved successfully",
@@ -588,8 +588,8 @@ export function WaterUnits() {
                readingDate.getFullYear() === year
       })
       .sort((a: any, b: any) => {
-        const aDate = a.lastModifiedAt || a.createdAt || a.last_modified_at || a.created_at || a.readingDate || a.reading_date
-        const bDate = b.lastModifiedAt || b.createdAt || b.last_modified_at || b.created_at || b.readingDate || b.reading_date
+        const aDate = (a as any).lastModifiedAt || (a as any).createdAt || (a as any).last_modified_at || (a as any).created_at || (a as any).readingDate || (a as any).reading_date
+        const bDate = (b as any).lastModifiedAt || (b as any).createdAt || (b as any).last_modified_at || (b as any).created_at || (b as any).readingDate || (b as any).reading_date
         if (!aDate || !bDate) return 0
         const aTime = new Date(aDate).getTime()
         const bTime = new Date(bDate).getTime()
@@ -597,7 +597,7 @@ export function WaterUnits() {
       })[0]
 
     if (!recentReading) return null
-    const timestampValue = recentReading.lastModifiedAt || recentReading.createdAt || recentReading.last_modified_at || recentReading.created_at || recentReading.readingDate || recentReading.reading_date
+    const timestampValue = (recentReading as any).lastModifiedAt || (recentReading as any).createdAt || (recentReading as any).last_modified_at || (recentReading as any).created_at || (recentReading as any).readingDate || (recentReading as any).reading_date
     if (!timestampValue) return null
     const modifiedTime = new Date(timestampValue)
     const label = modifiedTime.toLocaleString()

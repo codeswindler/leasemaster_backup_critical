@@ -583,7 +583,7 @@ export function TenantDetail() {
       ) : !tenant ? (
         <div className="text-sm text-muted-foreground">
           Tenant not found.{" "}
-          <Button variant="link" onClick={() => setLocation("/tenants")}>
+          <Button variant="ghost" onClick={() => setLocation("/tenants")}>
             Back to Tenants
           </Button>
         </div>

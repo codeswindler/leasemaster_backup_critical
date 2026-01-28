@@ -975,9 +975,11 @@ export function Dashboard() {
                             const start = toStartOfDay(lease.startDate)
                             if (!start) return sum
                             const end = lease.endDate ? toEndOfDay(lease.endDate) : new Date()
-                            if (end && Number.isNaN(end.getTime())) return sum
+                            if (!end) return sum
+                            const endTime = end.getTime()
+                            if (Number.isNaN(endTime)) return sum
                             validCount += 1
-                            return sum + (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)
+                            return sum + (endTime - start.getTime()) / (1000 * 60 * 60 * 24 * 30)
                           }, 0)
                           if (validCount === 0) return "0 months"
                           const avgMonths = totalMonths / validCount

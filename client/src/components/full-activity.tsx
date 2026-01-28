@@ -35,6 +35,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+type ActivityLog = {
+  id?: string
+  user_name?: string
+  action?: string
+  details?: string
+  type?: string
+  created_at?: string
+  status?: string
+}
+
 export function FullActivity() {
   const { selectedPropertyId } = useFilter()
   const [searchTerm, setSearchTerm] = useState("")
@@ -43,7 +53,7 @@ export function FullActivity() {
   const [startDate, setStartDate] = useState("2024-12-01")
   const [endDate, setEndDate] = useState("2024-12-31")
 
-  const { data: activities = [], isLoading } = useQuery({
+  const { data: activities = [], isLoading } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activity-logs', searchTerm, filterType, selectedPropertyId, startDate, endDate],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -54,13 +64,14 @@ export function FullActivity() {
       if (endDate) params.append("dateTo", endDate)
       const url = `/api/activity-logs?${params.toString()}`
       const response = await apiRequest("GET", url)
-      return await response.json()
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
     }
   })
 
   const userOptions = Array.from(new Set(
-    activities.map((activity: any) => activity.user_name).filter(Boolean)
-  ))
+    activities.map((activity) => activity.user_name).filter(Boolean)
+  )) as string[]
 
   const filteredActivities = activities.filter((activity: any) => {
     const matchesSearch = 

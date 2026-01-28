@@ -66,7 +66,6 @@ const LoadingSpinner = () => (
 import { MessageSquare, Bell, CreditCard, User, LogOut, ArrowLeft, Building2, Users, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,

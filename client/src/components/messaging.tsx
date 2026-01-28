@@ -127,7 +127,7 @@ export function Messaging() {
   }
 
   const handleSelectAll = () => {
-    setSelectedRecipients(tenants.map(t => t.id))
+    setSelectedRecipients(tenants.map((t: any) => t.id))
   }
 
   const handleSelectNone = () => {
@@ -146,8 +146,8 @@ export function Messaging() {
       const bulkMessageData = await bulkMessage.json();
       
       // Then create individual recipient records
-      const recipientPromises = data.recipients.map((tenantId: string) => {
-        const tenant = tenants.find(t => t.id === tenantId);
+        const recipientPromises = data.recipients.map((tenantId: string) => {
+          const tenant = tenants.find((t: any) => t.id === tenantId);
         if (!tenant) return null;
         
         const channels = data.type === 'both' ? ['email', 'sms'] : [data.type];
@@ -274,7 +274,7 @@ export function Messaging() {
                 <CardDescription>Select tenants to send message to</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {tenants.map((tenant) => (
+                {tenants.map((tenant: any) => (
                   <div key={tenant.id} className="flex items-center space-x-3">
                     <Checkbox
                       id={tenant.id}
@@ -284,7 +284,7 @@ export function Messaging() {
                     />
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs">
-                        {tenant.name.split(" ").map(n => n[0]).join("")}
+                        {tenant.name.split(" ").map((n: string) => n[0]).join("")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
@@ -434,10 +434,10 @@ export function Messaging() {
                       </thead>
                       <tbody>
                         {messageRecipients
-                          .filter(recipient => recipient.channel === 'sms')
-                          .map((recipient) => {
-                            const bulkMessage = bulkMessages.find(msg => msg.id === recipient.bulkMessageId);
-                            const tenant = tenants.find(t => t.id === recipient.tenantId);
+                          .filter((recipient: any) => recipient.channel === 'sms')
+                          .map((recipient: any) => {
+                            const bulkMessage = bulkMessages.find((msg: any) => msg.id === recipient.bulkMessageId);
+                            const tenant = tenants.find((t: any) => t.id === recipient.tenantId);
                             const timeTaken = recipient.deliveredAt && recipient.sentAt 
                               ? `${Math.round((new Date(recipient.deliveredAt).getTime() - new Date(recipient.sentAt).getTime()) / 1000)}s`
                               : '-';
@@ -484,7 +484,7 @@ export function Messaging() {
                             );
                           })
                         }
-                        {messageRecipients.filter(r => r.channel === 'sms').length === 0 && (
+                        {messageRecipients.filter((r: any) => r.channel === 'sms').length === 0 && (
                           <tr>
                             <td colSpan={7} className="p-8 text-center text-muted-foreground">
                               No SMS messages sent yet
@@ -524,10 +524,10 @@ export function Messaging() {
                       </thead>
                       <tbody>
                         {messageRecipients
-                          .filter(recipient => recipient.channel === 'email')
-                          .map((recipient) => {
-                            const bulkMessage = bulkMessages.find(msg => msg.id === recipient.bulkMessageId);
-                            const tenant = tenants.find(t => t.id === recipient.tenantId);
+                          .filter((recipient: any) => recipient.channel === 'email')
+                          .map((recipient: any) => {
+                            const bulkMessage = bulkMessages.find((msg: any) => msg.id === recipient.bulkMessageId);
+                            const tenant = tenants.find((t: any) => t.id === recipient.tenantId);
                             
                             return (
                               <tr key={recipient.id} className="border-b hover-elevate">
@@ -571,7 +571,7 @@ export function Messaging() {
                             );
                           })
                         }
-                        {messageRecipients.filter(r => r.channel === 'email').length === 0 && (
+                        {messageRecipients.filter((r: any) => r.channel === 'email').length === 0 && (
                           <tr>
                             <td colSpan={7} className="p-8 text-center text-muted-foreground">
                               No email messages sent yet

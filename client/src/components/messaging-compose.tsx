@@ -163,7 +163,7 @@ export function MessagingCompose() {
   }
 
   const handleSelectAll = () => {
-    setSelectedRecipients(recipients.map(r => r.id))
+    setSelectedRecipients(recipients.map((r: any) => r.id))
   }
 
   const handleSelectNone = () => {
@@ -413,7 +413,7 @@ export function MessagingCompose() {
       }
 
       for (const recipientId of data.recipients) {
-        const recipient = recipients.find(r => r.id === recipientId)
+        const recipient = recipients.find((r: any) => r.id === recipientId)
         if (!recipient) continue
 
         const channels = data.type === 'both' ? ['email', 'sms'] : [data.type]
@@ -613,7 +613,7 @@ export function MessagingCompose() {
                   No {recipientType} found
                 </p>
               ) : (
-                recipients.map((recipient) => (
+                recipients.map((recipient: any) => (
                   <div key={recipient.id} className="flex items-center space-x-3">
                     <Checkbox
                       id={recipient.id}
