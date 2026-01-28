@@ -70,22 +70,24 @@ export function Properties() {
 
   // Edit property form
   const editForm = useForm({
-    resolver: zodResolver(insertPropertySchema.pick({ name: true, address: true, landlordName: true })),
+    resolver: zodResolver(insertPropertySchema.pick({ name: true, address: true, landlordName: true, landlordEmail: true })),
     defaultValues: {
       name: "",
       address: "",
       landlordName: "",
+      landlordEmail: "",
       accountPrefix: "",
     },
   })
 
   // Update property mutation
   const updatePropertyMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string; address: string; landlordName: string; accountPrefix?: string }) => {
+    mutationFn: async (data: { id: string; name: string; address: string; landlordName: string; landlordEmail?: string; accountPrefix?: string }) => {
       return apiRequest("PUT", `/api/properties/${data.id}`, {
         name: data.name,
         address: data.address,
         landlordName: data.landlordName,
+        landlordEmail: data.landlordEmail,
         accountPrefix: data.accountPrefix,
       })
     },
@@ -174,13 +176,92 @@ export function Properties() {
     },
   })
 
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
+  const normalizeLandlordId = (value: any) => (value === null || value === undefined ? null : String(value))
+  const normalizeProperty = (property: any) => ({
+    ...property,
+    landlordId: property.landlordId ?? property.landlord_id ?? null,
+    landlordName: property.landlordName ?? property.landlord_name ?? "",
+    landlordEmail: property.landlordEmail ?? property.landlord_email ?? "",
+    landlordPhone: property.landlordPhone ?? property.landlord_phone ?? "",
+    accountPrefix: property.accountPrefix ?? property.account_prefix ?? "",
+    createdAt: property.createdAt ?? property.created_at ?? property.createdAt,
+  })
+  const getLandlordById = (id: string | null) =>
+    Array.isArray(landlords) ? landlords.find((landlord: any) => normalizeLandlordId(landlord.id) === id) : null
+  const getLandlordByName = (name: string) =>
+    Array.isArray(landlords)
+      ? landlords.find((landlord: any) => landlord.username === name || landlord.fullName === name)
+      : null
+
+  const buildPropertyPayload = (data: any) => {
+    if (!data.name?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Property name is required",
+        variant: "destructive",
+      })
+      return null
+    }
+
+    if (!data.address?.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Property address is required",
+        variant: "destructive",
+      })
+      return null
+    }
+
+    // Auto-assign userId as landlordId for client users (userId = landlordId)
+    // Admin users must select a landlord, client users can use their own userId
+    // Handle "all" as empty/null (not a valid landlord ID)
+    const landlordIdValue = data.landlordId === "all" ? "" : data.landlordId
+    const landlordIdToUse =
+      selectedLandlordId || landlordIdValue || (currentUser && !isAdmin ? currentUser.id : null)
+
+    if (!landlordIdToUse) {
+      // Only require selection for admin users
+      if (isAdmin) {
+        toast({
+          title: "Validation Error",
+          description: "Please select a landlord or create a new one",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Validation Error",
+          description: "Unable to determine landlord. Please try again.",
+          variant: "destructive",
+        })
+      }
+      return null
+    }
+
+    const landlord = getLandlordById(String(landlordIdToUse))
+    const landlordName = data.landlordName?.trim() || landlord?.username || landlord?.fullName || ""
+    const landlordEmail = data.landlordEmail?.trim() || landlord?.username || ""
+
+    return {
+      name: data.name,
+      address: data.address,
+      landlordId: landlordIdToUse,
+      landlordName,
+      landlordEmail,
+      ...(data.landlordPhone && { landlordPhone: data.landlordPhone }),
+      ...(data.accountPrefix && { accountPrefix: data.accountPrefix }),
+    }
+  }
+
   // Reset edit form when selected property changes
   useEffect(() => {
     if (selectedProperty && isEditDialogOpen) {
+      const matchedLandlord = getLandlordByName(selectedProperty.landlordName || "")
       editForm.reset({
         name: selectedProperty.name || "",
         address: selectedProperty.address || "",
-        landlordName: selectedProperty.landlordName || "",
+        landlordName: matchedLandlord?.username || matchedLandlord?.fullName || selectedProperty.landlordName || "",
+        landlordEmail: selectedProperty.landlordEmail || "",
         accountPrefix: selectedProperty.accountPrefix || "",
       })
     }
@@ -208,7 +289,7 @@ export function Properties() {
           if (!property || typeof property !== 'object' || !property.id) {
             return null
           }
-          return property
+          return normalizeProperty(property)
         }).filter(Boolean)
         
         return validatedProperties
@@ -257,8 +338,6 @@ export function Properties() {
       accountPrefix: "",
     },
   })
-
-  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
 
   // Auto-populate landlordId when dialog opens if filter is active
   useEffect(() => {
@@ -447,97 +526,34 @@ export function Properties() {
   }
 
   const handleAddProperty = (data: any) => {
-    // Additional validation
-    if (!data.name?.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Property name is required",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    if (!data.address?.trim()) {
-      toast({
-        title: "Validation Error", 
-        description: "Property address is required",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    // Auto-assign userId as landlordId for client users (userId = landlordId)
-    // Admin users must select a landlord, client users can use their own userId
-    // Handle "all" as empty/null (not a valid landlord ID)
-    const landlordIdValue = data.landlordId === "all" ? "" : data.landlordId;
-    const landlordIdToUse = selectedLandlordId || landlordIdValue || (currentUser && !isAdmin ? currentUser.id : null)
-    
-    if (!landlordIdToUse) {
-      // Only require selection for admin users
-      if (isAdmin) {
-        toast({
-          title: "Validation Error",
-          description: "Please select a landlord or create a new one",
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Validation Error",
-          description: "Unable to determine landlord. Please try again.",
-          variant: "destructive",
-        })
-      }
-      return
-    }
-    
-    // Prepare property data - only send landlordId, backend will handle landlordName
-    const propertyData = {
-      name: data.name,
-      address: data.address,
-      landlordId: landlordIdToUse,
-      // Include landlordName/Phone/Email if provided (for backward compatibility)
-      ...(data.landlordName && { landlordName: data.landlordName }),
-      ...(data.landlordPhone && { landlordPhone: data.landlordPhone }),
-      ...(data.landlordEmail && { landlordEmail: data.landlordEmail }),
-      ...(data.accountPrefix && { accountPrefix: data.accountPrefix }),
-    }
-    
+    const propertyData = buildPropertyPayload(data)
+    if (!propertyData) return
     createPropertyMutation.mutate(propertyData)
   }
 
   const handleAddPropertyWithRedirect = () => {
     const formData = form.getValues()
-    
-    // Additional validation
-    if (!formData.name?.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Property name is required",
-        variant: "destructive",
-      })
-      return
-    }
-    
-    if (!formData.address?.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Property address is required", 
-        variant: "destructive",
-      })
-      return
-    }
-    
+
+    const propertyData = buildPropertyPayload(formData)
+    if (!propertyData) return
+
     // Submit the mutation
-    createPropertyMutation.mutate(formData, {
+    createPropertyMutation.mutate(propertyData, {
       onSuccess: (newProperty) => {
-        // Redirect to houses page after successful creation
-        setTimeout(() => {
-          setLocation('/houses?property=new')
-        }, 500)
+        const newPropertyId = newProperty?.id
+        if (newPropertyId) {
+          setSelectedPropertyId(String(newPropertyId))
+          if (propertyData.landlordId) {
+            setSelectedLandlordId(String(propertyData.landlordId))
+          }
+          setLocation(`/houses?property=${newPropertyId}`)
+        } else {
+          setLocation("/houses?property=new")
+        }
       },
-      onError: (error) => {
+      onError: () => {
         // Error handling is already done in the main mutation
-      }
+      },
     })
   }
 
@@ -736,10 +752,19 @@ export function Properties() {
                 setIsCreateLandlordDialogOpen(false)
                 // Refresh landlords list
                 refetchLandlords()
-                // Auto-select newly created landlord
-                form.setValue("landlordId", landlord.id)
-                // Set landlord email
-                form.setValue("landlordEmail", landlord.username)
+
+                if (isAddDialogOpen) {
+                  // Auto-select newly created landlord for add flow
+                  form.setValue("landlordId", landlord.id)
+                  form.setValue("landlordEmail", landlord.username)
+                }
+
+                if (isEditDialogOpen) {
+                  // Update edit form to the newly created landlord
+                  editForm.setValue("landlordName", landlord.username || landlord.fullName || "")
+                  editForm.setValue("landlordEmail", landlord.username || "")
+                }
+
                 // Show success toast with password
                 toast({
                   title: "Landlord Created",
@@ -1274,15 +1299,64 @@ export function Properties() {
                   <FormField
                     control={editForm.control}
                     name="landlordName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Landlord Name</FormLabel>
-                        <FormControl>
-                          <Input {...field} data-testid="input-edit-landlord-name" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const matchedLandlord = getLandlordByName(field.value || "")
+                      const selectedValue = matchedLandlord?.id ? String(matchedLandlord.id) : "unlinked"
+
+                      return (
+                        <FormItem>
+                          <FormLabel>Landlord</FormLabel>
+                          <FormControl>
+                            <Select
+                              value={selectedValue}
+                              onValueChange={(value) => {
+                                if (value === "create-new") {
+                                  setIsCreateLandlordDialogOpen(true)
+                                  return
+                                }
+                                if (value === "unlinked") {
+                                  field.onChange("")
+                                  editForm.setValue("landlordEmail", "")
+                                  return
+                                }
+                                const selectedLandlord = getLandlordById(value)
+                                if (selectedLandlord) {
+                                  field.onChange(selectedLandlord.username || selectedLandlord.fullName || "")
+                                  editForm.setValue("landlordEmail", selectedLandlord.username || "")
+                                }
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select landlord" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unlinked">
+                                  <span className="flex items-center gap-2">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    Unknown Landlord
+                                  </span>
+                                </SelectItem>
+                                {isAdmin && (
+                                  <SelectItem value="create-new">
+                                    <span className="flex items-center gap-2">
+                                      <Plus className="h-4 w-4" />
+                                      Create New Landlord
+                                    </span>
+                                  </SelectItem>
+                                )}
+                                {Array.isArray(landlords) &&
+                                  landlords.map((landlord: any) => (
+                                    <SelectItem key={landlord.id} value={String(landlord.id)}>
+                                      {landlord.username || landlord.fullName || landlord.id}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )
+                    }}
                   />
                 </div>
                 <div className="flex gap-2 pt-4 border-t">

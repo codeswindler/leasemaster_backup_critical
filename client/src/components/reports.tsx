@@ -31,7 +31,7 @@ import { useToast } from "@/hooks/use-toast"
 import { apiRequest } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getPaletteByIndex } from "@/lib/palette"
+import { THRESHOLDS, getSharePercent, getThresholdPalette } from "@/lib/color-rules"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -70,25 +70,53 @@ export function Reports() {
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const [selectedTenants, setSelectedTenants] = useState<string[]>([])
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const invoiceSummaryValues = {
+    rentCollection: 180000,
+    waterCharges: 45000,
+    serviceCharges: 25000,
+    totalInvoiced: 250000,
+  }
+  const paymentSummaryValues = {
+    totalPayments: 235000,
+    outstanding: 15000,
+    collectionRate: 94,
+    transactions: 28,
+  }
+
+  const invoiceShare = {
+    rent: getSharePercent(invoiceSummaryValues.rentCollection, invoiceSummaryValues.totalInvoiced),
+    water: getSharePercent(invoiceSummaryValues.waterCharges, invoiceSummaryValues.totalInvoiced),
+    service: getSharePercent(invoiceSummaryValues.serviceCharges, invoiceSummaryValues.totalInvoiced),
+    total: 100,
+  }
+  const outstandingPercent = getSharePercent(paymentSummaryValues.outstanding, invoiceSummaryValues.totalInvoiced)
+
   const invoiceSummaryPalettes = [
-    getPaletteByIndex(0),
-    getPaletteByIndex(1),
-    getPaletteByIndex(2),
-    getPaletteByIndex(3),
+    getThresholdPalette(invoiceShare.rent, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(invoiceShare.water, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(invoiceShare.service, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(invoiceShare.total, THRESHOLDS.sharePercent, "higherBetter"),
   ]
   const paymentSummaryPalettes = [
-    getPaletteByIndex(2),
-    getPaletteByIndex(4),
-    getPaletteByIndex(0),
-    getPaletteByIndex(1),
+    getThresholdPalette(paymentSummaryValues.collectionRate, THRESHOLDS.ratePercent, "higherBetter"),
+    getThresholdPalette(outstandingPercent, THRESHOLDS.vacancyPercent, "lowerBetter"),
+    getThresholdPalette(paymentSummaryValues.collectionRate, THRESHOLDS.ratePercent, "higherBetter"),
+    getThresholdPalette(paymentSummaryValues.transactions, THRESHOLDS.count, "higherBetter"),
   ]
   const agingSummaryPalettes = [
-    getPaletteByIndex(0),
-    getPaletteByIndex(1),
-    getPaletteByIndex(2),
-    getPaletteByIndex(3),
-    getPaletteByIndex(4),
+    getThresholdPalette(15, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(25, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(45, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(65, THRESHOLDS.sharePercent, "higherBetter"),
+    getThresholdPalette(85, THRESHOLDS.sharePercent, "higherBetter"),
   ]
+
+  const parseNumericValue = (value: string) => {
+    const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  const reportTotals = organizationalReports.map((report) => parseNumericValue(report.total));
+  const maxReportTotal = Math.max(0, ...reportTotals);
 
   // Fetch real properties data
   const { data: propertiesData } = useQuery({ 
@@ -452,7 +480,9 @@ export function Reports() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {organizationalReports.map((report, index) => {
-              const palette = getPaletteByIndex(index)
+              const totalValue = parseNumericValue(report.total)
+              const totalShare = getSharePercent(totalValue, maxReportTotal || 1)
+              const palette = getThresholdPalette(totalShare, THRESHOLDS.sharePercent, "higherBetter")
               return (
               <Card key={report.id} className={`hover-elevate border ${palette.border} ${palette.card}`}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

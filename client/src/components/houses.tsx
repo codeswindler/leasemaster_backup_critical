@@ -124,6 +124,16 @@ export function Houses() {
     isActive: houseType.isActive ?? houseType.is_active ?? "true",
   })
 
+  const normalizeProperty = (property: any) => ({
+    ...property,
+    landlordId: property.landlordId ?? property.landlord_id ?? null,
+    landlordName: property.landlordName ?? property.landlord_name ?? "",
+    landlordEmail: property.landlordEmail ?? property.landlord_email ?? "",
+    landlordPhone: property.landlordPhone ?? property.landlord_phone ?? "",
+    accountPrefix: property.accountPrefix ?? property.account_prefix ?? "",
+    createdAt: property.createdAt ?? property.created_at ?? property.createdAt,
+  })
+
   const normalizeUnit = (unit: any) => ({
     ...unit,
     propertyId: unit.propertyId ?? unit.property_id,
@@ -217,7 +227,8 @@ export function Houses() {
         if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
         const url = `/api/properties${params.toString() ? `?${params}` : ''}`
         const response = await apiRequest("GET", url)
-        return await response.json()
+        const results = await response.json()
+        return Array.isArray(results) ? results.map(normalizeProperty) : results
       },
     })
 
@@ -355,6 +366,12 @@ export function Houses() {
     setChargeCodeAmounts({})
     setSelectedChargeCodes({})
   }, [selectedPropertyId])
+
+  useEffect(() => {
+    if (isChargeCodesDialogOpen && effectivePropertyId) {
+      chargeCodeForm.setValue("propertyId", effectivePropertyId)
+    }
+  }, [isChargeCodesDialogOpen, effectivePropertyId, chargeCodeForm])
 
   useEffect(() => {
     if (!selectedPropertyId) {
@@ -833,7 +850,7 @@ export function Houses() {
   }
 
   const handleOpenChargeCodes = () => {
-    if (!selectedPropertyId) {
+    if (!effectivePropertyId) {
       toast({
         title: "Property Required",
         description: "Please select a property in the header before configuring charge codes.",
@@ -842,13 +859,13 @@ export function Houses() {
       return
     }
     setIsChargeCodesDialogOpen(true)
-    chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
+    chargeCodeForm.setValue("propertyId", effectivePropertyId || "")
   }
 
   const handleChargePromptConfigure = () => {
     setIsChargePromptOpen(false)
     setIsChargeCodesDialogOpen(true)
-    chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
+    chargeCodeForm.setValue("propertyId", effectivePropertyId || "")
   }
 
   const handleChargePromptContinue = () => {
@@ -1127,6 +1144,18 @@ export function Houses() {
             {selectedProperty ? `${selectedProperty.name} - House Management` : "Houses"}
           </h1>
           <p className="text-muted-foreground">Manage house types, rates, and unit allocations</p>
+          {(selectedProperty || selectedLandlordId) && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {selectedProperty && (
+                <Badge variant="secondary">Property: {selectedProperty.name}</Badge>
+              )}
+              {selectedLandlordId && (
+                <Badge variant="outline">
+                  Landlord: {selectedProperty?.landlordName || selectedLandlordId}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
             <Button

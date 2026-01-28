@@ -48,7 +48,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { ToastAction } from "@/components/ui/toast"
 import { useFilter } from "@/contexts/FilterContext"
-import { getPaletteByIndex } from "@/lib/palette"
+import { getPaletteByIndex, getPaletteByKey } from "@/lib/palette"
+import { getStatusPalette } from "@/lib/color-rules"
 import { jsPDF } from "jspdf"
 import autoTable from 'jspdf-autotable'
 import { Label } from "@/components/ui/label"
@@ -83,13 +84,6 @@ export function Invoices() {
       reader.onerror = () => reject(new Error("Failed to read logo"))
       reader.readAsDataURL(blob)
     })
-  }
-
-  const statusCardStyles: Record<string, string> = {
-    all: "border-primary/40 bg-primary/10 text-primary",
-    pending: "border-amber-500/40 bg-amber-500/10 text-amber-100",
-    partially_paid: "border-sky-500/40 bg-sky-500/10 text-sky-100",
-    paid: "border-green-500/40 bg-green-500/10 text-green-100"
   }
 
   const updateInvoiceStatus = async (invoiceId: string, status: string) => {
@@ -898,11 +892,11 @@ export function Invoices() {
       {/* Status Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {Object.entries(statusCounts).map(([status, count], index) => {
-          const palette = getPaletteByIndex(index)
+          const palette = getStatusPalette(status || `status-${index}`)
           return (
             <Card 
               key={status}
-              className={`cursor-pointer hover-elevate border ${statusCardStyles[status] ?? ""} ${statusFilter === status ? 'ring-2 ring-primary' : ''}`}
+              className={`cursor-pointer hover-elevate border ${palette.border} ${palette.card} ${statusFilter === status ? 'ring-2 ring-primary' : ''}`}
               onClick={() => setStatusFilter(status)}
             >
               <CardContent className="p-4 text-center">

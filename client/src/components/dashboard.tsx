@@ -31,13 +31,20 @@ import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useLocation } from "wouter"
 import { useFilter } from "@/contexts/FilterContext"
-import { getPaletteByIndex } from "@/lib/palette"
+import { getPaletteByIndex, getPaletteByKey, getPaletteByName } from "@/lib/palette"
+import {
+  THRESHOLDS,
+  getThresholdLevel,
+  getThresholdPalette,
+  getTrendDirectionFromLevel,
+  getTrendPalette,
+} from "@/lib/color-rules"
 
 export function Dashboard() {
   const [mpesaBalance, setMpesaBalance] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const [timeframe, setTimeframe] = useState("monthly")
-  const mpesaPalette = getPaletteByIndex(0)
+  const mpesaPalette = getPaletteByName("emerald")
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -489,11 +496,12 @@ export function Dashboard() {
       .filter((l: any) => isActiveLease(l))
       .reduce((sum: number, l: any) => sum + parseFloat(l.rentAmount || l.monthlyRent || 0), 0)
     
-    // Calculate collection rate from filtered invoices and payments
-    const approvedInvoices = filteredInvoices.filter((inv: any) => (inv.status || "").toLowerCase() === "approved")
-    const totalInvoiced = approvedInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount || 0), 0)
-    const totalPaid = filteredPayments.reduce((sum: number, pay: any) => sum + parseFloat(pay.amount || 0), 0)
-    const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
+  // Calculate collection rate from filtered invoices and payments
+  const totalInvoiced = filteredInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount || 0), 0)
+  const totalPaid = filteredPayments.reduce((sum: number, pay: any) => sum + parseFloat(pay.amount || 0), 0)
+  const collectionRate = totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0
+  const revenueAttainment = collectionRate
+  const vacancyPercent = totalUnitsCount > 0 ? Math.round((vacantUnitsCount / totalUnitsCount) * 100) : 0
     
     return {
       occupiedUnits: occupiedUnitsCount,
@@ -506,34 +514,62 @@ export function Dashboard() {
   
   const filteredStats = calculateFilteredStats()
   
+  const vacancyLevel = getThresholdLevel(vacancyPercent, THRESHOLDS.vacancyPercent)
+  const vacancyPalette = getThresholdPalette(vacancyPercent, THRESHOLDS.vacancyPercent, "lowerBetter")
+  const vacancyTrend = getTrendDirectionFromLevel(vacancyLevel, "lowerBetter")
+
+  const collectionLevel = getThresholdLevel(collectionRate, THRESHOLDS.ratePercent)
+  const collectionPalette = getThresholdPalette(collectionRate, THRESHOLDS.ratePercent, "higherBetter")
+  const collectionTrend = getTrendDirectionFromLevel(collectionLevel, "higherBetter")
+
+  const revenueLevel = getThresholdLevel(revenueAttainment, THRESHOLDS.ratePercent)
+  const revenuePalette = getThresholdPalette(revenueAttainment, THRESHOLDS.ratePercent, "higherBetter")
+  const revenueTrend = getTrendDirectionFromLevel(revenueLevel, "higherBetter")
+
+  const propertiesLevel = getThresholdLevel(propertiesData.length, THRESHOLDS.count)
+  const propertiesPalette = getThresholdPalette(propertiesData.length, THRESHOLDS.count, "higherBetter")
+  const propertiesTrend = getTrendDirectionFromLevel(propertiesLevel, "higherBetter")
+
   const displayStats = [
     {
+      id: "total-properties",
       title: "Total Properties",
       value: propertiesData.length.toString(),
       description: "Active properties",
       icon: Building2,
-      trend: "Updated from database"
+      trend: "Updated from database",
+      palette: propertiesPalette,
+      trendPalette: getTrendPalette(propertiesTrend),
     },
     {
+      id: "occupancy",
       title: "Occupancy",
       value: `${filteredStats.occupiedUnits}/${filteredStats.totalUnits}`,
       description: `${filteredStats.totalUnits > 0 ? Math.round((filteredStats.occupiedUnits / filteredStats.totalUnits) * 100) : 0}% occupied`,
       icon: Users,
-      trend: `${filteredStats.vacantUnits} vacant units`
+      trend: `${filteredStats.vacantUnits} vacant units`,
+      palette: vacancyPalette,
+      trendPalette: getTrendPalette(vacancyTrend),
     },
     {
+      id: "monthly-revenue",
       title: "Monthly Revenue",
       value: `KSh ${filteredStats.monthlyRevenue.toLocaleString()}`,
       description: "Expected monthly",
       icon: Receipt,
-      trend: "From active leases"
+      trend: `Attainment ${revenueAttainment}%`,
+      palette: revenuePalette,
+      trendPalette: getTrendPalette(revenueTrend),
     },
     {
+      id: "collection-rate",
       title: "Collection Rate",
       value: `${filteredStats.collectionRate}%`,
       description: "This month",
       icon: TrendingUp,
-      trend: "Payment efficiency"
+      trend: `Paid ${collectionRate}% of invoices`,
+      palette: collectionPalette,
+      trendPalette: getTrendPalette(collectionTrend),
     }
   ]
 
@@ -819,7 +855,8 @@ export function Dashboard() {
             <span>Failed to load statistics</span>
           </div>
         ) : displayStats.map((stat, index) => {
-          const palette = getPaletteByIndex(index + 1)
+          const palette = stat.palette ?? getPaletteByKey(stat.title || `stat-${index}`, 1)
+          const trendPalette = stat.trendPalette ?? palette
           return (
             <motion.div
               key={index}
@@ -855,7 +892,7 @@ export function Dashboard() {
                     className="flex items-center gap-1 mt-2"
                   >
                     <TrendingUp className={`h-3 w-3 ${palette.icon}`} />
-                    <span className={`text-xs ${palette.accentText}`}>{stat.trend}</span>
+                    <span className={`text-xs ${trendPalette.accentText}`}>{stat.trend}</span>
                   </motion.div>
                 </CardContent>
               </Card>
@@ -885,7 +922,12 @@ export function Dashboard() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Activity Logging</span>
-                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">Recording</span>
+                  <span className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400/40" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    </span>
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Events (Last 24h)</span>

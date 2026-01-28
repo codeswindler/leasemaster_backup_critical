@@ -50,7 +50,12 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { getPaletteByIndex } from "@/lib/palette"
+import {
+  THRESHOLDS,
+  getSharePercent,
+  getStatusPalette,
+  getThresholdPalette,
+} from "@/lib/color-rules"
 
 export function TenantPortal() {
   const [selectedTab, setSelectedTab] = useState("invoices")
@@ -363,22 +368,25 @@ export function TenantPortal() {
   const paidCount = invoices.filter((invoice: any) => invoice.status === "paid").length
   const receiptsCount = receipts.length
   const outstandingAmount = Math.max(0, totalInvoiceAmount - totalPayments)
+  const outstandingPercent = getSharePercent(outstandingAmount, totalInvoiceAmount)
+  const tenantCollectionRate = totalInvoiceAmount > 0 ? Math.round(((totalInvoiceAmount - outstandingAmount) / totalInvoiceAmount) * 100) : 0
+
   const invoiceSummaryPalettes = [
-    getPaletteByIndex(0),
-    getPaletteByIndex(1),
-    getPaletteByIndex(2),
-    getPaletteByIndex(3),
-    getPaletteByIndex(4),
+    getThresholdPalette(tenantCollectionRate, THRESHOLDS.ratePercent, "higherBetter"),
+    getThresholdPalette(invoiceCount, THRESHOLDS.count, "higherBetter"),
+    getStatusPalette("paid"),
+    getStatusPalette("partially_paid"),
+    getStatusPalette("pending"),
   ]
   const receiptSummaryPalettes = [
-    getPaletteByIndex(1),
-    getPaletteByIndex(2),
-    getPaletteByIndex(3),
+    getThresholdPalette(tenantCollectionRate, THRESHOLDS.ratePercent, "higherBetter"),
+    getThresholdPalette(receiptsCount, THRESHOLDS.count, "higherBetter"),
+    getThresholdPalette(outstandingPercent, THRESHOLDS.vacancyPercent, "lowerBetter"),
   ]
   const statementSummaryPalettes = [
-    getPaletteByIndex(2),
-    getPaletteByIndex(4),
-    getPaletteByIndex(0),
+    getThresholdPalette(outstandingPercent, THRESHOLDS.vacancyPercent, "lowerBetter"),
+    getThresholdPalette(tenantCollectionRate, THRESHOLDS.ratePercent, "higherBetter"),
+    getThresholdPalette(receiptsCount, THRESHOLDS.count, "higherBetter"),
   ]
 
   const statementRows = [

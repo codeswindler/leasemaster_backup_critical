@@ -33,38 +33,48 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Keep ALL React and React-dependent packages in main bundle
-          // This ensures React is always available before anything tries to use it
-          
-          // React core - MUST be in main bundle
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
-            return undefined; // Keep in main bundle
+          if (!id.includes("node_modules")) return undefined;
+
+          // Core framework
+          if (id.includes("node_modules/react-dom")) return "react-dom";
+          if (id.includes("node_modules/react")) return "react";
+
+          // UI/runtime-heavy libraries
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("framer-motion")) return "motion";
+          if (id.includes("lucide-react") || id.includes("react-icons")) return "icons";
+          if (id.includes("react-hook-form") || id.includes("@hookform")) return "forms";
+          if (id.includes("@tanstack/react-query")) return "react-query";
+          if (id.includes("wouter")) return "router";
+          if (id.includes("date-fns") || id.includes("react-day-picker")) return "dates";
+
+          // Reporting/exports
+          if (id.includes("recharts")) return "charts";
+          if (id.includes("jspdf") || id.includes("jspdf-autotable")) return "pdf";
+          if (id.includes("exceljs")) return "excel";
+
+          // Tailwind utility helpers (used across UI)
+          if (
+            id.includes("class-variance-authority") ||
+            id.includes("clsx") ||
+            id.includes("tailwind-merge") ||
+            id.includes("tailwindcss-animate") ||
+            id.includes("tw-animate-css")
+          ) {
+            return "ui-utils";
           }
-          
-          // All React-dependent libraries stay in main bundle to ensure React is loaded first
-          if (id.includes('@tanstack/react-query') ||
-              id.includes('@radix-ui') ||
-              id.includes('lucide-react') ||
-              id.includes('react-icons') ||
-              id.includes('recharts') ||
-              id.includes('react-hook-form') ||
-              id.includes('@hookform') ||
-              id.includes('framer-motion') ||
-              id.includes('wouter')) {
-            return undefined; // Keep in main bundle
-          }
-          
-          // Only truly non-React dependencies go in vendor chunk
-          if (id.includes('node_modules') && 
-              !id.includes('react') && 
-              !id.includes('react-dom')) {
-            return 'vendor';
-          }
+
+          // Fallback: avoid one giant vendor chunk by grouping by package
+          const modulePath = id.split("node_modules/")[1];
+          if (!modulePath) return "vendor";
+          const parts = modulePath.split("/");
+          const pkgName = parts[0].startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
+          return `vendor-${pkgName.replace("@", "").replace("/", "-")}`;
         },
         // Ensure proper chunk loading order
-        chunkFileNames: 'assets/js/[name]-[hash].js',
-        entryFileNames: 'assets/js/[name]-[hash].js',
-        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]',
+        chunkFileNames: "assets/js/[name]-[hash].js",
+        entryFileNames: "assets/js/[name]-[hash].js",
+        assetFileNames: "assets/[ext]/[name]-[hash].[ext]",
       },
     },
     chunkSizeWarningLimit: 500, // Warn if chunks exceed 500KB (aggressive optimization)

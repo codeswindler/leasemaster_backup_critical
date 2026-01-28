@@ -125,10 +125,40 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Helper function to send JSON response
+function isAssocArray($value) {
+    if (!is_array($value)) return false;
+    return array_keys($value) !== range(0, count($value) - 1);
+}
+
+function toCamelCaseKey($key) {
+    if (!is_string($key) || strpos($key, '_') === false) return $key;
+    $parts = explode('_', $key);
+    $first = array_shift($parts);
+    $parts = array_map(function ($part) {
+        return ucfirst($part);
+    }, $parts);
+    return $first . implode('', $parts);
+}
+
+function normalizeKeysToCamel($value) {
+    if (!is_array($value)) return $value;
+
+    if (isAssocArray($value)) {
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalizedKey = is_string($key) ? toCamelCaseKey($key) : $key;
+            $normalized[$normalizedKey] = normalizeKeysToCamel($item);
+        }
+        return $normalized;
+    }
+
+    return array_map('normalizeKeysToCamel', $value);
+}
+
 function sendJson($data, $statusCode = 200) {
     http_response_code($statusCode);
     header('Content-Type: application/json');
-    echo json_encode($data);
+    echo json_encode(normalizeKeysToCamel($data));
     exit;
 }
 

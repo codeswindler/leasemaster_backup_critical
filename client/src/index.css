@@ -36,11 +36,11 @@
   }
 
   .demographic-tile {
-    @apply rounded-lg border border-slate-200/60 bg-gradient-to-br from-sky-50/70 via-white to-emerald-50/60 p-3 shadow-sm;
+    @apply rounded-lg border border-slate-200/80 bg-gradient-to-br from-sky-200 via-white to-emerald-200 p-3 shadow-sm;
   }
 
   .dark .demographic-tile {
-    @apply border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-emerald-900/30;
+    @apply border-white/10 bg-gradient-to-br from-slate-950/70 via-slate-900/70 to-slate-800/70;
   }
 }
 

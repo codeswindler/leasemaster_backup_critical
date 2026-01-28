@@ -7,17 +7,6 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Landing } from "@/pages/Landing";
-import { About } from "@/pages/About";
-import { AdminLogin } from "@/pages/AdminLogin";
-import { ClientLogin } from "@/pages/ClientLogin";
-import { TenantLogin } from "@/pages/TenantLogin";
-import { AdminPortal } from "@/pages/AdminPortal";
-import { ClientPortal } from "@/pages/ClientPortal";
-import { ClientsPage } from "@/pages/ClientsPage";
-import { EnquiriesPage } from "@/pages/EnquiriesPage";
-import { EnquiryForm } from "@/pages/EnquiryForm";
-import NotFound from "@/pages/not-found";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { BackToTop } from "@/components/back-to-top";
 import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
@@ -53,6 +42,19 @@ const CreditUsage = lazy(() => import("@/components/credit-usage").then(m => ({ 
 const Settings = lazy(() => import("@/components/settings").then(m => ({ default: m.Settings })));
 const FullActivity = lazy(() => import("@/components/full-activity").then(m => ({ default: m.FullActivity })));
 const UserDetail = lazy(() => import("@/components/user-detail").then(m => ({ default: m.UserDetail })));
+
+// Lazy load pages to keep initial bundle small
+const Landing = lazy(() => import("@/pages/Landing").then(m => ({ default: m.Landing })));
+const About = lazy(() => import("@/pages/About").then(m => ({ default: m.About })));
+const AdminLogin = lazy(() => import("@/pages/AdminLogin").then(m => ({ default: m.AdminLogin })));
+const ClientLogin = lazy(() => import("@/pages/ClientLogin").then(m => ({ default: m.ClientLogin })));
+const TenantLogin = lazy(() => import("@/pages/TenantLogin").then(m => ({ default: m.TenantLogin })));
+const AdminPortal = lazy(() => import("@/pages/AdminPortal").then(m => ({ default: m.AdminPortal })));
+const ClientPortal = lazy(() => import("@/pages/ClientPortal").then(m => ({ default: m.ClientPortal })));
+const ClientsPage = lazy(() => import("@/pages/ClientsPage").then(m => ({ default: m.ClientsPage })));
+const EnquiriesPage = lazy(() => import("@/pages/EnquiriesPage").then(m => ({ default: m.EnquiriesPage })));
+const EnquiryForm = lazy(() => import("@/pages/EnquiryForm").then(m => ({ default: m.EnquiryForm })));
+const NotFound = lazy(() => import("@/pages/not-found"));
 
 // Loading component
 const LoadingSpinner = () => (

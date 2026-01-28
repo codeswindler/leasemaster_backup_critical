@@ -12,63 +12,63 @@ type Palette = {
 const palettes: Palette[] = [
   {
     name: "emerald",
-    card: "bg-emerald-500/[0.05] dark:bg-emerald-500/10",
-    border: "border-emerald-200/70 dark:border-emerald-500/30",
-    iconBg: "bg-emerald-500/10",
-    icon: "text-emerald-600 dark:text-emerald-400",
-    badge: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200/60",
-    accentText: "text-emerald-700 dark:text-emerald-300",
-    accentBg: "bg-emerald-500/10",
+    card: "bg-emerald-500/[0.16] dark:bg-emerald-500/22",
+    border: "border-emerald-200/95 dark:border-emerald-500/40",
+    iconBg: "bg-emerald-500/22",
+    icon: "text-emerald-800 dark:text-emerald-300",
+    badge: "bg-emerald-500/22 text-emerald-900 dark:text-emerald-300 border-emerald-200/75",
+    accentText: "text-emerald-800 dark:text-emerald-300",
+    accentBg: "bg-emerald-500/22",
   },
   {
     name: "blue",
-    card: "bg-blue-500/[0.05] dark:bg-blue-500/10",
-    border: "border-blue-200/70 dark:border-blue-500/30",
-    iconBg: "bg-blue-500/10",
-    icon: "text-blue-600 dark:text-blue-400",
-    badge: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200/60",
-    accentText: "text-blue-700 dark:text-blue-300",
-    accentBg: "bg-blue-500/10",
+    card: "bg-blue-500/[0.16] dark:bg-blue-500/22",
+    border: "border-blue-200/95 dark:border-blue-500/40",
+    iconBg: "bg-blue-500/22",
+    icon: "text-blue-800 dark:text-blue-300",
+    badge: "bg-blue-500/22 text-blue-900 dark:text-blue-300 border-blue-200/75",
+    accentText: "text-blue-800 dark:text-blue-300",
+    accentBg: "bg-blue-500/22",
   },
   {
     name: "violet",
-    card: "bg-violet-500/[0.05] dark:bg-violet-500/10",
-    border: "border-violet-200/70 dark:border-violet-500/30",
-    iconBg: "bg-violet-500/10",
-    icon: "text-violet-600 dark:text-violet-400",
-    badge: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-200/60",
-    accentText: "text-violet-700 dark:text-violet-300",
-    accentBg: "bg-violet-500/10",
+    card: "bg-violet-500/[0.16] dark:bg-violet-500/22",
+    border: "border-violet-200/95 dark:border-violet-500/40",
+    iconBg: "bg-violet-500/22",
+    icon: "text-violet-800 dark:text-violet-300",
+    badge: "bg-violet-500/22 text-violet-900 dark:text-violet-300 border-violet-200/75",
+    accentText: "text-violet-800 dark:text-violet-300",
+    accentBg: "bg-violet-500/22",
   },
   {
     name: "amber",
-    card: "bg-amber-500/[0.05] dark:bg-amber-500/10",
-    border: "border-amber-200/70 dark:border-amber-500/30",
-    iconBg: "bg-amber-500/10",
-    icon: "text-amber-600 dark:text-amber-400",
-    badge: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200/60",
-    accentText: "text-amber-700 dark:text-amber-300",
-    accentBg: "bg-amber-500/10",
+    card: "bg-amber-500/[0.16] dark:bg-amber-500/22",
+    border: "border-amber-200/95 dark:border-amber-500/40",
+    iconBg: "bg-amber-500/22",
+    icon: "text-amber-800 dark:text-amber-300",
+    badge: "bg-amber-500/22 text-amber-900 dark:text-amber-300 border-amber-200/75",
+    accentText: "text-amber-800 dark:text-amber-300",
+    accentBg: "bg-amber-500/22",
   },
   {
     name: "rose",
-    card: "bg-rose-500/[0.05] dark:bg-rose-500/10",
-    border: "border-rose-200/70 dark:border-rose-500/30",
-    iconBg: "bg-rose-500/10",
-    icon: "text-rose-600 dark:text-rose-400",
-    badge: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200/60",
-    accentText: "text-rose-700 dark:text-rose-300",
-    accentBg: "bg-rose-500/10",
+    card: "bg-rose-500/[0.16] dark:bg-rose-500/22",
+    border: "border-rose-200/95 dark:border-rose-500/40",
+    iconBg: "bg-rose-500/22",
+    icon: "text-rose-800 dark:text-rose-300",
+    badge: "bg-rose-500/22 text-rose-900 dark:text-rose-300 border-rose-200/75",
+    accentText: "text-rose-800 dark:text-rose-300",
+    accentBg: "bg-rose-500/22",
   },
   {
     name: "teal",
-    card: "bg-teal-500/[0.05] dark:bg-teal-500/10",
-    border: "border-teal-200/70 dark:border-teal-500/30",
-    iconBg: "bg-teal-500/10",
-    icon: "text-teal-600 dark:text-teal-400",
-    badge: "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-200/60",
-    accentText: "text-teal-700 dark:text-teal-300",
-    accentBg: "bg-teal-500/10",
+    card: "bg-teal-500/[0.16] dark:bg-teal-500/22",
+    border: "border-teal-200/95 dark:border-teal-500/40",
+    iconBg: "bg-teal-500/22",
+    icon: "text-teal-800 dark:text-teal-300",
+    badge: "bg-teal-500/22 text-teal-900 dark:text-teal-300 border-teal-200/75",
+    accentText: "text-teal-800 dark:text-teal-300",
+    accentBg: "bg-teal-500/22",
   },
 ];
 
@@ -81,6 +81,11 @@ const hashString = (value: string) => {
 };
 
 const getPaletteByIndex = (index: number) => palettes[index % palettes.length];
+
+const getPaletteByName = (name: string) => {
+  const match = palettes.find((palette) => palette.name === name);
+  return match ?? getPaletteByIndex(0);
+};
 
 const getPaletteByKey = (key: string, seed = 0) => {
   const hashed = hashString(`${key}:${seed}`);
@@ -98,4 +103,4 @@ const getSessionSeed = (storageKey: string) => {
 };
 
 export type { Palette };
-export { palettes, getPaletteByIndex, getPaletteByKey, getSessionSeed };
+export { palettes, getPaletteByIndex, getPaletteByKey, getPaletteByName, getSessionSeed };
