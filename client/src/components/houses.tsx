@@ -485,7 +485,7 @@ export function Houses() {
       queryClient.invalidateQueries({ queryKey: ["/api/charge-codes"] })
       chargeCodeForm.reset()
       // Re-set propertyId after reset to maintain context for adding another charge code
-      chargeCodeForm.setValue("propertyId", selectedPropertyId || "")
+      chargeCodeForm.setValue("propertyId", effectivePropertyId || selectedPropertyId || "")
       toast({
         title: "Charge Code Added",
         description: "New charge code has been created successfully.",
@@ -532,7 +532,8 @@ export function Houses() {
   })
 
   const handleAddChargeCode = (data: any) => {
-    if (!selectedPropertyId) {
+    const chargePropertyId = effectivePropertyId ?? selectedPropertyId
+    if (!chargePropertyId) {
       toast({
         title: "Property Required",
         description: "Please select a property in the header before adding charge codes.",
@@ -542,7 +543,7 @@ export function Houses() {
     }
     const chargeCodeData = {
       ...data,
-      propertyId: selectedPropertyId
+      propertyId: chargePropertyId
     }
     addChargeCodeMutation.mutate(chargeCodeData)
   }

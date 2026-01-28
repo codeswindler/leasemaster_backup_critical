@@ -55,7 +55,7 @@ export function Properties() {
   const [isCreateLandlordDialogOpen, setIsCreateLandlordDialogOpen] = useState(false)
   const [, setLocation] = useLocation()
   const { toast } = useToast()
-  const { selectedPropertyId, selectedLandlordId, clearFilters, setSelectedPropertyId } = useFilter()
+  const { selectedPropertyId, selectedLandlordId, clearFilters, setSelectedPropertyId, setSelectedLandlordId } = useFilter()
   
   // Get current user for access control
   const { data: authData } = useQuery({
@@ -903,6 +903,10 @@ export function Properties() {
                   size="sm" 
                   className="flex-1" 
                   onClick={() => {
+                    const landlordId = property?.landlordId ?? property?.landlord_id ?? null
+                    if (landlordId) {
+                      setSelectedLandlordId(landlordId)
+                    }
                     setSelectedPropertyId(property.id)
                     setLocation(`/houses?property=${property.id}`)
                   }}

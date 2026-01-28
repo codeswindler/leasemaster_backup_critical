@@ -42,6 +42,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { getPaletteByKey, getSessionSeed } from "@/lib/palette";
+import { useFilter } from "@/contexts/FilterContext";
 
 const propertyLimitSchema = z.preprocess(
   (value) => {
@@ -82,6 +83,7 @@ export function ClientsPage() {
   const [isSendLoginDialogOpen, setIsSendLoginDialogOpen] = useState(false);
   const [sendLoginGenerateNew, setSendLoginGenerateNew] = useState(false);
   const [, setLocation] = useLocation();
+  const { setSelectedLandlordId, setSelectedPropertyId } = useFilter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
@@ -347,13 +349,16 @@ export function ClientsPage() {
     setIsEditDialogOpen(true);
   };
 
-  // Handle "Login as Client" - view their properties
-  // Note: Clients page should be free of admin dashboard filters
-  // Navigation to properties will show all properties (admin can filter there if needed)
+  // Handle "Login as Client" - apply filters and route to admin portal
   const handleLoginAsClient = (customerId: string) => {
-    // Navigate to properties page without setting global filters
-    // Admin can use the filter dropdowns on the properties page if they want to filter
-    setLocation("/properties");
+    const properties = getPropertiesForLandlord(customerId);
+    setSelectedLandlordId(customerId);
+    if (properties.length === 1 && properties[0]?.id) {
+      setSelectedPropertyId(properties[0].id);
+    } else {
+      setSelectedPropertyId(null);
+    }
+    setLocation("/portal");
   };
 
   return (
