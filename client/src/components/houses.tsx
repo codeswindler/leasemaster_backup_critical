@@ -141,9 +141,16 @@ export function Houses() {
     if (!search) return null
     return new URLSearchParams(search).get("property")
   }, [search])
-
-  const effectiveLandlordId = urlPropertyId ? null : selectedLandlordId
-  const effectivePropertyId = urlPropertyId ?? selectedPropertyId
+  const isValidPropertyId = (value: string | null) => {
+    if (!value) return false
+    if (value === "all" || value === "new") return false
+    return /^\d+$/.test(value)
+  }
+  const urlPropertyIdValid = isValidPropertyId(urlPropertyId)
+  const effectiveLandlordId = urlPropertyIdValid ? null : selectedLandlordId
+  const effectivePropertyId = urlPropertyIdValid
+    ? String(urlPropertyId)
+    : isValidPropertyId(selectedPropertyId) ? String(selectedPropertyId) : null
 
   // House Type form
   const houseTypeForm = useForm({
@@ -215,8 +222,8 @@ export function Houses() {
     })
 
   // Get selected property object for display
-  const selectedProperty = selectedPropertyId 
-    ? properties.find((p: any) => p.id === selectedPropertyId)
+  const selectedProperty = effectivePropertyId 
+    ? properties.find((p: any) => String(p.id) === effectivePropertyId)
     : null
 
   // Fetch units
@@ -485,7 +492,7 @@ export function Houses() {
       queryClient.invalidateQueries({ queryKey: ["/api/charge-codes"] })
       chargeCodeForm.reset()
       // Re-set propertyId after reset to maintain context for adding another charge code
-      chargeCodeForm.setValue("propertyId", effectivePropertyId || selectedPropertyId || "")
+      chargeCodeForm.setValue("propertyId", effectivePropertyId || "")
       toast({
         title: "Charge Code Added",
         description: "New charge code has been created successfully.",
@@ -532,7 +539,7 @@ export function Houses() {
   })
 
   const handleAddChargeCode = (data: any) => {
-    const chargePropertyId = effectivePropertyId ?? selectedPropertyId
+    const chargePropertyId = effectivePropertyId
     if (!chargePropertyId) {
       toast({
         title: "Property Required",
