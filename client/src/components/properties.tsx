@@ -258,12 +258,15 @@ export function Properties() {
     },
   })
 
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
+
   // Auto-populate landlordId when dialog opens if filter is active
   useEffect(() => {
-    if (isAddDialogOpen && selectedLandlordId) {
-      form.setValue("landlordId", selectedLandlordId)
-    } else if (isAddDialogOpen && !selectedLandlordId) {
-      form.setValue("landlordId", "all") // Set to "all" instead of empty string
+    if (!isAddDialogOpen) return
+    if (selectedLandlordId) {
+      form.setValue("landlordId", normalizeId(selectedLandlordId) || "")
+    } else {
+      form.setValue("landlordId", "")
     }
   }, [isAddDialogOpen, selectedLandlordId, form])
 
@@ -620,13 +623,13 @@ export function Properties() {
                                 } else {
                                   field.onChange(value);
                                   setSelectedLandlordId(value);
-                                  const selectedLandlord = landlords.find((l: any) => l.id === value);
+                                  const selectedLandlord = landlords.find((l: any) => normalizeId(l.id) === value);
                                   if (selectedLandlord) {
                                     form.setValue("landlordEmail", selectedLandlord.username || "");
                                   }
                                 }
                               }}
-                              value={field.value || "all"}
+                              value={field.value ? String(field.value) : "all"}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select landlord or create new" />
@@ -649,7 +652,7 @@ export function Properties() {
                                   </SelectItem>
                                 )}
                                 {Array.isArray(landlords) && landlords.map((landlord: any) => (
-                                  <SelectItem key={landlord.id} value={landlord.id}>
+                                  <SelectItem key={landlord.id} value={String(landlord.id)}>
                                     {landlord.username || landlord.id}
                                   </SelectItem>
                                 ))}

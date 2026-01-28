@@ -13,6 +13,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
   const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId, setSelectedLandlordId } = useFilter();
   const role = (currentUser?.role || "").toLowerCase();
   const isAdmin = role === "admin" || role === "super_admin" || role === "administrator";
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value));
 
   // Fetch landlords (only for admin)
   const { data: landlords = [] } = useQuery({
@@ -37,9 +38,9 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
 
   useEffect(() => {
     if (!selectedPropertyId) return;
-    const matchProperty = (properties as any[]).find((property: any) => property.id === selectedPropertyId);
+    const matchProperty = (properties as any[]).find((property: any) => normalizeId(property.id) === selectedPropertyId);
     if (!matchProperty) return;
-    const ownerId = getPropertyLandlordId(matchProperty);
+    const ownerId = normalizeId(getPropertyLandlordId(matchProperty));
     if (ownerId && ownerId !== selectedLandlordId) {
       setSelectedLandlordId(ownerId);
       queryClient.invalidateQueries();
@@ -48,15 +49,16 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
 
   useEffect(() => {
     if (!selectedLandlordId) return;
-    const ownedProperties = (properties as any[]).filter((property: any) => getPropertyLandlordId(property) === selectedLandlordId);
+    const ownedProperties = (properties as any[]).filter((property: any) => normalizeId(getPropertyLandlordId(property)) === selectedLandlordId);
     if (ownedProperties.length === 1) {
-      if (selectedPropertyId !== ownedProperties[0].id) {
-        setSelectedPropertyId(ownedProperties[0].id);
+      const onlyPropertyId = normalizeId(ownedProperties[0].id);
+      if (onlyPropertyId && selectedPropertyId !== onlyPropertyId) {
+        setSelectedPropertyId(onlyPropertyId);
         queryClient.invalidateQueries();
       }
       return;
     }
-    if (ownedProperties.length > 1 && selectedPropertyId && !ownedProperties.find((p: any) => p.id === selectedPropertyId)) {
+    if (ownedProperties.length > 1 && selectedPropertyId && !ownedProperties.find((p: any) => normalizeId(p.id) === selectedPropertyId)) {
       setSelectedPropertyId(null);
       queryClient.invalidateQueries();
     }
@@ -66,8 +68,9 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
     if (currentUser?.role !== "client") return;
     if (selectedPropertyId) return;
     const firstProperty = (properties as any[])[0];
-    if (firstProperty?.id) {
-      setSelectedPropertyId(firstProperty.id);
+    const firstPropertyId = normalizeId(firstProperty?.id);
+    if (firstPropertyId) {
+      setSelectedPropertyId(firstPropertyId);
       queryClient.invalidateQueries();
     }
   }, [currentUser?.role, properties, selectedPropertyId, setSelectedPropertyId]);
@@ -98,7 +101,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
             <SelectItem value="all">View Clients</SelectItem>
             {Array.isArray(landlords) &&
               landlords.map((landlord: any) => (
-                <SelectItem key={landlord.id} value={landlord.id}>
+                <SelectItem key={landlord.id} value={String(landlord.id)}>
                   {landlord.username}
                 </SelectItem>
               ))}
@@ -130,12 +133,12 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
               .filter((property: any) => {
                 // If landlord is selected, only show properties for that landlord
                 if (selectedLandlordId) {
-                  return getPropertyLandlordId(property) === selectedLandlordId;
+                  return normalizeId(getPropertyLandlordId(property)) === selectedLandlordId;
                 }
                 return true;
               })
               .map((property: any) => (
-                <SelectItem key={property.id} value={property.id}>
+                <SelectItem key={property.id} value={String(property.id)}>
                   {property.name}
                 </SelectItem>
               ))}
