@@ -3322,21 +3322,34 @@ try {
     }
     
     // ========== SMS CALLBACK (DLR) ==========
-    elseif ($endpoint === 'sms-callback' && $method === 'POST') {
-        // Log incoming callback
+    elseif ($endpoint === 'sms-callback' && in_array($method, ['POST', 'GET', 'HEAD'], true)) {
+        // Log incoming callback (provider may send GET/HEAD with query params)
         $callbackData = $body ?: json_decode(file_get_contents('php://input'), true);
+        if (empty($callbackData) && $method !== 'POST') {
+            $callbackData = $_GET ?? [];
+        }
         
         // Expected fields from AdvantaSMS (verify with their docs):
         // message_id, status, to, timestamp, error_code
-        $messageId = $callbackData['message_id'] ?? $callbackData['messageId'] ?? $callbackData['msg_id'] ?? $callbackData['messageid'] ?? null;
-        $status = $callbackData['status'] ?? $callbackData['delivery_status'] ?? $callbackData['description'] ?? null;
+        $messageId = $callbackData['message_id']
+            ?? $callbackData['messageId']
+            ?? $callbackData['msg_id']
+            ?? $callbackData['messageid']
+            ?? $callbackData['message_id']
+            ?? $callbackData['id']
+            ?? null;
+        $status = $callbackData['status']
+            ?? $callbackData['delivery_status']
+            ?? $callbackData['description']
+            ?? $callbackData['state']
+            ?? null;
         $errorCode = $callbackData['error_code'] ?? $callbackData['errorCode'] ?? null;
         
         // Log callback for debugging
         global $messagingService;
         $messagingService->logApiRequest('sms-callback', $callbackData, null, null);
         
-        if ($messageId && $status) {
+        if ($messageId && $status && $method !== 'HEAD') {
             // Map AdvantaSMS status to our status
             $ourStatus = 'sent';
             $statusUpper = strtoupper($status);
@@ -3370,7 +3383,7 @@ try {
         }
         
         // Always return 200 to acknowledge receipt
-        sendJson(['success' => true]);
+        sendJson(['success' => true, 'updated' => !empty($messageId) && !empty($status) && $method !== 'HEAD']);
     }
     
     // ========== SMS DLR REFRESH (DB-ONLY) ==========
