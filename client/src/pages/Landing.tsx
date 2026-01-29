@@ -714,17 +714,11 @@ export function Landing() {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6 -mt-4 relative"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6 -mt-6 relative"
             >
-              <motion.span
-                className="flex items-center"
-                animate={{ opacity: [0.5, 1, 0.6], scale: [0.9, 1.1, 0.95] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Sparkles className="h-4 w-4" />
-              </motion.span>
               <div className="relative flex items-center">
                 <span className="invisible flex items-center gap-2 whitespace-nowrap">
+                  <Sparkles className="h-4 w-4" />
                   {(() => {
                     const Icon = highlightSizer.icon;
                     return <Icon className="h-4 w-4" />;
@@ -734,12 +728,19 @@ export function Landing() {
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={highlights[highlightIndex].label}
-                    className="absolute inset-0 flex items-center gap-2 whitespace-nowrap"
+                    className="absolute inset-0 flex items-center justify-center gap-2 whitespace-nowrap"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
                   >
+                    <motion.span
+                      className="flex items-center"
+                      animate={{ opacity: [0.5, 1, 0.6], scale: [0.9, 1.1, 0.95] }}
+                      transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </motion.span>
                     {(() => {
                       const Icon = highlights[highlightIndex].icon;
                       return <Icon className="h-4 w-4" />;
