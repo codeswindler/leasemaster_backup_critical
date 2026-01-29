@@ -160,7 +160,7 @@ export function Landing() {
           });
           await wordControls.start({
             opacity: 1,
-            transition: { duration: 2 },
+            transition: { duration: 2.5 },
           });
           await wordControls.start({
             y: -12,
@@ -522,7 +522,7 @@ export function Landing() {
                   fontSize: "24pt",
                   fontWeight: 700,
                   letterSpacing: "1.5px",
-                  color: activeWord === "No. 1" ? "#48C6EF" : "#1A2B45",
+                  color: activeWord === "No. 1" ? "#48C6EF" : "#2C4A6B",
                 }}
                 initial={{ y: 12, opacity: 0, filter: "blur(10px)" }}
                 animate={wordControls}
