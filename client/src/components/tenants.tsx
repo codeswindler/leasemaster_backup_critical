@@ -621,6 +621,12 @@ export function Tenants() {
     }))
     : []
 
+  const activeLeaseUnitIds = new Set(
+    normalizedLeases
+      .filter((lease) => String(lease.status || "").toLowerCase() === "active")
+      .map((lease) => String(lease.unitId))
+  )
+
   const normalizedProperties = Array.isArray(properties)
     ? properties.map((property: any) => ({
       id: property.id,
@@ -1016,8 +1022,15 @@ export function Tenants() {
     const isCorrectProperty = selectedProperty
       ? String(unit.propertyId) === String(selectedProperty)
       : true
-    const isVacant = String(unit.status || '').toLowerCase() === 'vacant'
-    return isCorrectProperty && isVacant
+    const statusLower = String(unit.status || "").toLowerCase()
+    const isVacantStatus =
+      statusLower === "" ||
+      statusLower === "vacant" ||
+      statusLower === "available" ||
+      statusLower === "unoccupied" ||
+      statusLower === "empty"
+    const hasActiveLease = activeLeaseUnitIds.has(String(unit.id))
+    return isCorrectProperty && isVacantStatus && !hasActiveLease
   }).map(unit => {
     // Add house type name to each unit
     const houseType = normalizedHouseTypes.find((ht: any) => ht.id === unit.houseTypeId)
