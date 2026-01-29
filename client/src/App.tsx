@@ -378,6 +378,18 @@ function AppContent() {
 
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    const isLanding =
+      !isLocalhost &&
+      !hostname.startsWith('admin.') &&
+      !hostname.startsWith('portal.') &&
+      !hostname.startsWith('clients.') &&
+      !hostname.startsWith('enquiries.');
+    document.body.dataset.layout = isLanding ? 'landing' : 'portal';
+  }, [location]);
   
   // Refresh authentication state when navigating to /properties or other admin routes
   // This ensures auth state is maintained during client-side navigation

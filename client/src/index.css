@@ -46,24 +46,27 @@
   .logo-sidebar {
     height: 48px;
     width: auto;
-    zoom: 1.25;
+    zoom: var(--logo-zoom-sidebar);
   }
 
   .logo-landing {
     height: 80px;
     width: auto;
-    zoom: 1.25;
+    zoom: var(--logo-zoom);
   }
 
   .logo-login {
     height: 96px;
     width: auto;
-    zoom: 1.25;
+    zoom: var(--logo-zoom);
   }
 }
 
 /* LIGHT MODE - Mixed Blue + Green Palette */
 :root {
+  --ui-zoom: 1;
+  --logo-zoom: 1;
+  --logo-zoom-sidebar: 1;
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
 
@@ -279,13 +282,25 @@
 
 }
 
+body[data-layout="portal"] {
+  --ui-zoom: 0.8;
+  --logo-zoom: 1.25;
+  --logo-zoom-sidebar: 1.375;
+}
+
+body[data-layout="landing"] {
+  --ui-zoom: 0.9;
+  --logo-zoom: 1.1111;
+  --logo-zoom-sidebar: 1.1111;
+}
+
 @layer base {
   * {
     @apply border-border;
   }
 
   #root {
-    zoom: 0.8;
+    zoom: var(--ui-zoom);
   }
 
   body {

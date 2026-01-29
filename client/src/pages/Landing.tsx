@@ -444,7 +444,7 @@ export function Landing() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="hidden md:flex items-center gap-4 flex-wrap justify-center flex-1"
+            className="hidden md:flex items-center gap-6 justify-center flex-1 whitespace-nowrap"
           >
             <button 
               onClick={() => setShowSubscriptionPopup(true)}
