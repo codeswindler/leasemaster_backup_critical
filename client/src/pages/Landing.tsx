@@ -8,6 +8,9 @@ import {
   Receipt, 
   MessageSquare, 
   BarChart3, 
+  ClipboardList,
+  Smartphone,
+  CreditCard,
   Shield,
   CheckCircle,
   CheckCircle2,
@@ -72,6 +75,7 @@ export function Landing() {
   const logoControls = useAnimation();
   const wordControls = useAnimation();
   const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
   
   // Property images for background slideshow (same as login page)
   const propertyImages = [
@@ -107,6 +111,22 @@ export function Landing() {
     'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1920&h=1080&fit=crop&q=80',
     'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=1920&h=1080&fit=crop&q=80',
   ];
+
+  const highlights = [
+    { label: "Organized Lease Records", icon: ClipboardList },
+    { label: "Instant Invoicing", icon: Receipt },
+    { label: "Integrated Communication Tools", icon: MessageSquare },
+    { label: "Branded SMS", icon: Smartphone },
+    { label: "Integrated Payment Options", icon: CreditCard },
+    { label: "Tenant Self Management Portal", icon: User },
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHighlightIndex((prev) => (prev + 1) % highlights.length);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [highlights.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -694,7 +714,22 @@ export function Landing() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6"
             >
               <Sparkles className="h-4 w-4" />
-              <span className="text-sm font-medium">Professional Property Management</span>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={highlights[highlightIndex].label}
+                  className="flex items-center gap-2"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                >
+                  {(() => {
+                    const Icon = highlights[highlightIndex].icon;
+                    return <Icon className="h-4 w-4" />;
+                  })()}
+                  <span className="text-sm font-medium">{highlights[highlightIndex].label}</span>
+                </motion.div>
+              </AnimatePresence>
             </motion.div>
             
             <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
