@@ -139,7 +139,6 @@ export function MessagingEmailOutbox() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-2 font-medium">Status</th>
                     <th className="text-left p-2 font-medium">Delivery Status</th>
                     <th className="text-left p-2 font-medium">Recipient</th>
                     <th className="text-left p-2 font-medium">Type</th>
@@ -160,9 +159,6 @@ export function MessagingEmailOutbox() {
                           {getStatusIcon(msg.status)}
                           {getStatusBadge(msg.status)}
                         </div>
-                      </td>
-                      <td className="p-2 text-sm">
-                        <span className="text-muted-foreground text-xs">Not Available</span>
                       </td>
                       <td className="p-2">
                         <div>

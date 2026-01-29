@@ -271,7 +271,6 @@ export function MessagingSmsOutbox() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-2 font-medium">Status</th>
                     <th className="text-left p-2 font-medium">Delivery Status</th>
                     <th className="text-left p-2 font-medium">Recipient</th>
                     <th className="text-left p-2 font-medium">Type</th>
@@ -296,15 +295,6 @@ export function MessagingSmsOutbox() {
                           {getStatusIcon(displayStatus)}
                           {getStatusBadge(displayStatus)}
                         </div>
-                      </td>
-                      <td className="p-2 text-sm">
-                        {msg.delivery_status ? (
-                          <Badge variant="outline" className="text-xs">
-                            {msg.delivery_status}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Pending DLR</span>
-                        )}
                       </td>
                       <td className="p-2">
                         <div>

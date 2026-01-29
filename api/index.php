@@ -241,9 +241,7 @@ function sendTenantLoginDetails($storage, $messagingService, $tenantId, $options
     $profile = $storage->getTenantPortalProfile($tenantId);
     $propertyId = $profile['property_id'] ?? getPropertyIdByTenant($storage, $tenantId);
 
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $loginUrl = $options['loginUrl'] ?? "{$scheme}://{$host}/tenant/login";
+    $loginUrl = $options['loginUrl'] ?? "https://tenant.theleasemaster.com";
 
     $identifier = $tenant['email'] ?? $tenant['phone'] ?? 'your registered contact';
     $smsMessage = "LeaseMaster Tenant Portal Login\n";
@@ -1037,6 +1035,7 @@ try {
             } else {
                 $smsMessage .= "Use your existing password to login.";
             }
+            $smsMessage .= "\nLogin: https://portal.theleasemaster.com";
             
             // Build Email message
             $emailSubject = $isNewPassword ? "Your LeaseMaster Login Credentials" : "LeaseMaster Login Reminder";
