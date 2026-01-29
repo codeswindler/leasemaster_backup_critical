@@ -293,6 +293,10 @@ body[data-layout="portal"] #root {
   height: auto;
 }
 
+body[data-layout="portal"] .group\/sidebar-wrapper {
+  min-height: calc(100vh / var(--ui-zoom));
+}
+
 body[data-layout="landing"] {
   --ui-zoom: 0.9;
   --logo-zoom: 1.1111;

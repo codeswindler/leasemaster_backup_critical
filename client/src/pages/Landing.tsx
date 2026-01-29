@@ -110,7 +110,7 @@ export function Landing() {
 
   useEffect(() => {
     let cancelled = false;
-    const words = ["Your", "No.1", "Trusted", "Solution"];
+    const words = ["Your", "No. 1", "Trusted", "Solution"];
 
     const runSequence = async () => {
       while (!cancelled) {
@@ -148,12 +148,12 @@ export function Landing() {
           if (cancelled) break;
           setActiveWord(word);
           wordControls.set({
-            x: -60,
+            y: 12,
             opacity: 0,
             filter: "blur(10px)",
           });
           await wordControls.start({
-            x: 0,
+            y: 0,
             opacity: 1,
             filter: "blur(0px)",
             transition: { duration: 0.4, ease: "easeOut" },
@@ -163,7 +163,7 @@ export function Landing() {
             transition: { duration: 1.1 },
           });
           await wordControls.start({
-            x: 80,
+            y: -12,
             opacity: 0,
             filter: "blur(8px)",
             transition: { duration: 0.35, ease: "easeInOut" },
@@ -516,8 +516,12 @@ export function Landing() {
                 animate={logoControls}
               />
               <motion.span
-                className={`absolute left-0 top-1/2 -translate-y-1/2 text-xl font-semibold tracking-wide ${getTextContrastClass()}`}
-                initial={{ x: -60, opacity: 0, filter: "blur(10px)" }}
+                className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-normal tracking-[0.08em]"
+                style={{
+                  fontFamily: "Montserrat, Inter, sans-serif",
+                  color: activeWord === "No. 1" ? "#48C6EF" : "#1A2B45",
+                }}
+                initial={{ y: 12, opacity: 0, filter: "blur(10px)" }}
                 animate={wordControls}
                 aria-hidden={!activeWord}
               >
