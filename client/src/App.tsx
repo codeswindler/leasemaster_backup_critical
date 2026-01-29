@@ -836,7 +836,10 @@ function AppContent() {
               onOpenChange={setSidebarOpen}
               defaultOpen={true}
             >
-              <div className="flex min-h-full w-full relative z-10">
+              <div
+                className="flex min-h-full w-full relative z-10"
+                style={{ minHeight: "calc(100vh / var(--ui-zoom))" }}
+              >
                 <AppSidebar />
                 <main className="flex-1 overflow-y-auto">
                   <div className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

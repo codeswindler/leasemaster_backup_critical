@@ -303,6 +303,7 @@ body[data-layout="portal"] #root {
 
 body[data-layout="portal"] .group\/sidebar-wrapper {
   min-height: calc(100vh / var(--ui-zoom));
+  height: calc(100vh / var(--ui-zoom));
 }
 
 body[data-layout="landing"] {
