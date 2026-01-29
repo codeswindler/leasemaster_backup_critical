@@ -1158,6 +1158,7 @@ export function Tenants() {
                           setSelectedUnitCharges({})
                         }}
                         data-testid="select-tenant-property"
+                        disabled={!!selectedPropertyId}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select property" />
@@ -1712,7 +1713,19 @@ export function Tenants() {
           <p className="text-muted-foreground mb-4">
             {searchTerm ? "Try adjusting your search terms" : "Get started by adding your first tenant"}
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Button
+            onClick={() => {
+              if (!selectedPropertyId) {
+                toast({
+                  title: "Property Required",
+                  description: "Select a property in the header before adding tenants.",
+                  variant: "destructive",
+                })
+                return
+              }
+              setIsAddDialogOpen(true)
+            }}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Tenant
           </Button>
