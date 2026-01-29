@@ -14,6 +14,8 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
   const role = (currentUser?.role || "").toLowerCase();
   const isAdmin = role === "admin" || role === "super_admin" || role === "administrator";
   const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value));
+  const normalizedLandlordId = normalizeId(selectedLandlordId);
+  const normalizedPropertyId = normalizeId(selectedPropertyId);
 
   // Fetch landlords (only for admin)
   const { data: landlords = [] } = useQuery({
@@ -38,54 +40,54 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
 
   useEffect(() => {
     if (!selectedPropertyId) return;
-    const matchProperty = (properties as any[]).find((property: any) => normalizeId(property.id) === selectedPropertyId);
+    const matchProperty = (properties as any[]).find((property: any) => normalizeId(property.id) === normalizedPropertyId);
     if (!matchProperty) return;
     const ownerId = normalizeId(getPropertyLandlordId(matchProperty));
-    if (ownerId && ownerId !== selectedLandlordId) {
+    if (ownerId && ownerId !== normalizedLandlordId) {
       setSelectedLandlordId(ownerId);
       queryClient.invalidateQueries();
     }
-  }, [selectedPropertyId, properties, selectedLandlordId, setSelectedLandlordId]);
+  }, [normalizedPropertyId, properties, normalizedLandlordId, setSelectedLandlordId]);
 
   useEffect(() => {
-    if (!selectedLandlordId) return;
-    const ownedProperties = (properties as any[]).filter((property: any) => normalizeId(getPropertyLandlordId(property)) === selectedLandlordId);
+    if (!normalizedLandlordId) return;
+    const ownedProperties = (properties as any[]).filter((property: any) => normalizeId(getPropertyLandlordId(property)) === normalizedLandlordId);
     if (ownedProperties.length === 1) {
       const onlyPropertyId = normalizeId(ownedProperties[0].id);
-      if (onlyPropertyId && selectedPropertyId !== onlyPropertyId) {
+      if (onlyPropertyId && normalizedPropertyId !== onlyPropertyId) {
         setSelectedPropertyId(onlyPropertyId);
         queryClient.invalidateQueries();
       }
       return;
     }
-    if (ownedProperties.length > 1 && selectedPropertyId && !ownedProperties.find((p: any) => normalizeId(p.id) === selectedPropertyId)) {
+    if (ownedProperties.length > 1 && normalizedPropertyId && !ownedProperties.find((p: any) => normalizeId(p.id) === normalizedPropertyId)) {
       setSelectedPropertyId(null);
       queryClient.invalidateQueries();
     }
-  }, [selectedLandlordId, selectedPropertyId, properties, setSelectedPropertyId]);
+  }, [normalizedLandlordId, normalizedPropertyId, properties, setSelectedPropertyId]);
 
   useEffect(() => {
     if (currentUser?.role !== "client") return;
-    if (selectedPropertyId) return;
+    if (normalizedPropertyId) return;
     const firstProperty = (properties as any[])[0];
     const firstPropertyId = normalizeId(firstProperty?.id);
     if (firstPropertyId) {
       setSelectedPropertyId(firstPropertyId);
       queryClient.invalidateQueries();
     }
-  }, [currentUser?.role, properties, selectedPropertyId, setSelectedPropertyId]);
+  }, [currentUser?.role, properties, normalizedPropertyId, setSelectedPropertyId]);
 
   return (
     <>
       {/* Landlord Selector - Only for Admin */}
       {isAdmin && (
         <Select
-          value={selectedLandlordId || "all"}
+          value={normalizedLandlordId || "all"}
           onValueChange={(value) => {
             if (value === "all") {
               setSelectedLandlordId(null);
             } else {
-              setSelectedLandlordId(value);
+              setSelectedLandlordId(normalizeId(value));
             }
             // Clear property selection when landlord changes
             setSelectedPropertyId(null);
@@ -111,12 +113,12 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
 
       {/* Property Selector - Admin sees "View All", Clients see only their property */}
       <Select
-        value={selectedPropertyId || "all"}
+        value={normalizedPropertyId || "all"}
         onValueChange={(value) => {
           if (value === "all") {
             setSelectedPropertyId(null);
           } else {
-            setSelectedPropertyId(value);
+            setSelectedPropertyId(normalizeId(value));
           }
           // Invalidate all queries to refresh data
           queryClient.invalidateQueries();
@@ -132,8 +134,8 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
             properties
               .filter((property: any) => {
                 // If landlord is selected, only show properties for that landlord
-                if (selectedLandlordId) {
-                  return normalizeId(getPropertyLandlordId(property)) === selectedLandlordId;
+                if (normalizedLandlordId) {
+                  return normalizeId(getPropertyLandlordId(property)) === normalizedLandlordId;
                 }
                 return true;
               })

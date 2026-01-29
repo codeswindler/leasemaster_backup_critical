@@ -321,16 +321,16 @@ export function Houses() {
     if (propertyParam === 'new' && Array.isArray(properties) && properties.length > 0) {
       // Auto-select the most recently created property
       const latestProperty = properties[properties.length - 1]
-      setSelectedPropertyId(latestProperty.id)
+      setSelectedPropertyId(String(latestProperty.id))
       const landlordId = getPropertyLandlordId(latestProperty)
-      if (landlordId) setSelectedLandlordId(landlordId)
+      if (landlordId) setSelectedLandlordId(String(landlordId))
     } else if (propertyParam && propertyParam !== 'new' && Array.isArray(properties) && properties.length > 0) {
       // Auto-select the specific property
       const property = properties.find((p: any) => String(p.id) === String(propertyParam))
       if (property) {
-        setSelectedPropertyId(property.id)
+        setSelectedPropertyId(String(property.id))
         const landlordId = getPropertyLandlordId(property)
-        if (landlordId) setSelectedLandlordId(landlordId)
+        if (landlordId) setSelectedLandlordId(String(landlordId))
       } else {
         // Property not found - show error toast
         toast({

@@ -366,9 +366,9 @@ export function ClientsPage() {
   // Handle "Login as Client" - apply filters and route to admin portal
   const handleLoginAsClient = (customerId: string) => {
     const properties = getPropertiesForLandlord(customerId);
-    setSelectedLandlordId(customerId);
+    setSelectedLandlordId(String(customerId));
     if (properties.length === 1 && properties[0]?.id) {
-      setSelectedPropertyId(properties[0].id);
+      setSelectedPropertyId(String(properties[0].id));
     } else {
       setSelectedPropertyId(null);
     }
