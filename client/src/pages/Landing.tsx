@@ -434,10 +434,25 @@ export function Landing() {
             transition={{ duration: 0.5 }}
             className="flex items-center gap-2 flex-1"
           >
-            <img
+            <motion.img
               src="/leasemaster-logo.png"
               alt="LeaseMaster"
               className="logo-landing"
+              initial={{ x: -80, opacity: 0, filter: "blur(12px)" }}
+              animate={{
+                x: [-80, 0, 0, 0, 120],
+                y: [0, 0, -2, 2, 0],
+                opacity: [0, 1, 1, 1, 0],
+                filter: ["blur(12px)", "blur(0px)", "blur(0px)", "blur(0px)", "blur(10px)"],
+                rotate: [0, 0, -2, 2, 0],
+                scale: [1, 1, 1.03, 1, 1],
+              }}
+              transition={{
+                duration: 12,
+                times: [0, 0.12, 0.6, 0.85, 1],
+                ease: "easeInOut",
+                repeat: Infinity,
+              }}
             />
           </motion.div>
           <motion.div

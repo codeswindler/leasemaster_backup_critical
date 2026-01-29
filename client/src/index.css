@@ -288,6 +288,11 @@ body[data-layout="portal"] {
   --logo-zoom-sidebar: 1.375;
 }
 
+body[data-layout="portal"] #root {
+  min-height: calc(100vh / var(--ui-zoom));
+  height: auto;
+}
+
 body[data-layout="landing"] {
   --ui-zoom: 0.9;
   --logo-zoom: 1.1111;
