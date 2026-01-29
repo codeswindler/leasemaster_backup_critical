@@ -1041,11 +1041,6 @@ export function Tenants() {
     }
   })
 
-  const selectedUnitId = leaseForm.watch("unitId")
-  const selectedUnitLabel = selectedUnitId
-    ? availableUnits.find(unit => String(unit.id) === String(selectedUnitId))
-    : null
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -1449,11 +1444,7 @@ export function Tenants() {
                             data-testid="select-unit"
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select unit">
-                                {selectedUnitLabel
-                                  ? `${selectedUnitLabel.unitNumber} - ${selectedUnitLabel.type} (KSH ${parseAmount(selectedUnitLabel.rentAmount).toLocaleString()})`
-                                  : ""}
-                              </SelectValue>
+                              <SelectValue placeholder="Select unit" />
                             </SelectTrigger>
                             <SelectContent>
                               {availableUnits.map((unit) => (
