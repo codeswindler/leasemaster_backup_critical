@@ -516,10 +516,13 @@ export function Landing() {
                 animate={logoControls}
               />
               <motion.span
-                className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-normal tracking-[0.08em]"
+                className="absolute left-0 top-1/2 -translate-y-1/2"
                 style={{
-                  fontFamily: "Montserrat, Inter, sans-serif",
-                  color: activeWord === "No. 1" ? "#48C6EF" : "#1A2B45",
+                  fontFamily: "\"Monotype Corsiva\", \"Times New Roman\", serif",
+                  fontSize: "24pt",
+                  fontWeight: 700,
+                  letterSpacing: "1.5px",
+                  color: activeWord === "No. 1" ? "#5FD4FF" : "#48C6EF",
                 }}
                 initial={{ y: 12, opacity: 0, filter: "blur(10px)" }}
                 animate={wordControls}
