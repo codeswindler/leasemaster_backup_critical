@@ -307,8 +307,8 @@ body[data-layout="portal"] .group\/sidebar-wrapper {
 
 body[data-layout="landing"] {
   --ui-zoom: 0.9;
-  --logo-zoom: 1.1111;
-  --logo-zoom-sidebar: 1.1111;
+  --logo-zoom: 1.2222;
+  --logo-zoom-sidebar: 1.2222;
 }
 
 @layer base {
