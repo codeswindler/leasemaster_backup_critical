@@ -1013,8 +1013,10 @@ export function Tenants() {
 
   // Filter available units by selected property and only show vacant units
   const availableUnits = normalizedUnits.filter(unit => {
-    const isCorrectProperty = selectedProperty ? unit.propertyId === selectedProperty : true
-    const isVacant = unit.status === 'vacant'
+    const isCorrectProperty = selectedProperty
+      ? String(unit.propertyId) === String(selectedProperty)
+      : true
+    const isVacant = String(unit.status || '').toLowerCase() === 'vacant'
     return isCorrectProperty && isVacant
   }).map(unit => {
     // Add house type name to each unit
@@ -1407,7 +1409,7 @@ export function Tenants() {
                         <FormControl>
                           <Select {...field} onValueChange={(value) => {
                             field.onChange(value)
-                            const selectedUnit = availableUnits.find(unit => unit.id === value)
+                            const selectedUnit = availableUnits.find(unit => String(unit.id) === value)
                             if (selectedUnit) {
                               const unitRent = selectedUnit.rentAmount ?? selectedUnit.houseType?.baseRentAmount ?? ""
                               const unitDeposit = selectedUnit.rentDepositAmount ?? selectedUnit.houseType?.rentDepositAmount ?? ""
@@ -1429,7 +1431,7 @@ export function Tenants() {
                             </SelectTrigger>
                             <SelectContent>
                               {availableUnits.map((unit) => (
-                                <SelectItem key={unit.id} value={unit.id}>
+                                <SelectItem key={unit.id} value={String(unit.id)}>
                                   {unit.unitNumber} - {unit.type} (KSH {parseAmount(unit.rentAmount).toLocaleString()})
                                 </SelectItem>
                               ))}

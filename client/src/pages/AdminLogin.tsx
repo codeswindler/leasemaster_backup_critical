@@ -851,7 +851,7 @@ export function AdminLogin() {
                 <img
                   src="/leasemaster-logo.png"
                   alt="LeaseMaster"
-                  className="h-20 w-auto"
+                  className="h-24 w-auto"
                 />
               </motion.div>
               <motion.div
