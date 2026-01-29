@@ -148,7 +148,13 @@ export function MessagingEmailOutbox() {
                   </tr>
                 </thead>
                 <tbody>
-                  {messages.map((msg: any) => (
+                  {messages.map((msg: any) => {
+                    const recipientName = msg.recipient_name || msg.recipient_contact || "Unknown"
+                    const recipientContact = msg.recipient_contact
+                    const recipientType = msg.recipient_type || (msg.tenant_id ? "tenant" : "landlord")
+                    const category = msg.message_category || "manual"
+                    const sentAt = msg.created_at
+                    return (
                     <tr
                       key={msg.id}
                       className="border-b hover:bg-muted/50 cursor-pointer"
@@ -162,15 +168,17 @@ export function MessagingEmailOutbox() {
                       </td>
                       <td className="p-2">
                         <div>
-                          <p className="text-sm font-medium">{msg.recipient_name || 'Unknown'}</p>
-                          <p className="text-xs text-muted-foreground">{msg.recipient_contact}</p>
+                          <p className="text-sm font-medium">{recipientName}</p>
+                          {recipientContact && recipientContact !== recipientName && (
+                            <p className="text-xs text-muted-foreground">{recipientContact}</p>
+                          )}
                         </div>
                       </td>
                       <td className="p-2">
-                        {getRecipientTypeBadge(msg.recipient_type)}
+                        {getRecipientTypeBadge(recipientType)}
                       </td>
                       <td className="p-2">
-                        {getCategoryBadge(msg.message_category)}
+                        {getCategoryBadge(category)}
                       </td>
                       <td className="p-2 max-w-xs">
                         <p className="text-sm truncate" title={msg.subject}>
@@ -178,13 +186,10 @@ export function MessagingEmailOutbox() {
                         </p>
                       </td>
                       <td className="p-2 text-sm text-muted-foreground">
-                        {msg.sent_at 
-                          ? new Date(msg.sent_at).toLocaleString()
-                          : 'Pending'
-                        }
+                        {sentAt ? new Date(sentAt).toLocaleString() : "Pending"}
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </div>

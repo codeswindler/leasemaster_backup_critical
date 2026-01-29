@@ -284,6 +284,11 @@ export function MessagingSmsOutbox() {
                   {messages.map((msg: any) => (
                     (() => {
                       const displayStatus = getDisplayStatus(msg)
+                      const recipientName = msg.recipient_name || msg.recipient_contact || "Unknown"
+                      const recipientContact = msg.recipient_contact
+                      const recipientType = msg.recipient_type || (msg.tenant_id ? "tenant" : "landlord")
+                      const category = msg.message_category || "manual"
+                      const sentAt = msg.created_at
                       return (
                     <tr
                       key={msg.id}
@@ -298,15 +303,17 @@ export function MessagingSmsOutbox() {
                       </td>
                       <td className="p-2">
                         <div>
-                          <p className="text-sm font-medium">{msg.recipient_name || 'Unknown'}</p>
-                          <p className="text-xs text-muted-foreground">{msg.recipient_contact}</p>
+                          <p className="text-sm font-medium">{recipientName}</p>
+                          {recipientContact && recipientContact !== recipientName && (
+                            <p className="text-xs text-muted-foreground">{recipientContact}</p>
+                          )}
                         </div>
                       </td>
                       <td className="p-2">
-                        {getRecipientTypeBadge(msg.recipient_type)}
+                        {getRecipientTypeBadge(recipientType)}
                       </td>
                       <td className="p-2">
-                        {getCategoryBadge(msg.message_category)}
+                        {getCategoryBadge(category)}
                       </td>
                       <td className="p-2 text-sm">
                         {msg.sender_shortcode || <span className="text-muted-foreground text-xs">N/A</span>}
@@ -317,10 +324,7 @@ export function MessagingSmsOutbox() {
                         </p>
                       </td>
                       <td className="p-2 text-sm text-muted-foreground">
-                        {msg.sent_at 
-                          ? new Date(msg.sent_at).toLocaleString()
-                          : 'Pending'
-                        }
+                        {sentAt ? new Date(sentAt).toLocaleString() : "Pending"}
                       </td>
                     </tr>
                       )

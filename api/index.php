@@ -2282,6 +2282,22 @@ try {
     
     // ========== MESSAGE RECIPIENTS ==========
     elseif ($endpoint === 'message-recipients') {
+        $normalizeRecipients = function ($rows) {
+            foreach ($rows as &$row) {
+                if (empty($row['recipient_name']) && !empty($row['recipient_contact'])) {
+                    $row['recipient_name'] = $row['recipient_contact'];
+                }
+                if (empty($row['message_category'])) {
+                    $row['message_category'] = 'manual';
+                }
+                if (empty($row['recipient_type'])) {
+                    $row['recipient_type'] = !empty($row['tenant_id']) ? 'tenant' : 'landlord';
+                }
+            }
+            unset($row);
+            return $rows;
+        };
+
         if ($method === 'GET' && !$id) {
             $bulkMessageId = getQuery('bulkMessageId');
             $tenantId = getQuery('tenantId');
@@ -2343,14 +2359,14 @@ try {
                 $stmt = $pdo->prepare($sql);
                 $stmt->execute($params);
                 $results = $stmt->fetchAll();
-                
-                sendJson($results);
+
+                sendJson($normalizeRecipients($results));
             } elseif ($bulkMessageId) {
-                sendJson($storage->getMessageRecipientsByBulkMessage($bulkMessageId));
+                sendJson($normalizeRecipients($storage->getMessageRecipientsByBulkMessage($bulkMessageId)));
             } elseif ($tenantId) {
-                sendJson($storage->getMessageRecipientsByTenant($tenantId));
+                sendJson($normalizeRecipients($storage->getMessageRecipientsByTenant($tenantId)));
             } else {
-                sendJson($storage->getAllMessageRecipients());
+                sendJson($normalizeRecipients($storage->getAllMessageRecipients()));
             }
         }
         
