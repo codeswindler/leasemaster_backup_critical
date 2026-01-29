@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
 import "@/components/animated-icons.css";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { BackToTop } from "@/components/back-to-top";
 import { Facebook, Twitter, Linkedin, Instagram, Globe as GlobeIcon } from "lucide-react";
@@ -69,6 +69,9 @@ export function Landing() {
   });
   const [submittingEnquiry, setSubmittingEnquiry] = useState(false);
   const { toast } = useToast();
+  const logoControls = useAnimation();
+  const wordControls = useAnimation();
+  const [activeWord, setActiveWord] = useState<string | null>(null);
   
   // Property images for background slideshow (same as login page)
   const propertyImages = [
@@ -104,6 +107,76 @@ export function Landing() {
     'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1920&h=1080&fit=crop&q=80',
     'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=1920&h=1080&fit=crop&q=80',
   ];
+
+  useEffect(() => {
+    let cancelled = false;
+    const words = ["Your", "No.1", "Trusted", "Solution"];
+
+    const runSequence = async () => {
+      while (!cancelled) {
+        setActiveWord(null);
+        logoControls.set({
+          x: -80,
+          opacity: 0,
+          filter: "blur(12px)",
+          rotate: 0,
+          scale: 1,
+        });
+        await logoControls.start({
+          x: 0,
+          opacity: 1,
+          filter: "blur(0px)",
+          rotate: 0,
+          scale: 1,
+          transition: { duration: 0.6, ease: "easeOut" },
+        });
+        await logoControls.start({
+          x: 0,
+          y: [0, -2, 2, 0],
+          rotate: [0, -2, 2, 0],
+          scale: [1, 1.03, 1, 1.02],
+          transition: { duration: 20, ease: "easeInOut" },
+        });
+        await logoControls.start({
+          x: 120,
+          opacity: 0,
+          filter: "blur(10px)",
+          transition: { duration: 0.5, ease: "easeInOut" },
+        });
+
+        for (const word of words) {
+          if (cancelled) break;
+          setActiveWord(word);
+          wordControls.set({
+            x: -60,
+            opacity: 0,
+            filter: "blur(10px)",
+          });
+          await wordControls.start({
+            x: 0,
+            opacity: 1,
+            filter: "blur(0px)",
+            transition: { duration: 0.4, ease: "easeOut" },
+          });
+          await wordControls.start({
+            opacity: 1,
+            transition: { duration: 1.1 },
+          });
+          await wordControls.start({
+            x: 80,
+            opacity: 0,
+            filter: "blur(8px)",
+            transition: { duration: 0.35, ease: "easeInOut" },
+          });
+        }
+      }
+    };
+
+    runSequence();
+    return () => {
+      cancelled = true;
+    };
+  }, [logoControls, wordControls]);
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set());
@@ -434,26 +507,23 @@ export function Landing() {
             transition={{ duration: 0.5 }}
             className="flex items-center gap-2 flex-1"
           >
-            <motion.img
-              src="/leasemaster-logo.png"
-              alt="LeaseMaster"
-              className="logo-landing"
-              initial={{ x: -80, opacity: 0, filter: "blur(12px)" }}
-              animate={{
-                x: [-80, 0, 0, 0, 120],
-                y: [0, 0, -2, 2, 0],
-                opacity: [0, 1, 1, 1, 0],
-                filter: ["blur(12px)", "blur(0px)", "blur(0px)", "blur(0px)", "blur(10px)"],
-                rotate: [0, 0, -2, 2, 0],
-                scale: [1, 1, 1.03, 1, 1],
-              }}
-              transition={{
-                duration: 12,
-                times: [0, 0.12, 0.6, 0.85, 1],
-                ease: "easeInOut",
-                repeat: Infinity,
-              }}
-            />
+            <div className="relative flex items-center">
+              <motion.img
+                src="/leasemaster-logo.png"
+                alt="LeaseMaster"
+                className="logo-landing"
+                initial={{ x: -80, opacity: 0, filter: "blur(12px)" }}
+                animate={logoControls}
+              />
+              <motion.span
+                className={`absolute left-0 top-1/2 -translate-y-1/2 text-xl font-semibold tracking-wide ${getTextContrastClass()}`}
+                initial={{ x: -60, opacity: 0, filter: "blur(10px)" }}
+                animate={wordControls}
+                aria-hidden={!activeWord}
+              >
+                {activeWord || ""}
+              </motion.span>
+            </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: -10 }}

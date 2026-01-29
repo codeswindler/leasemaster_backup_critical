@@ -1420,8 +1420,10 @@ export function Tenants() {
                       <FormItem>
                         <FormLabel>Available Unit</FormLabel>
                         <FormControl>
-                          <Select {...field} onValueChange={(value) => {
-                            field.onChange(value)
+                          <Select
+                            value={field.value ? String(field.value) : ""}
+                            onValueChange={(value) => {
+                              field.onChange(value)
                             const selectedUnit = availableUnits.find(unit => String(unit.id) === value)
                             if (selectedUnit) {
                               const unitRent = selectedUnit.rentAmount ?? selectedUnit.houseType?.baseRentAmount ?? ""
@@ -1438,7 +1440,9 @@ export function Tenants() {
                             } else {
                               setSelectedUnitCharges({})
                             }
-                          }} data-testid="select-unit">
+                            }}
+                            data-testid="select-unit"
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Select unit" />
                             </SelectTrigger>
