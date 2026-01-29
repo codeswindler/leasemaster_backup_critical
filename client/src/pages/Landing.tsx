@@ -120,6 +120,9 @@ export function Landing() {
     { label: "Integrated Payment Options", icon: CreditCard },
     { label: "Tenant Self Management Portal", icon: User },
   ];
+  const highlightSizer = highlights.reduce((longest, current) => {
+    return current.label.length > longest.label.length ? current : longest;
+  }, highlights[0]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -711,25 +714,40 @@ export function Landing() {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6 -mt-4 relative"
             >
-              <Sparkles className="h-4 w-4" />
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={highlights[highlightIndex].label}
-                  className="flex items-center gap-2"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                >
+              <motion.span
+                className="flex items-center"
+                animate={{ opacity: [0.5, 1, 0.6], scale: [0.9, 1.1, 0.95] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Sparkles className="h-4 w-4" />
+              </motion.span>
+              <div className="relative flex items-center">
+                <span className="invisible flex items-center gap-2 whitespace-nowrap">
                   {(() => {
-                    const Icon = highlights[highlightIndex].icon;
+                    const Icon = highlightSizer.icon;
                     return <Icon className="h-4 w-4" />;
                   })()}
-                  <span className="text-sm font-medium">{highlights[highlightIndex].label}</span>
-                </motion.div>
-              </AnimatePresence>
+                  <span className="text-sm font-medium">{highlightSizer.label}</span>
+                </span>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={highlights[highlightIndex].label}
+                    className="absolute inset-0 flex items-center gap-2 whitespace-nowrap"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                  >
+                    {(() => {
+                      const Icon = highlights[highlightIndex].icon;
+                      return <Icon className="h-4 w-4" />;
+                    })()}
+                    <span className="text-sm font-medium">{highlights[highlightIndex].label}</span>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </motion.div>
             
             <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
