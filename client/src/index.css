@@ -46,16 +46,19 @@
   .logo-sidebar {
     height: 48px;
     width: auto;
+    zoom: 1.25;
   }
 
   .logo-landing {
     height: 80px;
     width: auto;
+    zoom: 1.25;
   }
 
   .logo-login {
     height: 96px;
     width: auto;
+    zoom: 1.25;
   }
 }
 
@@ -281,8 +284,8 @@
     @apply border-border;
   }
 
-  html {
-    font-size: 80%;
+  #root {
+    zoom: 0.8;
   }
 
   body {
