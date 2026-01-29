@@ -1150,7 +1150,7 @@ export function Tenants() {
                     <FormLabel>Property</FormLabel>
                     <FormControl>
                       <Select
-                        value={selectedPropertyId || ""}
+                        value={selectedPropertyId ? String(selectedPropertyId) : ""}
                         onValueChange={(value) => {
                           setSelectedProperty(value)
                           setSelectedPropertyId(value || null)
@@ -1165,7 +1165,7 @@ export function Tenants() {
                         </SelectTrigger>
                         <SelectContent>
                           {properties.map((property: any) => (
-                            <SelectItem key={property.id} value={property.id}>
+                            <SelectItem key={property.id} value={String(property.id)}>
                               {property.name}
                             </SelectItem>
                           ))}
@@ -1375,7 +1375,7 @@ export function Tenants() {
                     <FormLabel>Property</FormLabel>
                     <FormControl>
                       <Select
-                        value={selectedPropertyId || selectedProperty}
+                        value={selectedPropertyId ? String(selectedPropertyId) : selectedProperty}
                         onValueChange={(value) => {
                           setSelectedProperty(value)
                           setSelectedPropertyId(value || null)
@@ -1389,7 +1389,7 @@ export function Tenants() {
                         </SelectTrigger>
                         <SelectContent>
                           {properties.map((property: any) => (
-                            <SelectItem key={property.id} value={property.id}>
+                            <SelectItem key={property.id} value={String(property.id)}>
                               {property.name}
                             </SelectItem>
                           ))}
