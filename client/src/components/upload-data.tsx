@@ -413,7 +413,8 @@ export function UploadData() {
             phone: row['Phone'].toString().trim(),
             idNumber: row['ID Number'].toString().trim(),
             emergencyContact: row['Emergency Contact']?.toString().trim() || '',
-            emergencyPhone: row['Emergency Phone']?.toString().trim() || ''
+            emergencyPhone: row['Emergency Phone']?.toString().trim() || '',
+            propertyId: selectedProperty,
           }
 
           // Validate email format

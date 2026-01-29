@@ -1016,6 +1016,21 @@ class Storage {
     }
 
     public function getTenantsByProperty($propertyId) {
+        $hasPropertyId = $this->columnExists('tenants', 'property_id');
+        if ($hasPropertyId) {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT t.*
+                 FROM tenants t
+                 LEFT JOIN leases l ON l.tenant_id = t.id
+                 LEFT JOIN units u ON u.id = l.unit_id
+                 WHERE t.property_id = ?
+                    OR u.property_id = ?
+                 ORDER BY t.created_at DESC"
+            );
+            $stmt->execute([$propertyId, $propertyId]);
+            return $stmt->fetchAll();
+        }
+
         $stmt = $this->pdo->prepare(
             "SELECT DISTINCT t.*
              FROM tenants t
@@ -1030,6 +1045,23 @@ class Storage {
     }
 
     public function getTenantsByLandlord($landlordId) {
+        $hasPropertyId = $this->columnExists('tenants', 'property_id');
+        if ($hasPropertyId) {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT t.*
+                 FROM tenants t
+                 LEFT JOIN properties p_direct ON p_direct.id = t.property_id
+                 LEFT JOIN leases l ON l.tenant_id = t.id
+                 LEFT JOIN units u ON u.id = l.unit_id
+                 LEFT JOIN properties p_lease ON p_lease.id = u.property_id
+                 WHERE p_direct.landlord_id = ?
+                    OR p_lease.landlord_id = ?
+                 ORDER BY t.created_at DESC"
+            );
+            $stmt->execute([$landlordId, $landlordId]);
+            return $stmt->fetchAll();
+        }
+
         $stmt = $this->pdo->prepare(
             "SELECT DISTINCT t.*
              FROM tenants t
@@ -1181,16 +1213,22 @@ class Storage {
             throw new Exception("Tenant with phone {$data['phone']} already exists");
         }
         
+        $hasTenantPropertyId = $this->columnExists('tenants', 'property_id') && !empty($data['propertyId']);
         $stmt = $this->pdo->prepare("
             INSERT INTO tenants (
+                " . ($hasTenantPropertyId ? "property_id, " : "") . "
                 full_name, email, phone, id_number,
                 emergency_contact, emergency_phone,
                 secondary_contact_name, secondary_contact_phone, secondary_contact_email,
                 notify_secondary
             ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (" . ($hasTenantPropertyId ? "?, " : "") . "?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([
+        $values = [];
+        if ($hasTenantPropertyId) {
+            $values[] = $data['propertyId'];
+        }
+        $values = array_merge($values, [
             $data['fullName'],
             $data['email'],
             $data['phone'],
@@ -1202,6 +1240,7 @@ class Storage {
             $data['secondaryContactEmail'] ?? null,
             $data['notifySecondary'] ?? 'false'
         ]);
+        $stmt->execute($values);
         $id = $this->pdo->lastInsertId();
         return $this->getTenant($id);
     }

@@ -52,19 +52,22 @@ export function AppSidebar() {
   const [messagingOpen, setMessagingOpen] = useState(false);
   const [tenantsOpen, setTenantsOpen] = useState(false);
 
-  const getPropertyId = (item: any) => item?.propertyId ?? item?.property_id;
-  const getLandlordId = (item: any) => item?.landlordId ?? item?.landlord_id;
-  const getUnitId = (item: any) => item?.unitId ?? item?.unit_id;
-  const getLeaseId = (item: any) => item?.leaseId ?? item?.lease_id;
-  const getTenantId = (item: any) => item?.tenantId ?? item?.tenant_id;
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value));
+  const normalizedLandlordId = normalizeId(selectedLandlordId);
+  const normalizedPropertyId = normalizeId(selectedPropertyId);
+  const getPropertyId = (item: any) => normalizeId(item?.propertyId ?? item?.property_id);
+  const getLandlordId = (item: any) => normalizeId(item?.landlordId ?? item?.landlord_id);
+  const getUnitId = (item: any) => normalizeId(item?.unitId ?? item?.unit_id);
+  const getLeaseId = (item: any) => normalizeId(item?.leaseId ?? item?.lease_id);
+  const getTenantId = (item: any) => normalizeId(item?.tenantId ?? item?.tenant_id);
 
   // Fetch data for badges
   const { data: allProperties = [] } = useQuery({
     queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json();
@@ -75,8 +78,8 @@ export function AppSidebar() {
     queryKey: ["/api/tenants", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json();
@@ -87,8 +90,8 @@ export function AppSidebar() {
     queryKey: ["/api/invoices", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json();
@@ -99,8 +102,8 @@ export function AppSidebar() {
     queryKey: ["/api/house-types", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json();
@@ -111,8 +114,8 @@ export function AppSidebar() {
     queryKey: ["/api/bulk-messages", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/bulk-messages${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json();
@@ -152,18 +155,18 @@ export function AppSidebar() {
   let units = allUnits;
 
   // Filter by landlord first
-  if (selectedLandlordId && selectedLandlordId !== "all") {
-    properties = (allProperties as any[]).filter((p: any) => getLandlordId(p) === selectedLandlordId);
+  if (normalizedLandlordId && normalizedLandlordId !== "all") {
+    properties = (allProperties as any[]).filter((p: any) => getLandlordId(p) === normalizedLandlordId);
     
     // Filter house types by landlord's properties
-    const landlordPropertyIds = new Set(properties.map((p: any) => p.id));
+    const landlordPropertyIds = new Set(properties.map((p: any) => getPropertyId(p)));
     houseTypes = (allHouseTypes as any[]).filter((ht: any) => landlordPropertyIds.has(getPropertyId(ht)));
     
     // Filter units by landlord's properties
     const filteredUnitsByLandlord = (allUnits as any[]).filter((u: any) => landlordPropertyIds.has(getPropertyId(u)));
     units = filteredUnitsByLandlord;
     const unitsMapByLandlord: Record<string, any> = {};
-    filteredUnitsByLandlord.forEach((u: any) => { unitsMapByLandlord[u.id] = u });
+    filteredUnitsByLandlord.forEach((u: any) => { unitsMapByLandlord[getUnitId(u) as string] = u });
 
     // Filter leases by landlord's properties (via units)
     const filteredLeasesByLandlord = (allLeases as any[]).filter((l: any) => {
@@ -175,7 +178,7 @@ export function AppSidebar() {
 
     // Filter tenants by landlord's properties (via leases)
     const filteredLeaseTenantIdsByLandlord = new Set(filteredLeasesByLandlord.map((l: any) => getTenantId(l)));
-    tenants = (allTenants as any[]).filter((t: any) => filteredLeaseTenantIdsByLandlord.has(t.id));
+    tenants = (allTenants as any[]).filter((t: any) => filteredLeaseTenantIdsByLandlord.has(getTenantId(t)));
 
     // Filter invoices by landlord's properties (via leases)
     invoices = (allInvoices as any[]).filter((i: any) => {
@@ -187,36 +190,36 @@ export function AppSidebar() {
   }
 
   // Filter by property (further narrows down if both landlord and property are selected)
-  if (selectedPropertyId && selectedPropertyId !== "all") {
-    properties = properties.filter((p: any) => p.id === selectedPropertyId);
+  if (normalizedPropertyId && normalizedPropertyId !== "all") {
+    properties = properties.filter((p: any) => getPropertyId(p) === normalizedPropertyId);
     
     // Filter house types by property
-    houseTypes = (allHouseTypes as any[]).filter((ht: any) => getPropertyId(ht) === selectedPropertyId);
+    houseTypes = (allHouseTypes as any[]).filter((ht: any) => getPropertyId(ht) === normalizedPropertyId);
     
     // Filter units by property
-    const filteredUnits = (allUnits as any[]).filter((u: any) => getPropertyId(u) === selectedPropertyId);
+    const filteredUnits = (allUnits as any[]).filter((u: any) => getPropertyId(u) === normalizedPropertyId);
     units = filteredUnits;
     const unitsMap: Record<string, any> = {};
-    filteredUnits.forEach((u: any) => { unitsMap[u.id] = u });
+    filteredUnits.forEach((u: any) => { unitsMap[getUnitId(u) as string] = u });
 
     // Filter leases by property (via units)
     const filteredLeases = (allLeases as any[]).filter((l: any) => {
       const unit = unitsMap[getUnitId(l)];
-      return unit && getPropertyId(unit) === selectedPropertyId;
+      return unit && getPropertyId(unit) === normalizedPropertyId;
     });
     const leasesMap: Record<string, any> = {};
     filteredLeases.forEach((l: any) => { leasesMap[l.id] = l });
 
     // Filter tenants by property (via leases)
     const filteredLeaseTenantIds = new Set(filteredLeases.map((l: any) => getTenantId(l)));
-    tenants = (allTenants as any[]).filter((t: any) => filteredLeaseTenantIds.has(t.id));
+    tenants = (allTenants as any[]).filter((t: any) => filteredLeaseTenantIds.has(getTenantId(t)));
 
     // Filter invoices by property (via leases)
     invoices = (allInvoices as any[]).filter((i: any) => {
       const lease = leasesMap[getLeaseId(i)];
       if (!lease) return false;
       const unit = unitsMap[getUnitId(lease)];
-      return unit && getPropertyId(unit) === selectedPropertyId;
+      return unit && getPropertyId(unit) === normalizedPropertyId;
     });
   }
 

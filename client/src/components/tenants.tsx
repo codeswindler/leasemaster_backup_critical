@@ -851,6 +851,10 @@ export function Tenants() {
 
   const handleCreateTenant = (data: any) => {
     if (!ensurePropertySelected()) return false
+    const payload = {
+      ...data,
+      propertyId: selectedPropertyId,
+    }
     const normalizedEmail = String(data.email || "").toLowerCase().trim()
     const normalizedPhone = String(data.phone || "").replace(/\D+/g, "")
     const duplicate = tenants.find((tenant: any) => {
@@ -867,7 +871,7 @@ export function Tenants() {
       })
       return false
     }
-    createTenantMutation.mutate(data)
+    createTenantMutation.mutate(payload)
     return true
   }
 

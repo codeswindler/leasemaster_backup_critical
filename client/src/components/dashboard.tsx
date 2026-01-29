@@ -310,10 +310,14 @@ export function Dashboard() {
   // Debug logging
   console.log("Dashboard filtering - selectedLandlordId:", selectedLandlordId, "selectedPropertyId:", selectedPropertyId)
   
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
+  const normalizedLandlordId = normalizeId(selectedLandlordId)
+  const normalizedPropertyId = normalizeId(selectedPropertyId)
+
   // First filter by landlordId if selected
   let propertiesAfterLandlordFilter = allPropertiesData
-  if (selectedLandlordId && selectedLandlordId !== "all") {
-    propertiesAfterLandlordFilter = allPropertiesData.filter((p: any) => p.landlordId === selectedLandlordId)
+  if (normalizedLandlordId && normalizedLandlordId !== "all") {
+    propertiesAfterLandlordFilter = allPropertiesData.filter((p: any) => normalizeId(p.landlordId) === normalizedLandlordId)
     console.log("Dashboard - Filtered properties by landlord:", selectedLandlordId, "Count:", propertiesAfterLandlordFilter.length)
   }
   
@@ -325,28 +329,28 @@ export function Dashboard() {
   let filteredInvoices = allInvoicesData
   let filteredPayments = allPaymentsData
   
-  if (selectedPropertyId && selectedPropertyId !== "all") {
+  if (normalizedPropertyId && normalizedPropertyId !== "all") {
     // Ensure the selected property belongs to the selected landlord (if landlord is selected)
-    propertiesData = propertiesAfterLandlordFilter.filter((p: any) => p.id === selectedPropertyId)
+    propertiesData = propertiesAfterLandlordFilter.filter((p: any) => normalizeId(p.id) === normalizedPropertyId)
     if (propertiesData.length === 0) {
       console.warn("Dashboard - Selected property not found or doesn't belong to selected landlord")
     }
     
     // Filter units (direct propertyId relationship) - only for properties that passed landlord filter
-    const propertyIds = propertiesData.map((p: any) => p.id)
-    filteredUnits = allUnitsData.filter((u: any) => propertyIds.includes(u.propertyId))
+    const propertyIds = propertiesData.map((p: any) => normalizeId(p.id))
+    filteredUnits = allUnitsData.filter((u: any) => propertyIds.includes(normalizeId(u.propertyId)))
     console.log("Dashboard - Filtered units by property:", propertyIds, "Count:", filteredUnits.length)
     
     // Create unitId → propertyId mapping for filtering leases
     const unitsMap: Record<string, any> = {}
     allUnitsData.forEach((u: any) => {
-      unitsMap[u.id] = u
+      unitsMap[normalizeId(u.id) as string] = u
     })
     
     // Filter leases (via unitId → propertyId)
     filteredLeases = allLeasesData.filter((l: any) => {
-      const unit = unitsMap[l.unitId]
-      return unit && unit.propertyId === selectedPropertyId
+      const unit = unitsMap[normalizeId(l.unitId) as string]
+      return unit && normalizeId(unit.propertyId) === normalizedPropertyId
     })
     
     // Create leaseId → lease mapping for filtering invoices/payments
@@ -356,23 +360,23 @@ export function Dashboard() {
     })
     
     // Filter tenants (via leases)
-    const filteredLeaseIds = new Set(filteredLeases.map((l: any) => l.tenantId))
-    filteredTenants = allTenantsData.filter((t: any) => filteredLeaseIds.has(t.id))
+    const filteredLeaseIds = new Set(filteredLeases.map((l: any) => normalizeId(l.tenantId)))
+    filteredTenants = allTenantsData.filter((t: any) => filteredLeaseIds.has(normalizeId(t.id)))
     
     // Filter invoices (via leaseId → unitId → propertyId)
     filteredInvoices = allInvoicesData.filter((i: any) => {
-      const lease = leasesMap[i.leaseId]
+      const lease = leasesMap[normalizeId(i.leaseId) as string]
       if (!lease) return false
-      const unit = unitsMap[lease.unitId]
-      return unit && unit.propertyId === selectedPropertyId
+      const unit = unitsMap[normalizeId(lease.unitId) as string]
+      return unit && normalizeId(unit.propertyId) === normalizedPropertyId
     })
     
     // Filter payments (via leaseId → unitId → propertyId)
     filteredPayments = allPaymentsData.filter((p: any) => {
-      const lease = leasesMap[p.leaseId]
+      const lease = leasesMap[normalizeId(p.leaseId) as string]
       if (!lease) return false
-      const unit = unitsMap[lease.unitId]
-      return unit && unit.propertyId === selectedPropertyId
+      const unit = unitsMap[normalizeId(lease.unitId) as string]
+      return unit && normalizeId(unit.propertyId) === normalizedPropertyId
     })
     
     // Filter recent payments and overdue invoices
