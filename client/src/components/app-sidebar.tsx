@@ -365,17 +365,14 @@ export function AppSidebar() {
         transition={{ duration: 0.5 }}
       >
         <SidebarHeader className="p-4">
-          <div className="flex items-center gap-2">
-            <motion.div
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              className="bg-primary rounded-md p-1.5"
-            >
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </motion.div>
-            <span className="text-lg font-semibold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-              LeaseMaster
-            </span>
+          <div className="flex items-center">
+            <motion.img
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.98 }}
+              src="/leasemaster-logo.png"
+              alt="LeaseMaster"
+              className="h-8 w-auto"
+            />
           </div>
         </SidebarHeader>
       </motion.div>

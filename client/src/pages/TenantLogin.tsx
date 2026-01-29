@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, ArrowRight, Building2, KeyRound, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, KeyRound, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -346,27 +346,22 @@ export function TenantLogin() {
           <Card className="border-2 shadow-2xl backdrop-blur-2xl bg-background/20 dark:bg-background/20">
             <CardHeader className="text-center space-y-6 pb-8">
               <motion.div
-                initial={{ scale: 0.8, rotate: -10 }}
+                initial={{ scale: 0.8, rotate: -5 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={{ duration: 0.5, delay: 0.2, type: "spring" }}
                 className="flex justify-center"
               >
-                <motion.div
-                  className="p-5 rounded-full bg-primary/10"
-                  whileHover={{ scale: 1.1, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <Building2 className="h-14 w-14 text-primary" />
-                </motion.div>
+                <img
+                  src="/leasemaster-logo.png"
+                  alt="LeaseMaster"
+                  className="h-20 w-auto"
+                />
               </motion.div>
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <CardTitle className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  LeaseMaster
-                </CardTitle>
                 <CardDescription className={`text-xl mt-3 ${getTextContrastClass()}`}>
                   Tenant Login
                 </CardDescription>

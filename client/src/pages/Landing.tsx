@@ -434,10 +434,11 @@ export function Landing() {
             transition={{ duration: 0.5 }}
             className="flex items-center gap-2 flex-1"
           >
-            <Building2 className="h-8 w-8 text-primary" />
-            <span className={`text-2xl font-bold ${getTextContrastClass()}`}>
-              LeaseMaster
-            </span>
+            <img
+              src="/leasemaster-logo.png"
+              alt="LeaseMaster"
+              className="h-10 w-auto"
+            />
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: -10 }}
