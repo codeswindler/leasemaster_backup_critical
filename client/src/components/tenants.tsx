@@ -894,9 +894,27 @@ export function Tenants() {
 
   const handleCreateLease = async () => {
     const isValid = await leaseForm.trigger()
+    const leaseValues = leaseForm.getValues()
+    if (!leaseValues.unitId) {
+      leaseForm.setError("unitId", { type: "manual", message: "Select a unit to continue." })
+      toast({
+        title: "Missing unit",
+        description: "Please select a unit before creating the lease.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (!leaseValues.startDate || !leaseValues.endDate) {
+      toast({
+        title: "Missing lease dates",
+        description: "Please provide lease start and end dates.",
+        variant: "destructive",
+      })
+      return
+    }
     if (isValid && createdTenantId) {
       const leaseData = {
-        ...leaseForm.getValues(),
+        ...leaseValues,
         tenantId: createdTenantId,
       }
       createLeaseMutation.mutate(leaseData)
@@ -1575,7 +1593,12 @@ export function Tenants() {
                       type="button"
                       onClick={handleCreateLease} 
                       data-testid="button-create-lease"
-                      disabled={createLeaseMutation.isPending}
+                      disabled={
+                        createLeaseMutation.isPending
+                        || !leaseForm.watch("unitId")
+                        || !leaseForm.watch("startDate")
+                        || !leaseForm.watch("endDate")
+                      }
                     >
                       {createLeaseMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                       Create Lease
