@@ -371,7 +371,7 @@ export function AppSidebar() {
               whileTap={{ scale: 0.98 }}
               src="/leasemaster-logo.png"
               alt="LeaseMaster"
-              className="h-10 w-auto"
+              className="logo-sidebar"
             />
           </div>
         </SidebarHeader>

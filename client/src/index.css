@@ -42,6 +42,18 @@
   .dark .demographic-tile {
     @apply border-white/10 bg-gradient-to-br from-slate-950/70 via-slate-900/70 to-slate-800/70;
   }
+
+  .logo-sidebar {
+    @apply h-12 w-auto;
+  }
+
+  .logo-landing {
+    @apply h-20 w-auto;
+  }
+
+  .logo-login {
+    @apply h-24 w-auto;
+  }
 }
 
 /* LIGHT MODE - Mixed Blue + Green Palette */

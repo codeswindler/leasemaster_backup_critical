@@ -437,7 +437,7 @@ export function Landing() {
             <img
               src="/leasemaster-logo.png"
               alt="LeaseMaster"
-              className="h-12 w-auto"
+              className="logo-landing"
             />
           </motion.div>
           <motion.div

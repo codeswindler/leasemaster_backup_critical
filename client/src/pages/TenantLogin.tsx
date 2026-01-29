@@ -354,7 +354,7 @@ export function TenantLogin() {
                 <img
                   src="/leasemaster-logo.png"
                   alt="LeaseMaster"
-                  className="h-24 w-auto"
+                  className="logo-login"
                 />
               </motion.div>
               <motion.div
