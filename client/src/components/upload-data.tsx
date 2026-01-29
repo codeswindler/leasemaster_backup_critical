@@ -524,11 +524,23 @@ export function UploadData() {
           }))
 
         } catch (error: any) {
-          results.failed.push({
-            row: rowNumber,
-            tenant: row['Full Name'] || 'Unknown',
-            error: error.message
-          })
+          const message = String(error?.message || "Failed to create tenant")
+          const isDuplicate = message.toLowerCase().includes("already exists") ||
+            message.toLowerCase().includes("duplicate")
+
+          if (isDuplicate) {
+            results.duplicates.push({
+              row: rowNumber,
+              tenant: row['Full Name'] || 'Unknown',
+              error: message
+            })
+          } else {
+            results.failed.push({
+              row: rowNumber,
+              tenant: row['Full Name'] || 'Unknown',
+              error: message
+            })
+          }
           
           setUploadProgress(prev => ({
             ...prev!,

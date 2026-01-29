@@ -527,8 +527,9 @@ export function Dashboard() {
   const revenuePalette = getThresholdPalette(revenueAttainment, THRESHOLDS.ratePercent, "higherBetter")
   const revenueTrend = getTrendDirectionFromLevel(revenueLevel, "higherBetter")
 
-  const propertiesLevel = getThresholdLevel(propertiesData.length, THRESHOLDS.count)
-  const propertiesPalette = getThresholdPalette(propertiesData.length, THRESHOLDS.count, "higherBetter")
+  const propertiesThresholds = { low: 1, high: 5 }
+  const propertiesLevel = getThresholdLevel(propertiesData.length, propertiesThresholds)
+  const propertiesPalette = getThresholdPalette(propertiesData.length, propertiesThresholds, "higherBetter")
   const propertiesTrend = getTrendDirectionFromLevel(propertiesLevel, "higherBetter")
 
   const displayStats = [

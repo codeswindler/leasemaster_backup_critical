@@ -42,6 +42,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { getPaletteByKey, getSessionSeed } from "@/lib/palette";
+import { useUndoDelete } from "@/lib/use-undo-delete";
 import { useFilter } from "@/contexts/FilterContext";
 
 const propertyLimitSchema = z.preprocess(
@@ -83,10 +84,11 @@ export function ClientsPage() {
   const [isSendLoginDialogOpen, setIsSendLoginDialogOpen] = useState(false);
   const [sendLoginGenerateNew, setSendLoginGenerateNew] = useState(false);
   const [, setLocation] = useLocation();
-  const { setSelectedLandlordId, setSelectedPropertyId } = useFilter();
+  const { selectedLandlordId, selectedPropertyId, setSelectedLandlordId, setSelectedPropertyId } = useFilter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
+  const { scheduleDelete } = useUndoDelete();
 
   // Fetch all landlords (users with role 'client')
   const { data: landlords = [], isLoading } = useQuery({
@@ -113,6 +115,13 @@ export function ClientsPage() {
     },
     enabled: landlords.length > 0,
   });
+
+  const selectedPropertyLabel = selectedPropertyId
+    ? (allProperties as any[]).find((property: any) => property.id === selectedPropertyId)?.name
+    : null;
+  const selectedLandlordLabel = selectedLandlordId
+    ? (landlords as any[]).find((landlord: any) => landlord.id === selectedLandlordId)?.username
+    : null;
 
   // Create landlord form
   const createForm = useForm<CreateLandlordFormData>({
@@ -316,9 +325,14 @@ export function ClientsPage() {
       return;
     }
 
-    // Delete all selected customers
+    // Delete all selected customers with undo window
     selectedCustomers.forEach((id) => {
-      deleteLandlordMutation.mutate(id);
+      const landlord = landlords.find((item: any) => item.id === id);
+      scheduleDelete({
+        key: `customer-${id}`,
+        label: landlord?.username || landlord?.fullName || "Customer",
+        onDelete: () => deleteLandlordMutation.mutate(id),
+      });
     });
   };
 
@@ -371,6 +385,20 @@ export function ClientsPage() {
             <p className="text-muted-foreground mt-1">
               Manage customers and their properties
             </p>
+            {(selectedLandlordId || selectedPropertyId) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedLandlordId && (
+                  <Badge variant="secondary">
+                    Client: {selectedLandlordLabel || selectedLandlordId}
+                  </Badge>
+                )}
+                {selectedPropertyId && (
+                  <Badge variant="outline">
+                    Property: {selectedPropertyLabel || selectedPropertyId}
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {/* Admin Dashboard Button */}
@@ -745,7 +773,13 @@ export function ClientsPage() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => deleteLandlordMutation.mutate(landlord.id)}
+                                  onClick={() =>
+                                    scheduleDelete({
+                                      key: `customer-${landlord.id}`,
+                                      label: landlord.username || landlord.fullName || "Customer",
+                                      onDelete: () => deleteLandlordMutation.mutate(landlord.id),
+                                    })
+                                  }
                                   disabled={hasProperties}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >

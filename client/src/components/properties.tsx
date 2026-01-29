@@ -35,6 +35,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useUndoDelete } from "@/lib/use-undo-delete"
 import {
   Form,
   FormControl,
@@ -170,11 +171,13 @@ export function Properties() {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete property",
+        description: error.message || "Failed to delete property. Remove all tenant leases first.",
         variant: "destructive",
       })
     },
   })
+
+  const { scheduleDelete } = useUndoDelete()
 
   const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
   const normalizeLandlordId = (value: any) => (value === null || value === undefined ? null : String(value))
@@ -1199,7 +1202,11 @@ export function Properties() {
                       <AlertDialogAction
                         onClick={() => {
                           if (selectedProperty) {
-                            deletePropertyMutation.mutate(selectedProperty.id)
+                            scheduleDelete({
+                              key: `property-${selectedProperty.id}`,
+                              label: selectedProperty.name || "Property",
+                              onDelete: () => deletePropertyMutation.mutate(selectedProperty.id),
+                            })
                           }
                           setIsManageDialogOpen(false)
                         }}

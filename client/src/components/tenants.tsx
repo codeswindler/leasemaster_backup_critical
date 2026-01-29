@@ -73,8 +73,15 @@ export function Tenants() {
   const [, setLocation] = useLocation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingDeleteRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const actionsDisabled = !selectedPropertyId
+
+  useEffect(() => {
+    if (!selectedPropertyId) return
+    if (selectedProperty !== selectedPropertyId) {
+      setSelectedProperty(selectedPropertyId)
+    }
+  }, [selectedPropertyId, selectedProperty])
 
   const { data: authData } = useQuery({
     queryKey: ["/api/auth/check"],
@@ -832,12 +839,46 @@ export function Tenants() {
     tenant.property?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  const ensurePropertySelected = () => {
+    if (selectedPropertyId) return true
+    toast({
+      title: "Property Required",
+      description: "Please select a property before creating a tenant.",
+      variant: "destructive",
+    })
+    return false
+  }
+
+  const handleCreateTenant = (data: any) => {
+    if (!ensurePropertySelected()) return false
+    const normalizedEmail = String(data.email || "").toLowerCase().trim()
+    const normalizedPhone = String(data.phone || "").replace(/\D+/g, "")
+    const duplicate = tenants.find((tenant: any) => {
+      const tenantEmail = String(tenant.email || "").toLowerCase().trim()
+      const tenantPhone = String(tenant.phone || "").replace(/\D+/g, "")
+      return (normalizedEmail && tenantEmail === normalizedEmail) ||
+        (normalizedPhone && tenantPhone === normalizedPhone)
+    })
+    if (duplicate) {
+      toast({
+        title: "Duplicate Tenant",
+        description: "A tenant with this email or phone number already exists.",
+        variant: "destructive",
+      })
+      return false
+    }
+    createTenantMutation.mutate(data)
+    return true
+  }
+
   const handleSaveAndAddLease = async () => {
     const isValid = await tenantForm.trigger()
     if (isValid) {
       const tenantData = tenantForm.getValues()
-      createTenantMutation.mutate(tenantData)
-      setFormStep(2)
+      const created = handleCreateTenant(tenantData)
+      if (created) {
+        setFormStep(2)
+      }
     }
   }
 
@@ -1097,7 +1138,36 @@ export function Tenants() {
             
             {formStep === 1 ? (
               <Form {...tenantForm}>
-                <form className="grid gap-4 py-4 md:grid-cols-2">
+                <form
+                  onSubmit={tenantForm.handleSubmit(handleCreateTenant)}
+                  className="grid gap-4 py-4 md:grid-cols-2"
+                >
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Property</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={selectedPropertyId || ""}
+                        onValueChange={(value) => {
+                          setSelectedProperty(value)
+                          setSelectedPropertyId(value || null)
+                          leaseForm.setValue("unitId", "")
+                          setSelectedUnitCharges({})
+                        }}
+                        data-testid="select-tenant-property"
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select property" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {properties.map((property: any) => (
+                            <SelectItem key={property.id} value={property.id}>
+                              {property.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormItem>
                   <FormField
                     control={tenantForm.control}
                     name="fullName"
@@ -1300,9 +1370,10 @@ export function Tenants() {
                     <FormLabel>Property</FormLabel>
                     <FormControl>
                       <Select
-                        value={selectedProperty}
+                        value={selectedPropertyId || selectedProperty}
                         onValueChange={(value) => {
                           setSelectedProperty(value)
+                          setSelectedPropertyId(value || null)
                           leaseForm.setValue("unitId", "")
                           setSelectedUnitCharges({})
                         }}

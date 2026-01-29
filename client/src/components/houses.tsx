@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useUndoDelete } from "@/lib/use-undo-delete"
 import {
   Form,
   FormControl,
@@ -97,6 +98,7 @@ export function Houses() {
   
   const [, setLocation] = useLocation()
   const { toast } = useToast()
+  const { scheduleDelete } = useUndoDelete()
 
   const normalizeChargeAmounts = (value: any): Record<string, string> => {
     if (!value || value === 'null' || value === '') return {}
@@ -925,7 +927,12 @@ export function Houses() {
   }
 
   const handleDeleteHouseType = (id: string) => {
-    deleteHouseTypeMutation.mutate(id)
+    const target = houseTypes.find((ht: any) => ht.id === id)
+    scheduleDelete({
+      key: `house-type-${id}`,
+      label: target?.name || "House type",
+      onDelete: () => deleteHouseTypeMutation.mutate(id),
+    })
   }
 
   const handleSelectUnit = (unitId: string) => {
@@ -948,7 +955,11 @@ export function Houses() {
     if (selectedUnits.length === 0) return
     
     if (confirm(`Are you sure you want to delete ${selectedUnits.length} unit(s)? Units with active leases cannot be deleted.`)) {
-      bulkDeleteUnitsMutation.mutate(selectedUnits)
+      scheduleDelete({
+        key: `bulk-units-${selectedPropertyId || "all"}`,
+        label: `${selectedUnits.length} unit(s)`,
+        onDelete: () => bulkDeleteUnitsMutation.mutate(selectedUnits),
+      })
     }
   }
 
@@ -2632,7 +2643,11 @@ export function Houses() {
             <AlertDialogAction
               onClick={() => {
                 if (chargeCodeToDelete) {
-                  deleteChargeCodeMutation.mutate(chargeCodeToDelete.id)
+                  scheduleDelete({
+                    key: `charge-code-${chargeCodeToDelete.id}`,
+                    label: chargeCodeToDelete.name || "Charge code",
+                    onDelete: () => deleteChargeCodeMutation.mutate(chargeCodeToDelete.id),
+                  })
                 }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"

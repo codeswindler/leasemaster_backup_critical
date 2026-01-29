@@ -788,13 +788,13 @@ class Storage {
         $stmt = $this->pdo->prepare("
             SELECT COUNT(*) as count FROM leases l
             INNER JOIN units u ON l.unit_id = u.id
-            WHERE u.property_id = ? AND l.status = 'active'
+            WHERE u.property_id = ?
         ");
         $stmt->execute([$id]);
         $result = $stmt->fetch();
         
         if ($result['count'] > 0) {
-            throw new Exception('Cannot delete property with units that have active leases.');
+            throw new Exception('Cannot delete property with tenants or leases assigned.');
         }
         
         // Delete related data
@@ -1173,9 +1173,12 @@ class Storage {
     }
 
     public function createTenant($data) {
-        // Check for unique email
-        if ($this->getTenantByEmail($data['email'])) {
+        // Check for duplicate email/phone
+        if (!empty($data['email']) && $this->getTenantByContact($data['email'])) {
             throw new Exception("Tenant with email {$data['email']} already exists");
+        }
+        if (!empty($data['phone']) && $this->getTenantByContact($data['phone'])) {
+            throw new Exception("Tenant with phone {$data['phone']} already exists");
         }
         
         $stmt = $this->pdo->prepare("
