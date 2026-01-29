@@ -714,7 +714,7 @@ export function Landing() {
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6 -mt-6 relative"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 mb-6 -mt-8 relative"
             >
               <div className="relative flex items-center">
                 <span className="invisible flex items-center gap-2 whitespace-nowrap">

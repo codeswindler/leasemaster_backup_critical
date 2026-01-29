@@ -68,6 +68,7 @@ export function Tenants() {
   const [createdTenantId, setCreatedTenantId] = useState<string | null>(null)
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedUnitCharges, setSelectedUnitCharges] = useState<Record<string, string>>({})
+  const [selectedUnitId, setSelectedUnitId] = useState("")
   const [selectedTenants, setSelectedTenants] = useState<string[]>([])
   const { toast } = useToast()
   const [, setLocation] = useLocation()
@@ -1036,9 +1037,10 @@ export function Tenants() {
   }
 
   // Filter available units by selected property and only show vacant units
+  const effectivePropertyId = selectedPropertyId || selectedProperty
   const availableUnits = normalizedUnits.filter(unit => {
-    const isCorrectProperty = selectedProperty
-      ? String(unit.propertyId) === String(selectedProperty)
+    const isCorrectProperty = effectivePropertyId
+      ? String(unit.propertyId) === String(effectivePropertyId)
       : true
     const statusLower = String(unit.status || "").toLowerCase()
     const isVacantStatus =
@@ -1188,6 +1190,7 @@ export function Tenants() {
                           setSelectedProperty(value)
                           setSelectedPropertyId(value || null)
                           leaseForm.setValue("unitId", "")
+                          setSelectedUnitId("")
                           setSelectedUnitCharges({})
                         }}
                         data-testid="select-tenant-property"
@@ -1413,6 +1416,7 @@ export function Tenants() {
                           setSelectedProperty(value)
                           setSelectedPropertyId(value || null)
                           leaseForm.setValue("unitId", "")
+                          setSelectedUnitId("")
                           setSelectedUnitCharges({})
                         }}
                         data-testid="select-property"
@@ -1439,8 +1443,10 @@ export function Tenants() {
                         <FormLabel>Available Unit</FormLabel>
                         <FormControl>
                           <Select
-                            value={field.value ? String(field.value) : ""}
+                            value={selectedUnitId || (field.value ? String(field.value) : "")}
                             onValueChange={(value) => {
+                              setSelectedUnitId(value)
+                              leaseForm.setValue("unitId", value, { shouldDirty: true, shouldValidate: true })
                               field.onChange(value)
                             const selectedUnit = availableUnits.find(unit => String(unit.id) === value)
                             if (selectedUnit) {
@@ -1451,9 +1457,9 @@ export function Tenants() {
                                   ? selectedUnit.houseType?.waterRatePerUnit
                                   : selectedUnit.houseType?.waterFlatRate)
                                 ?? "15.50"
-                              leaseForm.setValue("rentAmount", unitRent)
-                              leaseForm.setValue("depositAmount", unitDeposit)
-                              leaseForm.setValue("waterRatePerUnit", unitWaterRate)
+                                leaseForm.setValue("rentAmount", unitRent, { shouldDirty: true })
+                                leaseForm.setValue("depositAmount", unitDeposit, { shouldDirty: true })
+                                leaseForm.setValue("waterRatePerUnit", unitWaterRate, { shouldDirty: true })
                               setSelectedUnitCharges(selectedUnit.chargeAmounts || {})
                             } else {
                               setSelectedUnitCharges({})
