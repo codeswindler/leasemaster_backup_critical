@@ -44,15 +44,18 @@
   }
 
   .logo-sidebar {
-    @apply h-12 w-auto;
+    height: 48px;
+    width: auto;
   }
 
   .logo-landing {
-    @apply h-20 w-auto;
+    height: 80px;
+    width: auto;
   }
 
   .logo-login {
-    @apply h-24 w-auto;
+    height: 96px;
+    width: auto;
   }
 }
 
@@ -276,6 +279,10 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html {
+    font-size: 80%;
   }
 
   body {
