@@ -244,22 +244,21 @@ function sendTenantLoginDetails($storage, $messagingService, $tenantId, $options
     $loginUrl = $options['loginUrl'] ?? "https://tenant.theleasemaster.com";
 
     $identifier = $tenant['email'] ?? $tenant['phone'] ?? 'your registered contact';
-    $smsMessage = "LeaseMaster Tenant Portal Login\n";
-    $smsMessage .= "Login: {$identifier}\n";
-    $smsMessage .= "Access Code: {$accessCode}\n";
-    $smsMessage .= "Login: {$loginUrl}";
+    $tenantName = $tenant['full_name'] ?? 'Tenant';
+    $smsMessage = "Greetings {$tenantName}, your LeaseMaster Tenant Portal access is ready. Your credentials are as follows:\n";
+    $smsMessage .= "Portal: {$loginUrl}\n";
+    $smsMessage .= "Username: {$identifier}\n";
+    $smsMessage .= "Password: {$accessCode}\n";
+    $smsMessage .= "(do not share this message with anyone)";
 
     $emailSubject = "Tenant Portal Login Details";
     $emailBody = "<html><body>";
-    $emailBody .= "<h2>LeaseMaster Tenant Portal Login</h2>";
-    $emailBody .= "<p>Hello " . htmlspecialchars($tenant['full_name'] ?? 'Tenant') . ",</p>";
-    $emailBody .= "<p>Use the details below to access your tenant portal:</p>";
-    $emailBody .= "<table style='border-collapse: collapse;'>";
-    $emailBody .= "<tr><td style='padding: 8px; border: 1px solid #ddd;'><strong>Login:</strong></td><td style='padding: 8px; border: 1px solid #ddd;'>{$identifier}</td></tr>";
-    $emailBody .= "<tr><td style='padding: 8px; border: 1px solid #ddd;'><strong>Access Code:</strong></td><td style='padding: 8px; border: 1px solid #ddd;'>{$accessCode}</td></tr>";
-    $emailBody .= "</table>";
-    $emailBody .= "<p>Login here: <a href='{$loginUrl}'>{$loginUrl}</a></p>";
-    $emailBody .= "<p>Best regards,<br>LeaseMaster Team</p>";
+    $emailBody .= "<p>Greetings " . htmlspecialchars($tenantName) . ", your LeaseMaster Tenant Portal access is ready. Your credentials are as follows:</p>";
+    $emailBody .= "<p><strong>Username:</strong> {$identifier}<br/>";
+    $emailBody .= "<strong>Password:</strong> {$accessCode}<br/>";
+    $emailBody .= "(do not share this message with anyone)</p>";
+    $emailBody .= "<p>Sign in here:<br/><a href='{$loginUrl}'>{$loginUrl}</a></p>";
+    $emailBody .= "<p>Warm Regards,<br/>LeaseMaster Management.</p>";
     $emailBody .= "</body></html>";
 
     $sendResults = ['sms' => null, 'email' => null];
@@ -1023,37 +1022,26 @@ try {
             
             // Prepare message content
             $username = $landlord['username'];
-            $password = $result['password'] ?? 'Your existing password';
-            $isNewPassword = isset($result['password']);
-            
+            $fullName = $landlord['full_name'] ?? $landlord['fullName'] ?? $username;
+            $password = $result['password'] ?? null;
+            $passwordLine = $password ? $password : 'Use your existing password';
+
             // Build SMS message
-            $smsMessage = "LeaseMaster Login Credentials\n";
+            $smsMessage = "Greetings {$fullName}, your LeaseMaster Portal access is ready. Your credentials are as follows:\n";
+            $smsMessage .= "Portal: https://portal.theleasemaster.com\n";
             $smsMessage .= "Username: {$username}\n";
-            if ($isNewPassword) {
-                $smsMessage .= "Password: {$password}\n";
-                $smsMessage .= "Please change your password after first login.";
-            } else {
-                $smsMessage .= "Use your existing password to login.";
-            }
-            $smsMessage .= "\nLogin: https://portal.theleasemaster.com";
+            $smsMessage .= "Password: {$passwordLine}\n";
+            $smsMessage .= "(do not share this message with anyone)";
             
             // Build Email message
-            $emailSubject = $isNewPassword ? "Your LeaseMaster Login Credentials" : "LeaseMaster Login Reminder";
+            $emailSubject = "LeaseMaster Portal Login Details";
             $emailBody = "<html><body>";
-            $emailBody .= "<h2>LeaseMaster Login Credentials</h2>";
-            $emailBody .= "<p>Hello,</p>";
-            $emailBody .= "<p>Here are your login credentials for the LeaseMaster portal:</p>";
-            $emailBody .= "<table style='border-collapse: collapse;'>";
-            $emailBody .= "<tr><td style='padding: 8px; border: 1px solid #ddd;'><strong>Username:</strong></td><td style='padding: 8px; border: 1px solid #ddd;'>{$username}</td></tr>";
-            if ($isNewPassword) {
-                $emailBody .= "<tr><td style='padding: 8px; border: 1px solid #ddd;'><strong>Password:</strong></td><td style='padding: 8px; border: 1px solid #ddd;'>{$password}</td></tr>";
-            }
-            $emailBody .= "</table>";
-            if ($isNewPassword) {
-                $emailBody .= "<p><strong>Important:</strong> Please change your password after your first login.</p>";
-            }
-            $emailBody .= "<p>Login at: <a href='https://portal.theleasemaster.com'>portal.theleasemaster.com</a></p>";
-            $emailBody .= "<p>Best regards,<br>LeaseMaster Team</p>";
+            $emailBody .= "<p>Greetings " . htmlspecialchars($fullName) . ", your LeaseMaster Portal access is ready. Your credentials are as follows:</p>";
+            $emailBody .= "<p><strong>Username:</strong> {$username}<br/>";
+            $emailBody .= "<strong>Password:</strong> {$passwordLine}<br/>";
+            $emailBody .= "(do not share this message with anyone)</p>";
+            $emailBody .= "<p>Sign in here:<br/><a href='https://portal.theleasemaster.com'>https://portal.theleasemaster.com</a></p>";
+            $emailBody .= "<p>Warm Regards,<br/>LeaseMaster Management.</p>";
             $emailBody .= "</body></html>";
             
             $sendResults = ['sms' => null, 'email' => null];
@@ -2025,6 +2013,51 @@ try {
             'balance' => null,
             'message' => 'Balance endpoint configured; requires security credential.'
         ]);
+    }
+
+    // ========== TENANT ACCESS REQUESTS ==========
+    elseif ($endpoint === 'tenant-access-requests' && $method === 'POST') {
+        if (empty($body) && !empty($_POST)) {
+            $body = $_POST;
+        }
+        $fullName = trim((string)($body['fullName'] ?? ''));
+        $contact = trim((string)($body['contact'] ?? ''));
+        $propertyId = $body['propertyId'] ?? null;
+        $unitNumber = trim((string)($body['unitNumber'] ?? ''));
+        $message = trim((string)($body['message'] ?? ''));
+
+        if ($fullName === '' || $contact === '' || empty($propertyId)) {
+            sendJson(['error' => 'fullName, contact, and propertyId are required'], 400);
+        }
+
+        $description = "Tenant portal access request\n";
+        $description .= "Name: {$fullName}\n";
+        $description .= "Contact: {$contact}\n";
+        if ($unitNumber !== '') {
+            $description .= "Unit: {$unitNumber}\n";
+        }
+        if ($message !== '') {
+            $description .= "Message: {$message}\n";
+        }
+
+        $request = $storage->createMaintenanceRequest([
+            'title' => 'Tenant Portal Access Request',
+            'description' => $description,
+            'status' => 'pending',
+            'priority' => 'low',
+            'propertyId' => $propertyId,
+        ]);
+
+        $storage->logActivity([
+            'action' => 'Tenant Portal Access Requested',
+            'details' => "Access request from {$fullName}",
+            'type' => 'maintenance',
+            'status' => 'warning',
+            'userId' => null,
+            'propertyId' => $propertyId
+        ]);
+
+        sendJson(['success' => true, 'request' => $request], 201);
     }
 
     // ========== MAINTENANCE REQUESTS ==========

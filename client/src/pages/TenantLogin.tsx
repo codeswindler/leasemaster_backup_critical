@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, KeyRound, User } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { motion, AnimatePresence } from "framer-motion";
 import "@/components/animated-icons.css";
 
@@ -19,6 +23,12 @@ export function TenantLogin() {
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const [requestFullName, setRequestFullName] = useState("");
+  const [requestContact, setRequestContact] = useState("");
+  const [requestPropertyId, setRequestPropertyId] = useState("");
+  const [requestUnitNumber, setRequestUnitNumber] = useState("");
+  const [requestMessage, setRequestMessage] = useState("");
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
 
   useEffect(() => {
     if (!otpCooldown) return;
@@ -91,6 +101,58 @@ export function TenantLogin() {
     });
     return () => observer.disconnect();
   }, []);
+
+  const { data: properties = [] } = useQuery({
+    queryKey: ["/api/properties", "tenant-access"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/properties");
+      return await response.json();
+    },
+  });
+
+  const handleRequestAccess = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!requestFullName.trim() || !requestContact.trim() || !requestPropertyId) {
+      toast({
+        title: "Missing details",
+        description: "Name, contact, and property are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setRequestSubmitting(true);
+      const response = await apiRequest("POST", "/api/tenant-access-requests", {
+        fullName: requestFullName.trim(),
+        contact: requestContact.trim(),
+        propertyId: requestPropertyId,
+        unitNumber: requestUnitNumber.trim(),
+        message: requestMessage.trim(),
+      });
+      const result = await response.json();
+      if (result?.success) {
+        toast({
+          title: "Request sent",
+          description: "Your access request has been sent to the landlord.",
+        });
+        setRequestFullName("");
+        setRequestContact("");
+        setRequestPropertyId("");
+        setRequestUnitNumber("");
+        setRequestMessage("");
+      } else {
+        throw new Error(result?.error || "Failed to submit request.");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Request failed",
+        description: error?.message || "Unable to send request.",
+        variant: "destructive",
+      });
+    } finally {
+      setRequestSubmitting(false);
+    }
+  };
 
   const analyzeImageBrightness = (imageUrl: string, callback: (brightness: number) => void) => {
     const img = new Image();
@@ -272,7 +334,7 @@ export function TenantLogin() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ pointerEvents: 'auto' }}>
+    <div className="min-h-[calc(100vh/var(--ui-zoom))] h-[calc(100vh/var(--ui-zoom))] flex flex-col relative overflow-hidden" style={{ pointerEvents: 'auto' }}>
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
@@ -474,6 +536,82 @@ export function TenantLogin() {
                   </Button>
                 </motion.div>
               </form>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.65 }}
+                className="pt-6 border-t border-slate-200/50 dark:border-slate-700/50 space-y-4"
+              >
+                <div className="space-y-1">
+                  <CardTitle className={`text-lg ${getTextContrastClass()}`}>
+                    Request Portal Access
+                  </CardTitle>
+                  <CardDescription className={getTextContrastClass("text-sm opacity-80")}>
+                    Send a request to your landlord to enable tenant portal access.
+                  </CardDescription>
+                </div>
+                <form onSubmit={handleRequestAccess} className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className={`text-sm ${getTextContrastClass()}`}>Full Name</Label>
+                    <Input
+                      value={requestFullName}
+                      onChange={(event) => setRequestFullName(event.target.value)}
+                      placeholder="Your full name"
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className={`text-sm ${getTextContrastClass()}`}>Email or Phone</Label>
+                    <Input
+                      value={requestContact}
+                      onChange={(event) => setRequestContact(event.target.value)}
+                      placeholder="you@email.com or +254..."
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className={`text-sm ${getTextContrastClass()}`}>Property</Label>
+                    <Select
+                      value={requestPropertyId}
+                      onValueChange={setRequestPropertyId}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Select your property" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.isArray(properties) &&
+                          properties.map((property: any) => (
+                            <SelectItem key={property.id} value={String(property.id)}>
+                              {property.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className={`text-sm ${getTextContrastClass()}`}>Unit Number (optional)</Label>
+                    <Input
+                      value={requestUnitNumber}
+                      onChange={(event) => setRequestUnitNumber(event.target.value)}
+                      placeholder="e.g., A12"
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className={`text-sm ${getTextContrastClass()}`}>Message (optional)</Label>
+                    <Textarea
+                      value={requestMessage}
+                      onChange={(event) => setRequestMessage(event.target.value)}
+                      placeholder="Add any extra details..."
+                      className="min-h-[90px]"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full h-11" disabled={requestSubmitting}>
+                    {requestSubmitting ? "Submitting..." : "Request Access"}
+                  </Button>
+                </form>
+              </motion.div>
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}

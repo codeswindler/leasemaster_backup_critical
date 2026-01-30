@@ -82,7 +82,6 @@ export function ClientsPage() {
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
   const [sendingLoginTo, setSendingLoginTo] = useState<string | null>(null);
   const [isSendLoginDialogOpen, setIsSendLoginDialogOpen] = useState(false);
-  const [sendLoginGenerateNew, setSendLoginGenerateNew] = useState(false);
   const [, setLocation] = useLocation();
   const { selectedLandlordId, selectedPropertyId, setSelectedLandlordId, setSelectedPropertyId } = useFilter();
   const { toast } = useToast();
@@ -923,37 +922,9 @@ export function ClientsPage() {
           <DialogHeader>
             <DialogTitle>Send Login Details</DialogTitle>
             <DialogDescription>
-              Choose whether to resend existing credentials or generate new ones.
+              A new password will be generated and sent to the client.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="resend"
-                name="loginOption"
-                checked={!sendLoginGenerateNew}
-                onChange={() => setSendLoginGenerateNew(false)}
-                className="h-4 w-4"
-              />
-              <label htmlFor="resend" className="text-sm font-medium leading-none cursor-pointer">
-                Resend existing credentials
-              </label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="generate"
-                name="loginOption"
-                checked={sendLoginGenerateNew}
-                onChange={() => setSendLoginGenerateNew(true)}
-                className="h-4 w-4"
-              />
-              <label htmlFor="generate" className="text-sm font-medium leading-none cursor-pointer">
-                Generate new password and send
-              </label>
-            </div>
-          </div>
           <DialogFooter>
             <Button
               variant="outline"
@@ -966,7 +937,7 @@ export function ClientsPage() {
                 if (sendingLoginTo) {
                   sendLoginDetailsMutation.mutate({
                     id: sendingLoginTo,
-                    generateNew: sendLoginGenerateNew,
+                    generateNew: true,
                   });
                 }
               }}
