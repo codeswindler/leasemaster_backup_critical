@@ -77,32 +77,20 @@ export function MessagingEmailOutbox() {
     return <Badge variant={cat.variant}>{cat.label}</Badge>
   }
 
-  const deriveCategory = (msg: any) => {
-    const raw = msg.message_category
-    if (raw) return raw
-    const content = String(msg.content || "").toLowerCase()
-    const subject = String(msg.subject || "").toLowerCase()
-    if (content.includes("otp") || subject.includes("otp")) return "otp"
-    if (content.includes("login credentials") || content.includes("tenant portal login") || content.includes("access code")) {
-      return "login_credentials"
-    }
-    if (content.includes("password reset") || subject.includes("password reset")) return "password_reset"
-    return "manual"
-  }
-
-  const deriveRecipientType = (msg: any) => {
-    if (msg.recipient_type) return msg.recipient_type
-    if (msg.tenant_id) return "tenant"
-    const category = String(deriveCategory(msg))
-    if (category.includes("tenant")) return "tenant"
-    return "landlord"
-  }
-
   const getRecipientTypeBadge = (type: string) => {
     if (type === "landlord") {
       return <Badge variant="outline" className="bg-purple-50 text-purple-700">Landlord</Badge>
     }
-    return <Badge variant="outline" className="bg-blue-50 text-blue-700">Tenant</Badge>
+    if (type === "admin") {
+      return <Badge variant="outline" className="bg-amber-50 text-amber-700">Admin</Badge>
+    }
+    if (type === "manual") {
+      return <Badge variant="outline" className="bg-slate-100 text-slate-700">Manual</Badge>
+    }
+    if (type === "tenant") {
+      return <Badge variant="outline" className="bg-blue-50 text-blue-700">Tenant</Badge>
+    }
+    return <Badge variant="outline">Unknown</Badge>
   }
 
   return (
@@ -161,7 +149,6 @@ export function MessagingEmailOutbox() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left p-2 font-medium">Status</th>
-                    <th className="text-left p-2 font-medium">Delivery Status</th>
                     <th className="text-left p-2 font-medium">Recipient</th>
                     <th className="text-left p-2 font-medium">Type</th>
                     <th className="text-left p-2 font-medium">Category</th>
@@ -184,14 +171,14 @@ export function MessagingEmailOutbox() {
                       </td>
                       <td className="p-2">
                         <div>
-                          <p className="text-sm font-medium">{msg.recipient_contact || msg.recipient_name || "Unknown"}</p>
+                          <p className="text-sm font-medium">{msg.recipient_contact || ""}</p>
                         </div>
                       </td>
                       <td className="p-2">
-                        {getRecipientTypeBadge(deriveRecipientType(msg))}
+                        {getRecipientTypeBadge(msg.recipient_type || "")}
                       </td>
                       <td className="p-2">
-                        {getCategoryBadge(deriveCategory(msg))}
+                        {getCategoryBadge(msg.message_category || "")}
                       </td>
                       <td className="p-2 max-w-xs">
                         <p className="text-sm truncate" title={msg.subject}>
@@ -199,9 +186,7 @@ export function MessagingEmailOutbox() {
                         </p>
                       </td>
                       <td className="p-2 text-sm text-muted-foreground">
-                        {(msg.sent_at || msg.created_at || msg.delivered_at || msg.delivery_timestamp)
-                          ? new Date(msg.sent_at || msg.created_at || msg.delivered_at || msg.delivery_timestamp).toLocaleString()
-                          : "Pending"}
+                        {msg.sent_at ? new Date(msg.sent_at).toLocaleString() : ""}
                       </td>
                     </tr>
                   ))}

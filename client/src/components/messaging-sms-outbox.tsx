@@ -83,19 +83,6 @@ export function MessagingSmsOutbox() {
     }
   }
 
-  const getDisplayStatus = (msg: any) => {
-    if (msg.delivery_status) {
-      const statusUpper = String(msg.delivery_status).toUpperCase()
-      if (["DELIVRD", "DELIVERED", "SUCCESS", "SUCCESSFUL"].includes(statusUpper)) {
-        return "delivered"
-      }
-      if (["UNDELIV", "FAILED", "REJECTD", "REJECTED", "FAIL", "EXPIRED"].includes(statusUpper)) {
-        return "failed"
-      }
-    }
-    return msg.status || "pending"
-  }
-
   const getCategoryBadge = (category: string) => {
     const categoryLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
       manual: { label: "Manual", variant: "outline" },
@@ -108,32 +95,20 @@ export function MessagingSmsOutbox() {
     return <Badge variant={cat.variant}>{cat.label}</Badge>
   }
 
-  const deriveCategory = (msg: any) => {
-    const raw = msg.message_category
-    if (raw) return raw
-    const content = String(msg.content || "").toLowerCase()
-    const subject = String(msg.subject || "").toLowerCase()
-    if (content.includes("otp") || subject.includes("otp")) return "otp"
-    if (content.includes("login credentials") || content.includes("tenant portal login") || content.includes("access code")) {
-      return "login_credentials"
-    }
-    if (content.includes("password reset") || subject.includes("password reset")) return "password_reset"
-    return "manual"
-  }
-
-  const deriveRecipientType = (msg: any) => {
-    if (msg.recipient_type) return msg.recipient_type
-    if (msg.tenant_id) return "tenant"
-    const category = String(deriveCategory(msg))
-    if (category.includes("tenant")) return "tenant"
-    return "landlord"
-  }
-
   const getRecipientTypeBadge = (type: string) => {
     if (type === "landlord") {
       return <Badge variant="outline" className="bg-purple-50 text-purple-700">Landlord</Badge>
     }
-    return <Badge variant="outline" className="bg-blue-50 text-blue-700">Tenant</Badge>
+    if (type === "admin") {
+      return <Badge variant="outline" className="bg-amber-50 text-amber-700">Admin</Badge>
+    }
+    if (type === "manual") {
+      return <Badge variant="outline" className="bg-slate-100 text-slate-700">Manual</Badge>
+    }
+    if (type === "tenant") {
+      return <Badge variant="outline" className="bg-blue-50 text-blue-700">Tenant</Badge>
+    }
+    return <Badge variant="outline">Unknown</Badge>
   }
 
   return (
@@ -305,12 +280,12 @@ export function MessagingSmsOutbox() {
                 <tbody>
                   {messages.map((msg: any) => (
                     (() => {
-                      const displayStatus = getDisplayStatus(msg)
-                      const recipient = msg.recipient_contact || msg.recipient_name || "Unknown"
-                      const category = deriveCategory(msg)
-                      const recipientType = deriveRecipientType(msg)
-                      const sender = msg.sent_by_name || msg.sender_shortcode || "System"
-                      const sentAt = msg.sent_at || msg.created_at || msg.delivered_at || msg.delivery_timestamp
+                      const displayStatus = msg.status
+                      const recipient = msg.recipient_contact || ""
+                      const category = msg.message_category || ""
+                      const recipientType = msg.recipient_type || ""
+                      const sender = msg.sender_shortcode || ""
+                      const sentAt = msg.sent_at
                       return (
                         <tr
                           key={msg.id}
@@ -334,7 +309,7 @@ export function MessagingSmsOutbox() {
                           </td>
                           <td className="p-2">
                             <div>
-                              <p className="text-sm font-medium">{recipient}</p>
+                          <p className="text-sm font-medium">{recipient}</p>
                             </div>
                           </td>
                           <td className="p-2">
@@ -344,16 +319,16 @@ export function MessagingSmsOutbox() {
                             {getCategoryBadge(category)}
                           </td>
                           <td className="p-2 text-sm">
-                            {sender || <span className="text-muted-foreground text-xs">N/A</span>}
+                        {sender}
                           </td>
                           <td className="p-2 max-w-xs">
                             <p className="text-sm truncate" title={msg.content}>
                               {msg.content || 'N/A'}
                             </p>
                           </td>
-                          <td className="p-2 text-sm text-muted-foreground">
-                            {sentAt ? new Date(sentAt).toLocaleString() : "Pending"}
-                          </td>
+                      <td className="p-2 text-sm text-muted-foreground">
+                        {sentAt ? new Date(sentAt).toLocaleString() : ""}
+                      </td>
                         </tr>
                       )
                     })()
