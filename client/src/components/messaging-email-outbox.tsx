@@ -171,14 +171,14 @@ export function MessagingEmailOutbox() {
                       </td>
                       <td className="p-2">
                         <div>
-                          <p className="text-sm font-medium">{msg.recipient_contact || ""}</p>
+                          <p className="text-sm font-medium">{msg.recipientContact || ""}</p>
                         </div>
                       </td>
                       <td className="p-2">
-                        {getRecipientTypeBadge(msg.recipient_type || "")}
+                        {getRecipientTypeBadge(msg.recipientType || "")}
                       </td>
                       <td className="p-2">
-                        {getCategoryBadge(msg.message_category || "")}
+                        {getCategoryBadge(msg.messageCategory || "")}
                       </td>
                       <td className="p-2 max-w-xs">
                         <p className="text-sm truncate" title={msg.subject}>
@@ -186,7 +186,7 @@ export function MessagingEmailOutbox() {
                         </p>
                       </td>
                       <td className="p-2 text-sm text-muted-foreground">
-                        {msg.sent_at ? new Date(msg.sent_at).toLocaleString() : ""}
+                        {msg.sentAt ? new Date(msg.sentAt).toLocaleString() : ""}
                       </td>
                     </tr>
                   ))}

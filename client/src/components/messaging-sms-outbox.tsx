@@ -281,11 +281,11 @@ export function MessagingSmsOutbox() {
                   {messages.map((msg: any) => (
                     (() => {
                       const displayStatus = msg.status
-                      const recipient = msg.recipient_contact || ""
-                      const category = msg.message_category || ""
-                      const recipientType = msg.recipient_type || ""
-                      const sender = msg.sender_shortcode || ""
-                      const sentAt = msg.sent_at
+                      const recipient = msg.recipientContact || ""
+                      const category = msg.messageCategory || ""
+                      const recipientType = msg.recipientType || ""
+                      const sender = msg.senderShortcode || ""
+                      const sentAt = msg.sentAt
                       return (
                         <tr
                           key={msg.id}
@@ -298,10 +298,10 @@ export function MessagingSmsOutbox() {
                               {getStatusBadge(displayStatus)}
                             </div>
                           </td>
-                          <td className="p-2 text-sm">
-                            {msg.delivery_status ? (
+                      <td className="p-2 text-sm">
+                        {msg.deliveryStatus ? (
                               <Badge variant="outline" className="text-xs">
-                                {msg.delivery_status}
+                            {msg.deliveryStatus}
                               </Badge>
                             ) : (
                               <span className="text-muted-foreground text-xs">Pending DLR</span>
