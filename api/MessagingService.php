@@ -327,12 +327,15 @@ class MessagingService {
             ];
         }
         
-        // Use PHPMailer if available, otherwise use mail() function
-        if (class_exists('PHPMailer\PHPMailer\PHPMailer')) {
-            return $this->sendEmailWithPhpMailer($to, $toName, $subject, $body, $isHtml, $attachments);
-        } else {
-            return $this->sendEmailWithSmtp($to, $toName, $subject, $body, $isHtml, $attachments);
+        // Require PHPMailer (avoid PHP mail() fallback)
+        if (!class_exists('PHPMailer\PHPMailer\PHPMailer')) {
+            return [
+                'success' => false,
+                'error' => 'PHPMailer not installed',
+                'code' => 'PHPMAILER_MISSING'
+            ];
         }
+        return $this->sendEmailWithPhpMailer($to, $toName, $subject, $body, $isHtml, $attachments);
     }
     
     /**
