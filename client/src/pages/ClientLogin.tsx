@@ -30,9 +30,6 @@ export function ClientLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
-  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -761,92 +758,6 @@ export function ClientLogin() {
 
       </div>
 
-      {/* Forgot Password Dialog */}
-      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
-        <DialogContent className="sm:max-w-[450px]">
-          <DialogHeader>
-            <DialogTitle>Forgot Password</DialogTitle>
-            <DialogDescription>
-              Enter your email address and we'll send you a password reset link.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              setForgotPasswordLoading(true);
-              try {
-                const response = await fetch("/api/auth/forgot-password", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  credentials: "include",
-                  body: JSON.stringify({ email: forgotPasswordEmail }),
-                });
-                
-                if (response.ok) {
-                  toast({
-                    title: "Reset link sent",
-                    description: "Check your email for password reset instructions.",
-                  });
-                  setShowForgotPassword(false);
-                  setForgotPasswordEmail("");
-                } else {
-                  const data = await response.json();
-                  toast({
-                    title: "Error",
-                    description: data.error || "Failed to send reset link. Please try again.",
-                    variant: "destructive",
-                  });
-                }
-              } catch (err) {
-                toast({
-                  title: "Error",
-                  description: "Failed to connect to server. Please try again.",
-                  variant: "destructive",
-                });
-              } finally {
-                setForgotPasswordLoading(false);
-              }
-            }}
-            className="space-y-4 mt-4"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="forgot-email">Email</Label>
-              <Input
-                id="forgot-email"
-                type="email"
-                placeholder="Enter your email"
-                value={forgotPasswordEmail}
-                onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                required
-                disabled={forgotPasswordLoading}
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowForgotPassword(false);
-                  setForgotPasswordEmail("");
-                }}
-                disabled={forgotPasswordLoading}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={forgotPasswordLoading}>
-                {forgotPasswordLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  "Send Reset Link"
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Change Password Dialog (First Login) */}
       <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>

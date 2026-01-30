@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * API Router - Main entry point for all API requests
  * Routes all /api/* requests to appropriate handlers
@@ -236,12 +236,16 @@ function sendTenantLoginDetails($storage, $messagingService, $tenantId, $options
         return ['success' => false, 'error' => 'Access code generation is required'];
     }
 
-    $storage->setTenantPortalAccess($tenantId, $accessCode, true);
+    try {
+        $storage->setTenantPassword($tenantId, $accessCode, true);
+    } catch (Throwable $e) {
+        $storage->setTenantPortalAccess($tenantId, $accessCode, true);
+    }
 
     $profile = $storage->getTenantPortalProfile($tenantId);
     $propertyId = $profile['property_id'] ?? getPropertyIdByTenant($storage, $tenantId);
 
-    $loginUrl = $options['loginUrl'] ?? "https://tenant.theleasemaster.com";
+    $loginUrl = $options['loginUrl'] ?? "https://tenants.theleasemaster.com";
 
     $identifier = $tenant['email'] ?? $tenant['phone'] ?? 'your registered contact';
     $tenantName = $tenant['full_name'] ?? 'Tenant';
@@ -608,12 +612,12 @@ try {
 
         if ($action === 'tenant-login' && $method === 'POST') {
             $identifier = $body['identifier'] ?? '';
-            $accessCode = $body['accessCode'] ?? '';
-            if (empty($identifier) || empty($accessCode)) {
-                sendJson(['error' => 'Email/phone and access code are required'], 400);
+            $password = $body['password'] ?? ($body['accessCode'] ?? '');
+            if (empty($identifier) || empty($password)) {
+                sendJson(['error' => 'Email/phone and password are required'], 400);
             }
 
-            $tenant = $storage->authenticateTenant($identifier, $accessCode);
+            $tenant = $storage->authenticateTenant($identifier, $password);
             if (!$tenant) {
                 sendJson(['error' => 'Invalid login details'], 401);
             }
@@ -768,6 +772,172 @@ try {
             }
         }
 
+        if ($action === 'request-password-reset' && $method === 'POST') {
+            $identifier = trim((string) ($body['identifier'] ?? ''));
+            $accountType = strtolower(trim((string) ($body['accountType'] ?? 'client')));
+            if ($identifier === '') {
+                sendJson(['error' => 'Identifier is required'], 400);
+            }
+            if (!in_array($accountType, ['tenant', 'client'], true)) {
+                sendJson(['error' => 'Invalid account type'], 400);
+            }
+
+            $userId = null;
+            $tenantId = null;
+            $recipientName = null;
+            $email = null;
+            $phone = null;
+            $recipientType = $accountType === 'tenant' ? 'tenant' : 'client';
+            $propertyId = null;
+
+            if ($accountType === 'tenant') {
+                $tenant = $storage->getTenantByContact($identifier);
+                if (!$tenant) {
+                    sendJson(['success' => true]);
+                }
+                $tenantId = $tenant['id'];
+                $recipientName = $tenant['full_name'] ?? 'Tenant';
+                $email = $tenant['email'] ?? null;
+                $phone = $tenant['phone'] ?? null;
+                $propertyId = getPropertyIdByTenant($storage, $tenantId);
+            } else {
+                $user = $storage->getUserByUsername($identifier);
+                if (!$user) {
+                    sendJson(['success' => true]);
+                }
+                $userId = $user['id'];
+                $recipientName = $user['full_name'] ?? $user['username'];
+                $email = $user['username'] ?? null;
+                $phone = $user['phone'] ?? null;
+                $recipientType = $user['role'] ?? 'client';
+                $propertyId = $user['property_id'] ?? null;
+            }
+
+            $latest = $storage->getLatestPasswordResetToken($userId, $tenantId);
+            if (!empty($latest['created_at']) && empty($latest['used_at'])) {
+                $lastTs = strtotime($latest['created_at']);
+                if ($lastTs && (time() - $lastTs) < 60) {
+                    $retryAfter = 60 - (time() - $lastTs);
+                    $retryAfter = max(1, min(60, $retryAfter));
+                    sendJson(['error' => 'Reset link recently sent', 'retryAfter' => $retryAfter], 429);
+                }
+            }
+
+            if (!$email && !$phone) {
+                sendJson(['error' => 'No delivery channels available'], 400);
+            }
+
+            $storage->invalidatePasswordResetTokens($userId, $tenantId);
+            $token = generatePasswordResetToken();
+            $tokenHash = hash('sha256', $token);
+            $expiresAt = date('Y-m-d H:i:s', time() + 1800);
+
+            $baseUrl = getResetBaseUrl($accountType);
+            $resetPath = $accountType === 'tenant' ? '/tenant/reset' : '/portal/reset';
+            $resetUrl = rtrim($baseUrl, '/') . $resetPath . '?token=' . urlencode($token);
+
+            $channels = [];
+            $sentByUserId = $_SESSION['userId'] ?? null;
+            $senderShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
+
+            if ($phone) {
+                $smsMessage = "LeaseMaster password reset: Use this link to set a new password: {$resetUrl}. This link expires in 30 minutes.";
+                $smsResult = $messagingService->sendSystemSMS($phone, $smsMessage);
+                $storage->createPasswordResetToken($userId, $tenantId, $tokenHash, $expiresAt, 'sms', $phone);
+                $messagingService->logMessage([
+                    'channel' => 'sms',
+                    'recipientContact' => $phone,
+                    'status' => !empty($smsResult['success']) ? 'sent' : 'failed',
+                    'messageCategory' => 'password_reset',
+                    'recipientType' => $recipientType,
+                    'recipientName' => $recipientName,
+                    'content' => $smsMessage,
+                    'propertyId' => $propertyId,
+                    'externalMessageId' => $smsResult['messageId'] ?? null,
+                    'senderShortcode' => $senderShortcode,
+                    'sentByUserId' => $sentByUserId,
+                    'tenantId' => $tenantId
+                ]);
+                if (!empty($smsResult['success'])) {
+                    $channels[] = 'sms';
+                }
+            }
+
+            if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $emailSubject = "Reset your LeaseMaster password";
+                $emailBody = "<p>Hello " . htmlspecialchars($recipientName ?: 'there') . ",</p>";
+                $emailBody .= "<p>Use the link below to reset your LeaseMaster password. This link expires in 30 minutes.</p>";
+                $emailBody .= "<p><a href='{$resetUrl}'>{$resetUrl}</a></p>";
+                $emailBody .= "<p>If you did not request this, you can ignore this email.</p>";
+                $emailResult = $messagingService->sendEmail($email, $recipientName, $emailSubject, $emailBody, true);
+                $storage->createPasswordResetToken($userId, $tenantId, $tokenHash, $expiresAt, 'email', $email);
+                $messagingService->logMessage([
+                    'channel' => 'email',
+                    'recipientContact' => $email,
+                    'status' => !empty($emailResult['success']) ? 'sent' : 'failed',
+                    'messageCategory' => 'password_reset',
+                    'recipientType' => $recipientType,
+                    'recipientName' => $recipientName,
+                    'subject' => $emailSubject,
+                    'content' => $emailBody,
+                    'propertyId' => $propertyId,
+                    'externalMessageId' => $emailResult['messageId'] ?? null,
+                    'sentByUserId' => $sentByUserId,
+                    'tenantId' => $tenantId
+                ]);
+                if (!empty($emailResult['success'])) {
+                    $channels[] = 'email';
+                }
+            }
+
+            if (empty($channels)) {
+                sendJson(['error' => 'Unable to send reset link'], 500);
+            }
+
+            sendJson(['success' => true, 'channels' => $channels]);
+        }
+
+        if ($action === 'reset-password' && $method === 'POST') {
+            $token = trim((string) ($body['token'] ?? ''));
+            $newPassword = $body['newPassword'] ?? null;
+            $accountType = strtolower(trim((string) ($body['accountType'] ?? 'client')));
+            if ($token === '' || !$newPassword) {
+                sendJson(['error' => 'Token and new password are required'], 400);
+            }
+            if (strlen($newPassword) < 8) {
+                sendJson(['error' => 'Password must be at least 8 characters'], 400);
+            }
+            if (!in_array($accountType, ['tenant', 'client'], true)) {
+                sendJson(['error' => 'Invalid account type'], 400);
+            }
+
+            $tokenHash = hash('sha256', $token);
+            $resetToken = $storage->getPasswordResetTokenByHash($tokenHash);
+            if (!$resetToken || !empty($resetToken['used_at'])) {
+                sendJson(['error' => 'Reset token is invalid'], 400);
+            }
+            if (!empty($resetToken['expires_at']) && strtotime($resetToken['expires_at']) < time()) {
+                sendJson(['error' => 'Reset token expired'], 400);
+            }
+
+            if ($accountType === 'tenant') {
+                $tenantId = $resetToken['tenant_id'] ?? null;
+                if (!$tenantId) {
+                    sendJson(['error' => 'Reset token is invalid for tenant'], 400);
+                }
+                $storage->setTenantPassword($tenantId, $newPassword, true);
+            } else {
+                $userId = $resetToken['user_id'] ?? null;
+                if (!$userId) {
+                    sendJson(['error' => 'Reset token is invalid for user'], 400);
+                }
+                $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
+                $storage->setUserPassword($userId, $hashedPassword, 0);
+            }
+
+            $storage->markPasswordResetTokenUsed($resetToken['id']);
+            sendJson(['success' => true]);
+        }
         if ($action === 'tenant-check' && $method === 'GET') {
             $tenantId = $_SESSION['tenantId'] ?? null;
             if (!$tenantId) {
@@ -3166,11 +3336,11 @@ try {
 
         // Determine which credentials to use
         if ($recipientType === 'landlord' || !$propertyId) {
-            // System SMS (admin→landlord)
+            // System SMS (adminâ†’landlord)
             $result = $messagingService->sendSystemSMS($mobile, $message);
             $senderShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
         } else {
-            // Property SMS (landlord→tenant)
+            // Property SMS (landlordâ†’tenant)
             $result = $messagingService->sendPropertySMS($propertyId, $mobile, $message);
             $settings = $messagingService->getPropertySmsSettings($propertyId);
             $senderShortcode = $settings['shortcode'] ?? (getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS');

@@ -17,7 +17,7 @@ import "@/components/animated-icons.css";
 export function TenantLogin() {
   const [, setLocation] = useLocation();
   const [identifier, setIdentifier] = useState("");
-  const [accessCode, setAccessCode] = useState("");
+  const [password, setAccessCode] = useState("");
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(0);
@@ -229,10 +229,10 @@ export function TenantLogin() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!otpRequired && (!identifier.trim() || !accessCode.trim())) {
+    if (!otpRequired && (!identifier.trim() || !password.trim())) {
       toast({
         title: "Missing details",
-        description: "Please enter your email/phone and access code.",
+        description: "Please enter your email/phone and password.",
         variant: "destructive",
       });
       return;
@@ -271,7 +271,7 @@ export function TenantLogin() {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ identifier, accessCode }),
+        body: JSON.stringify({ identifier, password }),
       });
       const data = await response.json();
       if (response.status === 429) {
@@ -341,278 +341,7 @@ export function TenantLogin() {
 
       <div className="absolute inset-0 z-0">
         <AnimatePresence>
-          <motion.div
-            key={currentImageIndex}
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 8, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            <img
-              key={`property-${currentImageIndex}`}
-              src={propertyImages[currentImageIndex]}
-              alt={`Luxury Property ${currentImageIndex + 1}`}
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{
-                filter: 'brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)',
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                zIndex: 0,
-              }}
-              onLoad={() => {
-                analyzeImageBrightness(propertyImages[currentImageIndex], (brightness) => {
-                  setImageBrightness(brightness);
-                });
-              }}
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                const nextIndex = (currentImageIndex + 1) % propertyImages.length;
-                if (nextIndex !== currentImageIndex) {
-                  img.src = propertyImages[nextIndex];
-                }
-              }}
-            />
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/50" style={{ zIndex: 1 }} />
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
-        <motion.div
-          className="absolute top-20 left-10 w-72 h-72 bg-blue-200/20 rounded-full blur-3xl"
-          animate={{ x: [0, 100, 0], y: [0, -50, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl"
-          animate={{ x: [0, -100, 0], y: [0, 50, 0] }}
-          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-200/15 rounded-full blur-3xl"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
-
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative z-[2]" style={{ pointerEvents: 'auto' }}>
-        <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full max-w-md"
-          style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}
-        >
-          <Card className="border-2 shadow-2xl backdrop-blur-2xl bg-background/20 dark:bg-background/20">
-            <CardHeader className="text-center space-y-6 pb-8">
-              <motion.div
-                initial={{ scale: 0.8, rotate: -5 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ duration: 0.5, delay: 0.2, type: "spring" }}
-                className="flex justify-center"
-              >
-                <img
-                  src="/leasemaster-logo.png"
-                  alt="LeaseMaster"
-                  className="logo-login"
-                />
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-              >
-                <CardDescription className={`text-xl mt-3 ${getTextContrastClass()}`}>
-                  Tenant Login
-                </CardDescription>
-              </motion.div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {!otpRequired ? (
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.4 }}
-                      className="space-y-2"
-                    >
-                      <Label htmlFor="identifier" className={`text-base ${getTextContrastClass()}`}>Email or Phone</Label>
-                      <div className="relative">
-                        <User className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
-                        <Input
-                          id="identifier"
-                          placeholder="tenant@email.com or +254..."
-                          className="h-12 text-base pl-4 pr-11"
-                          value={identifier}
-                          onChange={(event) => setIdentifier(event.target.value)}
-                        />
-                      </div>
-                    </motion.div>
-
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.5 }}
-                      className="space-y-2"
-                    >
-                      <Label htmlFor="accessCode" className={`text-base ${getTextContrastClass()}`}>Access Code</Label>
-                      <div className="relative">
-                        <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
-                        <Input
-                          id="accessCode"
-                          type="password"
-                          placeholder="Enter access code"
-                          className="h-12 text-base pl-4 pr-11"
-                          value={accessCode}
-                          onChange={(event) => setAccessCode(event.target.value)}
-                        />
-                      </div>
-                    </motion.div>
-                  </>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.4 }}
-                    className="space-y-3"
-                  >
-                    <Label htmlFor="otp" className={`text-base ${getTextContrastClass()}`}>OTP Code</Label>
-                    <div className="relative">
-                      <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
-                      <Input
-                        id="otp"
-                        placeholder="Enter the 6-digit code"
-                        className="h-12 text-base pl-4 pr-11"
-                        value={otpCode}
-                        onChange={(event) => setOtpCode(event.target.value)}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>OTP valid for 5 minutes.</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleResendOtp}
-                        disabled={loading || otpCooldown > 0}
-                      >
-                        {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : "Resend OTP"}
-                      </Button>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setOtpRequired(false);
-                        setOtpCode("");
-                        setOtpCooldown(0);
-                      }}
-                      className="w-full"
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2 animated-arrow-left" />
-                      Back to Login
-                    </Button>
-                  </motion.div>
-                )}
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.6 }}
-                >
-                  <Button type="submit" className="w-full h-12 text-base gap-2" disabled={loading}>
-                    {loading ? (
-                      "Signing in..."
-                    ) : (
-                      <>
-                        <ArrowRight className="h-5 w-5 animated-login-arrow" />
-                        <span style={{ marginLeft: '2px' }}>]</span>
-                        <span style={{ marginLeft: '8px' }}>Continue</span>
-                      </>
-                    )}
-                  </Button>
-                </motion.div>
-              </form>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.65 }}
-                className="pt-6 border-t border-slate-200/50 dark:border-slate-700/50 space-y-4"
-              >
-                <div className="space-y-1">
-                  <CardTitle className={`text-lg ${getTextContrastClass()}`}>
-                    Request Portal Access
-                  </CardTitle>
-                  <CardDescription className={getTextContrastClass("text-sm opacity-80")}>
-                    Send a request to your landlord to enable tenant portal access.
-                  </CardDescription>
-                </div>
-                <form onSubmit={handleRequestAccess} className="space-y-3">
-                  <div className="space-y-2">
-                    <Label className={`text-sm ${getTextContrastClass()}`}>Full Name</Label>
-                    <Input
-                      value={requestFullName}
-                      onChange={(event) => setRequestFullName(event.target.value)}
-                      placeholder="Your full name"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={`text-sm ${getTextContrastClass()}`}>Email or Phone</Label>
-                    <Input
-                      value={requestContact}
-                      onChange={(event) => setRequestContact(event.target.value)}
-                      placeholder="you@email.com or +254..."
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={`text-sm ${getTextContrastClass()}`}>Property</Label>
-                    <Select
-                      value={requestPropertyId}
-                      onValueChange={setRequestPropertyId}
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Select your property" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.isArray(properties) &&
-                          properties.map((property: any) => (
-                            <SelectItem key={property.id} value={String(property.id)}>
-                              {property.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={`text-sm ${getTextContrastClass()}`}>Unit Number (optional)</Label>
-                    <Input
-                      value={requestUnitNumber}
-                      onChange={(event) => setRequestUnitNumber(event.target.value)}
-                      placeholder="e.g., A12"
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={`text-sm ${getTextContrastClass()}`}>Message (optional)</Label>
-                    <Textarea
-                      value={requestMessage}
-                      onChange={(event) => setRequestMessage(event.target.value)}
-                      placeholder="Add any extra details..."
-                      className="min-h-[90px]"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full h-11" disabled={requestSubmitting}>
-                    {requestSubmitting ? "Submitting..." : "Request Access"}
-                  </Button>
-                </form>
-              </motion.div>
-
+          
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

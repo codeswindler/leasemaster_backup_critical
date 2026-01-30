@@ -1,4 +1,4 @@
--- LeaseMaster Production Database Setup for MariaDB
+﻿-- LeaseMaster Production Database Setup for MariaDB
 -- Run this script on your Contabo server to create all necessary tables
 -- This is a clean production setup with NO mock data
 
@@ -287,4 +287,21 @@ CREATE INDEX idx_water_readings_status ON water_readings(status);
 
 -- Note: Admin user will be created separately using create-admin-user.php script
 -- This ensures password is properly hashed before insertion
+
+
+-- Create password_reset_tokens table
+CREATE TABLE password_reset_tokens (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id INT NULL,
+    tenant_id INT NULL,
+    token_hash VARCHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    channel VARCHAR(20) NULL,
+    contact VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_password_reset_user (user_id),
+    INDEX idx_password_reset_tenant (tenant_id),
+    UNIQUE KEY uq_password_reset_token_hash (token_hash)
+);
 
