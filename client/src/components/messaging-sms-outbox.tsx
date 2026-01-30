@@ -108,6 +108,27 @@ export function MessagingSmsOutbox() {
     return <Badge variant={cat.variant}>{cat.label}</Badge>
   }
 
+  const deriveCategory = (msg: any) => {
+    const raw = msg.message_category
+    if (raw) return raw
+    const content = String(msg.content || "").toLowerCase()
+    const subject = String(msg.subject || "").toLowerCase()
+    if (content.includes("otp") || subject.includes("otp")) return "otp"
+    if (content.includes("login credentials") || content.includes("tenant portal login") || content.includes("access code")) {
+      return "login_credentials"
+    }
+    if (content.includes("password reset") || subject.includes("password reset")) return "password_reset"
+    return "manual"
+  }
+
+  const deriveRecipientType = (msg: any) => {
+    if (msg.recipient_type) return msg.recipient_type
+    if (msg.tenant_id) return "tenant"
+    const category = String(deriveCategory(msg))
+    if (category.includes("tenant")) return "tenant"
+    return "landlord"
+  }
+
   const getRecipientTypeBadge = (type: string) => {
     if (type === "landlord") {
       return <Badge variant="outline" className="bg-purple-50 text-purple-700">Landlord</Badge>
@@ -271,6 +292,7 @@ export function MessagingSmsOutbox() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
+                    <th className="text-left p-2 font-medium">Status</th>
                     <th className="text-left p-2 font-medium">Delivery Status</th>
                     <th className="text-left p-2 font-medium">Recipient</th>
                     <th className="text-left p-2 font-medium">Type</th>
@@ -284,49 +306,55 @@ export function MessagingSmsOutbox() {
                   {messages.map((msg: any) => (
                     (() => {
                       const displayStatus = getDisplayStatus(msg)
-                      const recipientName = msg.recipient_name || msg.recipient_contact || "Unknown"
-                      const recipientContact = msg.recipient_contact
-                      const recipientType = msg.recipient_type || (msg.tenant_id ? "tenant" : "landlord")
-                      const category = msg.message_category || "manual"
-                      const sentAt = msg.created_at
+                      const recipient = msg.recipient_contact || msg.recipient_name || "Unknown"
+                      const category = deriveCategory(msg)
+                      const recipientType = deriveRecipientType(msg)
+                      const sender = msg.sent_by_name || msg.sender_shortcode || "System"
+                      const sentAt = msg.sent_at || msg.created_at || msg.delivered_at || msg.delivery_timestamp
                       return (
-                    <tr
-                      key={msg.id}
-                      className="border-b hover:bg-muted/50 cursor-pointer"
-                      onClick={() => setLocation(`/message-details/${msg.id}`)}
-                    >
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(displayStatus)}
-                          {getStatusBadge(displayStatus)}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <div>
-                          <p className="text-sm font-medium">{recipientName}</p>
-                          {recipientContact && recipientContact !== recipientName && (
-                            <p className="text-xs text-muted-foreground">{recipientContact}</p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        {getRecipientTypeBadge(recipientType)}
-                      </td>
-                      <td className="p-2">
-                        {getCategoryBadge(category)}
-                      </td>
-                      <td className="p-2 text-sm">
-                        {msg.sender_shortcode || <span className="text-muted-foreground text-xs">N/A</span>}
-                      </td>
-                      <td className="p-2 max-w-xs">
-                        <p className="text-sm truncate" title={msg.content}>
-                          {msg.content || 'N/A'}
-                        </p>
-                      </td>
-                      <td className="p-2 text-sm text-muted-foreground">
-                        {sentAt ? new Date(sentAt).toLocaleString() : "Pending"}
-                      </td>
-                    </tr>
+                        <tr
+                          key={msg.id}
+                          className="border-b hover:bg-muted/50 cursor-pointer"
+                          onClick={() => setLocation(`/message-details/${msg.id}`)}
+                        >
+                          <td className="p-2">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(displayStatus)}
+                              {getStatusBadge(displayStatus)}
+                            </div>
+                          </td>
+                          <td className="p-2 text-sm">
+                            {msg.delivery_status ? (
+                              <Badge variant="outline" className="text-xs">
+                                {msg.delivery_status}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Pending DLR</span>
+                            )}
+                          </td>
+                          <td className="p-2">
+                            <div>
+                              <p className="text-sm font-medium">{recipient}</p>
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            {getRecipientTypeBadge(recipientType)}
+                          </td>
+                          <td className="p-2">
+                            {getCategoryBadge(category)}
+                          </td>
+                          <td className="p-2 text-sm">
+                            {sender || <span className="text-muted-foreground text-xs">N/A</span>}
+                          </td>
+                          <td className="p-2 max-w-xs">
+                            <p className="text-sm truncate" title={msg.content}>
+                              {msg.content || 'N/A'}
+                            </p>
+                          </td>
+                          <td className="p-2 text-sm text-muted-foreground">
+                            {sentAt ? new Date(sentAt).toLocaleString() : "Pending"}
+                          </td>
+                        </tr>
                       )
                     })()
                   ))}

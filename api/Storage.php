@@ -1802,7 +1802,12 @@ class Storage {
 
     // ========== MESSAGE RECIPIENTS ==========
     public function getAllMessageRecipients() {
-        $stmt = $this->pdo->query("SELECT * FROM message_recipients ORDER BY created_at DESC");
+        $stmt = $this->pdo->query("
+            SELECT mr.*, COALESCE(u.full_name, u.username) AS sent_by_name
+            FROM message_recipients mr
+            LEFT JOIN users u ON mr.sent_by_user_id = u.id
+            ORDER BY mr.created_at DESC
+        ");
         return $stmt->fetchAll();
     }
 
@@ -1818,13 +1823,25 @@ class Storage {
     }
 
     public function getMessageRecipientsByBulkMessage($bulkMessageId) {
-        $stmt = $this->pdo->prepare("SELECT * FROM message_recipients WHERE bulk_message_id = ? ORDER BY created_at DESC");
+        $stmt = $this->pdo->prepare("
+            SELECT mr.*, COALESCE(u.full_name, u.username) AS sent_by_name
+            FROM message_recipients mr
+            LEFT JOIN users u ON mr.sent_by_user_id = u.id
+            WHERE mr.bulk_message_id = ?
+            ORDER BY mr.created_at DESC
+        ");
         $stmt->execute([$bulkMessageId]);
         return $stmt->fetchAll();
     }
 
     public function getMessageRecipientsByTenant($tenantId) {
-        $stmt = $this->pdo->prepare("SELECT * FROM message_recipients WHERE tenant_id = ? ORDER BY created_at DESC");
+        $stmt = $this->pdo->prepare("
+            SELECT mr.*, COALESCE(u.full_name, u.username) AS sent_by_name
+            FROM message_recipients mr
+            LEFT JOIN users u ON mr.sent_by_user_id = u.id
+            WHERE mr.tenant_id = ?
+            ORDER BY mr.created_at DESC
+        ");
         $stmt->execute([$tenantId]);
         return $stmt->fetchAll();
     }

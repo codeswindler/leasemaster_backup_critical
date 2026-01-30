@@ -77,6 +77,27 @@ export function MessagingEmailOutbox() {
     return <Badge variant={cat.variant}>{cat.label}</Badge>
   }
 
+  const deriveCategory = (msg: any) => {
+    const raw = msg.message_category
+    if (raw) return raw
+    const content = String(msg.content || "").toLowerCase()
+    const subject = String(msg.subject || "").toLowerCase()
+    if (content.includes("otp") || subject.includes("otp")) return "otp"
+    if (content.includes("login credentials") || content.includes("tenant portal login") || content.includes("access code")) {
+      return "login_credentials"
+    }
+    if (content.includes("password reset") || subject.includes("password reset")) return "password_reset"
+    return "manual"
+  }
+
+  const deriveRecipientType = (msg: any) => {
+    if (msg.recipient_type) return msg.recipient_type
+    if (msg.tenant_id) return "tenant"
+    const category = String(deriveCategory(msg))
+    if (category.includes("tenant")) return "tenant"
+    return "landlord"
+  }
+
   const getRecipientTypeBadge = (type: string) => {
     if (type === "landlord") {
       return <Badge variant="outline" className="bg-purple-50 text-purple-700">Landlord</Badge>
@@ -139,6 +160,7 @@ export function MessagingEmailOutbox() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
+                    <th className="text-left p-2 font-medium">Status</th>
                     <th className="text-left p-2 font-medium">Delivery Status</th>
                     <th className="text-left p-2 font-medium">Recipient</th>
                     <th className="text-left p-2 font-medium">Type</th>
@@ -148,13 +170,7 @@ export function MessagingEmailOutbox() {
                   </tr>
                 </thead>
                 <tbody>
-                  {messages.map((msg: any) => {
-                    const recipientName = msg.recipient_name || msg.recipient_contact || "Unknown"
-                    const recipientContact = msg.recipient_contact
-                    const recipientType = msg.recipient_type || (msg.tenant_id ? "tenant" : "landlord")
-                    const category = msg.message_category || "manual"
-                    const sentAt = msg.created_at
-                    return (
+                  {messages.map((msg: any) => (
                     <tr
                       key={msg.id}
                       className="border-b hover:bg-muted/50 cursor-pointer"
@@ -168,17 +184,14 @@ export function MessagingEmailOutbox() {
                       </td>
                       <td className="p-2">
                         <div>
-                          <p className="text-sm font-medium">{recipientName}</p>
-                          {recipientContact && recipientContact !== recipientName && (
-                            <p className="text-xs text-muted-foreground">{recipientContact}</p>
-                          )}
+                          <p className="text-sm font-medium">{msg.recipient_contact || msg.recipient_name || "Unknown"}</p>
                         </div>
                       </td>
                       <td className="p-2">
-                        {getRecipientTypeBadge(recipientType)}
+                        {getRecipientTypeBadge(deriveRecipientType(msg))}
                       </td>
                       <td className="p-2">
-                        {getCategoryBadge(category)}
+                        {getCategoryBadge(deriveCategory(msg))}
                       </td>
                       <td className="p-2 max-w-xs">
                         <p className="text-sm truncate" title={msg.subject}>
@@ -186,10 +199,12 @@ export function MessagingEmailOutbox() {
                         </p>
                       </td>
                       <td className="p-2 text-sm text-muted-foreground">
-                        {sentAt ? new Date(sentAt).toLocaleString() : "Pending"}
+                        {(msg.sent_at || msg.created_at || msg.delivered_at || msg.delivery_timestamp)
+                          ? new Date(msg.sent_at || msg.created_at || msg.delivered_at || msg.delivery_timestamp).toLocaleString()
+                          : "Pending"}
                       </td>
                     </tr>
-                  )})}
+                  ))}
                 </tbody>
               </table>
             </div>
