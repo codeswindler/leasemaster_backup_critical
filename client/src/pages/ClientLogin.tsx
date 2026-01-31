@@ -668,7 +668,7 @@ export function ClientLogin() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setShowForgotPassword(true)}
+                      onClick={() => setLocation('/portal/reset')}
                       className="text-sm text-primary hover:underline"
                     >
                       Forgot password?
@@ -757,7 +757,6 @@ export function ClientLogin() {
         </motion.div>
 
       </div>
-
 
       {/* Change Password Dialog (First Login) */}
       <Dialog open={showChangePassword} onOpenChange={setShowChangePassword}>

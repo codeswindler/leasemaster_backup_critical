@@ -74,7 +74,23 @@ CREATE TABLE tenants (
     secondary_contact_phone VARCHAR(50),
     secondary_contact_email VARCHAR(255),
     notify_secondary VARCHAR(10) DEFAULT 'false' NOT NULL,
+    tenant_password_hash VARCHAR(255) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id VARCHAR(36) PRIMARY KEY,
+  user_id INT NULL,
+  tenant_id INT NULL,
+  token_hash VARCHAR(64) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  channel VARCHAR(20) NULL,
+  contact VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_reset_user (user_id),
+  INDEX idx_password_reset_tenant (tenant_id),
+  UNIQUE KEY uq_password_reset_token_hash (token_hash)
 );
 
 -- Create charge_codes table (Garbage Fee, Security Fee, etc.)

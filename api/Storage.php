@@ -1124,6 +1124,11 @@ class Storage {
             $hashed = password_hash($accessCode, PASSWORD_BCRYPT);
             $fields[] = "portal_access_code_hash = ?";
             $values[] = $hashed;
+
+            if ($this->columnExists('tenants', 'tenant_password_hash')) {
+                $fields[] = "tenant_password_hash = ?";
+                $values[] = $hashed;
+            }
         }
 
         if (empty($fields)) {
@@ -1135,6 +1140,17 @@ class Storage {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
 
+        return $this->getTenant($tenantId);
+    }
+
+    public function setTenantPassword($tenantId, $password) {
+        if (!$this->columnExists('tenants', 'tenant_password_hash')) {
+            throw new Exception('Tenant password column is missing. Run the tenant password migration.');
+        }
+
+        $hashed = password_hash($password, PASSWORD_BCRYPT);
+        $stmt = $this->pdo->prepare("UPDATE tenants SET tenant_password_hash = ? WHERE id = ?");
+        $stmt->execute([$hashed, $tenantId]);
         return $this->getTenant($tenantId);
     }
 
@@ -1151,11 +1167,11 @@ class Storage {
             }
         }
 
-        if (!$this->columnExists('tenants', 'portal_access_code_hash')) {
+        if (!$this->columnExists('tenants', 'portal_access_code_hash') && !$this->columnExists('tenants', 'tenant_password_hash')) {
             return null;
         }
 
-        $hash = $tenant['portal_access_code_hash'] ?? null;
+        $hash = $tenant['tenant_password_hash'] ?? $tenant['portal_access_code_hash'] ?? null;
         if (!$hash || !password_verify((string) $accessCode, $hash)) {
             return null;
         }
@@ -1166,6 +1182,32 @@ class Storage {
         }
 
         return $tenant;
+    }
+
+    public function createPasswordResetToken($userId, $tenantId, $tokenHash, $expiresAt, $channel = null, $contact = null) {
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO password_reset_tokens (id, user_id, tenant_id, token_hash, expires_at, channel, contact)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        $id = $this->generateUuid();
+        $stmt->execute([$id, $userId, $tenantId, $tokenHash, $expiresAt, $channel, $contact]);
+        return $id;
+    }
+
+    public function getPasswordResetToken($tokenHash) {
+        $stmt = $this->pdo->prepare("SELECT * FROM password_reset_tokens WHERE token_hash = ? LIMIT 1");
+        $stmt->execute([$tokenHash]);
+        return $stmt->fetch();
+    }
+
+    public function markPasswordResetTokenUsed($tokenId) {
+        $stmt = $this->pdo->prepare("UPDATE password_reset_tokens SET used_at = NOW() WHERE id = ?");
+        $stmt->execute([$tokenId]);
+    }
+
+    public function deleteExpiredPasswordResetTokens() {
+        $stmt = $this->pdo->prepare("DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR used_at IS NOT NULL");
+        $stmt->execute();
     }
 
     public function getTenantPortalProfile($tenantId) {
@@ -1242,6 +1284,11 @@ class Storage {
         ]);
         $stmt->execute($values);
         $id = $this->pdo->lastInsertId();
+
+        if (!empty($data['password']) && $this->columnExists('tenants', 'tenant_password_hash')) {
+            $this->setTenantPassword($id, $data['password']);
+        }
+
         return $this->getTenant($id);
     }
 
@@ -1269,6 +1316,11 @@ class Storage {
             }
         }
         
+        if (!empty($data['password']) && $this->columnExists('tenants', 'tenant_password_hash')) {
+            $fields[] = "tenant_password_hash = ?";
+            $values[] = password_hash($data['password'], PASSWORD_BCRYPT);
+        }
+
         if (empty($fields)) return $this->getTenant($id);
         
         $values[] = $id;

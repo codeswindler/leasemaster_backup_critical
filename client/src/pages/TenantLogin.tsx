@@ -1,34 +1,24 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, KeyRound, User } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
 import { motion, AnimatePresence } from "framer-motion";
 import "@/components/animated-icons.css";
 
 export function TenantLogin() {
   const [, setLocation] = useLocation();
   const [identifier, setIdentifier] = useState("");
-  const [password, setAccessCode] = useState("");
+  const [password, setPassword] = useState("");
   const [otpRequired, setOtpRequired] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const [requestFullName, setRequestFullName] = useState("");
-  const [requestContact, setRequestContact] = useState("");
-  const [requestPropertyId, setRequestPropertyId] = useState("");
-  const [requestUnitNumber, setRequestUnitNumber] = useState("");
-  const [requestMessage, setRequestMessage] = useState("");
-  const [requestSubmitting, setRequestSubmitting] = useState(false);
 
   useEffect(() => {
     if (!otpCooldown) return;
@@ -101,58 +91,6 @@ export function TenantLogin() {
     });
     return () => observer.disconnect();
   }, []);
-
-  const { data: properties = [] } = useQuery({
-    queryKey: ["/api/properties", "tenant-access"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/properties");
-      return await response.json();
-    },
-  });
-
-  const handleRequestAccess = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!requestFullName.trim() || !requestContact.trim() || !requestPropertyId) {
-      toast({
-        title: "Missing details",
-        description: "Name, contact, and property are required.",
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      setRequestSubmitting(true);
-      const response = await apiRequest("POST", "/api/tenant-access-requests", {
-        fullName: requestFullName.trim(),
-        contact: requestContact.trim(),
-        propertyId: requestPropertyId,
-        unitNumber: requestUnitNumber.trim(),
-        message: requestMessage.trim(),
-      });
-      const result = await response.json();
-      if (result?.success) {
-        toast({
-          title: "Request sent",
-          description: "Your access request has been sent to the landlord.",
-        });
-        setRequestFullName("");
-        setRequestContact("");
-        setRequestPropertyId("");
-        setRequestUnitNumber("");
-        setRequestMessage("");
-      } else {
-        throw new Error(result?.error || "Failed to submit request.");
-      }
-    } catch (error: any) {
-      toast({
-        title: "Request failed",
-        description: error?.message || "Unable to send request.",
-        variant: "destructive",
-      });
-    } finally {
-      setRequestSubmitting(false);
-    }
-  };
 
   const analyzeImageBrightness = (imageUrl: string, callback: (brightness: number) => void) => {
     const img = new Image();
@@ -341,7 +279,217 @@ export function TenantLogin() {
 
       <div className="absolute inset-0 z-0">
         <AnimatePresence>
-          
+          <motion.div
+            key={currentImageIndex}
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 8, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <img
+              key={`property-${currentImageIndex}`}
+              src={propertyImages[currentImageIndex]}
+              alt={`Luxury Property ${currentImageIndex + 1}`}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                filter: 'brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)',
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                zIndex: 0,
+              }}
+              onLoad={() => {
+                analyzeImageBrightness(propertyImages[currentImageIndex], (brightness) => {
+                  setImageBrightness(brightness);
+                });
+              }}
+              onError={(e) => {
+                const img = e.target as HTMLImageElement;
+                const nextIndex = (currentImageIndex + 1) % propertyImages.length;
+                if (nextIndex !== currentImageIndex) {
+                  img.src = propertyImages[nextIndex];
+                }
+              }}
+            />
+            <div className="absolute inset-0 bg-black/40 dark:bg-black/50" style={{ zIndex: 1 }} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
+        <motion.div
+          className="absolute top-20 left-10 w-72 h-72 bg-blue-200/20 rounded-full blur-3xl"
+          animate={{ x: [0, 100, 0], y: [0, -50, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl"
+          animate={{ x: [0, -100, 0], y: [0, 50, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-200/15 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 relative z-[2]" style={{ pointerEvents: 'auto' }}>
+        <motion.div
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="w-full max-w-md"
+          style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}
+        >
+          <Card className="border-2 shadow-2xl backdrop-blur-2xl bg-background/20 dark:bg-background/20">
+            <CardHeader className="text-center space-y-6 pb-8">
+              <motion.div
+                initial={{ scale: 0.8, rotate: -5 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ duration: 0.5, delay: 0.2, type: "spring" }}
+                className="flex justify-center"
+              >
+                <img
+                  src="/leasemaster-logo.png"
+                  alt="LeaseMaster"
+                  className="logo-login"
+                />
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <CardDescription className={`text-xl mt-3 ${getTextContrastClass()}`}>
+                  Tenant Login
+                </CardDescription>
+              </motion.div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {!otpRequired ? (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.4 }}
+                      className="space-y-2"
+                    >
+                      <Label htmlFor="identifier" className={`text-base ${getTextContrastClass()}`}>Email or Phone</Label>
+                      <div className="relative">
+                        <User className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                        <Input
+                          id="identifier"
+                          placeholder="tenant@email.com or +254..."
+                          className="h-12 text-base pl-4 pr-11"
+                          value={identifier}
+                          onChange={(event) => setIdentifier(event.target.value)}
+                        />
+                      </div>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.5 }}
+                      className="space-y-2"
+                    >
+                      <Label htmlFor="password" className={`text-base ${getTextContrastClass()}`}>Password</Label>
+                      <div className="relative">
+                        <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="Enter password"
+                          className="h-12 text-base pl-4 pr-11"
+                          value={password}
+                          onChange={(event) => setPassword(event.target.value)}
+                        />
+                      </div>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.55 }}
+                      className="flex justify-end"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setLocation('/tenant/reset')}
+                        className={`text-sm hover:underline ${getTextContrastClass()}`}
+                      >
+                        Forgot password?
+                      </button>
+                    </motion.div>
+                  </>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.4 }}
+                    className="space-y-3"
+                  >
+                    <Label htmlFor="otp" className={`text-base ${getTextContrastClass()}`}>OTP Code</Label>
+                    <div className="relative">
+                      <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 dark:text-slate-400 pointer-events-none" />
+                      <Input
+                        id="otp"
+                        placeholder="Enter the 6-digit code"
+                        className="h-12 text-base pl-4 pr-11"
+                        value={otpCode}
+                        onChange={(event) => setOtpCode(event.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>OTP valid for 5 minutes.</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleResendOtp}
+                        disabled={loading || otpCooldown > 0}
+                      >
+                        {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : "Resend OTP"}
+                      </Button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setOtpRequired(false);
+                        setOtpCode("");
+                        setOtpCooldown(0);
+                      }}
+                      className="w-full"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2 animated-arrow-left" />
+                      Back to Login
+                    </Button>
+                  </motion.div>
+                )}
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                >
+                  <Button type="submit" className="w-full h-12 text-base gap-2" disabled={loading}>
+                    {loading ? (
+                      "Signing in..."
+                    ) : (
+                      <>
+                        <ArrowRight className="h-5 w-5 animated-login-arrow" />
+                        <span style={{ marginLeft: '2px' }}>]</span>
+                        <span style={{ marginLeft: '8px' }}>Continue</span>
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
+              </form>
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
