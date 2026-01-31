@@ -97,7 +97,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
                 return null;
               } else {
                 if (hostname.startsWith('tenant.')) {
-                  window.location.href = 'https://tenants.theleasemaster.com/tenant/login';
+                  window.location.href = 'https://tenants.theleasemaster.com/login';
                   return null;
                 }
                 const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
@@ -919,7 +919,7 @@ function AppContent() {
         if (isLocalhost) {
           setLocation('/tenant/login');
         } else {
-          window.location.href = `https://tenants.theleasemaster.com/tenant/login`;
+          window.location.href = `https://tenants.theleasemaster.com/login`;
           return null;
         }
       }

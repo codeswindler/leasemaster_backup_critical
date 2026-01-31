@@ -244,7 +244,7 @@ function sendTenantLoginDetails($storage, $messagingService, $tenantId, $options
     $profile = $storage->getTenantPortalProfile($tenantId);
     $propertyId = $profile['property_id'] ?? getPropertyIdByTenant($storage, $tenantId);
 
-    $loginUrl = $options['loginUrl'] ?? "https://tenants.theleasemaster.com";
+    $loginUrl = $options['loginUrl'] ?? "https://tenants.theleasemaster.com/login";
 
     $identifier = $tenant['email'] ?? $tenant['phone'] ?? 'your registered contact';
     $tenantName = $tenant['full_name'] ?? 'Tenant';
