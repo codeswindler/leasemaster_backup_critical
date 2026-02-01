@@ -387,7 +387,8 @@ export function Landing() {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       setLocation("/tenant/login");
     } else {
-      window.location.href = `${protocol}//${hostname}/tenant/login`;
+      const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries|tenant|tenants)\./, '');
+      window.location.href = `${protocol}//tenants.${rootDomain}/login`;
     }
   };
 
