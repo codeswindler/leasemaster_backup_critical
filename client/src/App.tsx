@@ -96,12 +96,12 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
                 window.location.href = '/admin/login';
                 return null;
               } else {
-                if (hostname.startsWith('tenant.')) {
+                if (hostname.startsWith('tenant.') || hostname.startsWith('tenants.')) {
                   window.location.href = 'https://tenants.theleasemaster.com/login';
                   return null;
                 }
                 const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-                const rootDomain = hostname.replace(/^(admin|portal|tenant|clients|enquiries)\./, '');
+                const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants|clients|enquiries)\./, '');
                 window.location.href = `${protocol}//admin.${rootDomain}/login`;
                 return null;
               }
@@ -143,12 +143,12 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
               return <AdminLogin />;
             } else if (hostname.startsWith('portal.')) {
               return <ClientLogin />;
-            } else if (hostname.startsWith('tenant.')) {
+            } else if (hostname.startsWith('tenant.') || hostname.startsWith('tenants.')) {
               return <TenantLogin />;
             } else {
               // Fallback: redirect to admin login
               const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-              const rootDomain = hostname.replace(/^(admin|portal|tenant)\./, '');
+              const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants)\./, '');
               window.location.href = `${protocol}//admin.${rootDomain}/login`;
               return null;
             }
@@ -751,7 +751,7 @@ function AppContent() {
   // Clients and enquiries are routes under admin subdomain, not separate subdomains
   const isAdminSubdomain = !isLocalhost && hostname.startsWith('admin.');
   const isPortalSubdomain = !isLocalhost && hostname.startsWith('portal.');
-  const isTenantSubdomain = !isLocalhost && hostname.startsWith('tenant.');
+  const isTenantSubdomain = !isLocalhost && (hostname.startsWith('tenant.') || hostname.startsWith('tenants.'));
   const isRootDomain = !isLocalhost && !isAdminSubdomain && !isPortalSubdomain && !isTenantSubdomain;
   
   // Portal module routes (existing routes that should use app router)
@@ -902,7 +902,7 @@ function AppContent() {
           setLocation('/admin/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(admin|portal|tenant|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//admin.${rootDomain}/login`;
           return null;
         }
@@ -911,7 +911,7 @@ function AppContent() {
           setLocation('/portal/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(admin|portal|tenant|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}/login`;
           return null;
         }
