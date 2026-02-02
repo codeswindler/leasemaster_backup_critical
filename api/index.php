@@ -2937,9 +2937,38 @@ try {
             $storage->setUserPassword($id, $hashedPassword, true);
             $sent = false;
             $sentError = null;
+            $sentByUserId = $_SESSION['userId'] ?? null;
+            $propertyId = $user['property_id'] ?? null;
             $recipient = $user['username'] ?? null;
-            if ($recipient && strpos($recipient, '@') !== false) {
-                global $messagingService;
+            $recipientEmail = ($recipient && strpos($recipient, '@') !== false) ? $recipient : ($user['email'] ?? null);
+            $recipientPhone = $user['phone'] ?? null;
+            $sendResults = ['sms' => ['success' => false], 'email' => ['success' => false]];
+            $messageCategory = 'user_login_credentials';
+            $recipientName = $user['full_name'] ?? $user['fullName'] ?? $recipient;
+            $senderShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
+
+            global $messagingService;
+
+            if (!empty($recipientPhone)) {
+                $smsMessage = "LeaseMaster login details: Username {$recipient}. Temporary password {$password}. Please change it after login.";
+                $smsResult = $messagingService->sendSystemSMS($recipientPhone, $smsMessage);
+                $sendResults['sms'] = $smsResult;
+                $messagingService->logMessage([
+                    'channel' => 'sms',
+                    'recipientContact' => $recipientPhone,
+                    'status' => !empty($smsResult['success']) ? 'sent' : 'failed',
+                    'messageCategory' => $messageCategory,
+                    'recipientType' => 'user',
+                    'recipientName' => $recipientName,
+                    'content' => $smsMessage,
+                    'propertyId' => $propertyId,
+                    'externalMessageId' => $smsResult['messageId'] ?? null,
+                    'senderShortcode' => $senderShortcode,
+                    'sentByUserId' => $sentByUserId
+                ]);
+            }
+
+            if ($recipientEmail && filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
                 $emailSubject = "LeaseMaster Login Details";
                 $emailBody = "<html><body>";
                 $emailBody .= "<h3>Your LeaseMaster Login Details</h3>";
@@ -2947,22 +2976,43 @@ try {
                 $emailBody .= "<p>Temporary Password: {$password}</p>";
                 $emailBody .= "<p>Please change your password after logging in.</p>";
                 $emailBody .= "</body></html>";
-                $emailResult = $messagingService->sendEmail($recipient, null, $emailSubject, $emailBody);
-                $sent = $emailResult['success'] ?? false;
-                $sentError = $emailResult['error'] ?? null;
+                $emailResult = $messagingService->sendEmail($recipientEmail, $recipientName, $emailSubject, $emailBody, true);
+                $sendResults['email'] = $emailResult;
+                $messagingService->logMessage([
+                    'channel' => 'email',
+                    'recipientContact' => $recipientEmail,
+                    'status' => !empty($emailResult['success']) ? 'sent' : 'failed',
+                    'messageCategory' => $messageCategory,
+                    'recipientType' => 'user',
+                    'recipientName' => $recipientName,
+                    'subject' => $emailSubject,
+                    'content' => $emailBody,
+                    'propertyId' => $propertyId,
+                    'externalMessageId' => $emailResult['messageId'] ?? null,
+                    'sentByUserId' => $sentByUserId
+                ]);
+            }
+
+            $sent = ($sendResults['sms']['success'] ?? false) || ($sendResults['email']['success'] ?? false);
+            if (!$sent) {
+                $sentError = $sendResults['sms']['error'] ?? ($sendResults['email']['error'] ?? 'No delivery channels available');
             }
             $storage->logActivity([
                 'action' => 'Login Details Sent',
                 'details' => "Login details sent to user \"{$user['username']}\"",
                 'type' => 'user',
                 'status' => $sent ? 'success' : 'warning',
-                'userId' => $_SESSION['userId'] ?? null,
-                'propertyId' => $user['property_id'] ?? null
+                'userId' => $sentByUserId,
+                'propertyId' => $propertyId
             ]);
             sendJson([
                 'success' => true,
                 'generatedPassword' => $password,
-                'emailSent' => $sent,
+                'sent' => [
+                    'sms' => !empty($sendResults['sms']['success']),
+                    'email' => !empty($sendResults['email']['success'])
+                ],
+                'emailSent' => $sendResults['email']['success'] ?? false,
                 'emailError' => $sentError
             ], 200);
         }

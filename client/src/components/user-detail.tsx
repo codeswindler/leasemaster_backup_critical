@@ -304,11 +304,42 @@ export function UserDetail() {
       return await response.json()
     },
     onSuccess: (data: any) => {
+      const channels: string[] = []
+      if (data?.sent?.sms) channels.push("SMS")
+      if (data?.sent?.email) channels.push("Email")
+      const channelLabel = channels.length ? channels.join(" & ") : "no channels"
+      const tempPassword = data?.generatedPassword || ""
       toast({
         title: "Password generated",
-        description: data?.generatedPassword
-          ? `Temporary password: ${data.generatedPassword}`
-          : "Temporary password sent to the user.",
+        description: (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span>
+                Temporary password:{" "}
+                <span className="font-mono font-semibold select-text">{tempPassword || "—"}</span>
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!tempPassword) return
+                  try {
+                    await navigator.clipboard.writeText(tempPassword)
+                    toast({ title: "Copied", description: "Password copied to clipboard." })
+                  } catch {
+                    toast({ title: "Copy failed", description: "Please copy manually.", variant: "destructive" })
+                  }
+                }}
+                disabled={!tempPassword}
+              >
+                Copy
+              </Button>
+            </div>
+            <div>Sent via {channelLabel}</div>
+          </div>
+        ),
+        duration: 1000000,
       })
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
     },
