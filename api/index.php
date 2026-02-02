@@ -2946,11 +2946,19 @@ try {
             $messageCategory = 'user_login_credentials';
             $recipientName = $user['full_name'] ?? $user['fullName'] ?? $recipient;
             $senderShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
+            $userRole = $user['role'] ?? 'admin';
+            $loginUrl = ($userRole === 'client' || $userRole === 'landlord')
+                ? 'https://portal.theleasemaster.com/login'
+                : 'https://admin.theleasemaster.com/login';
 
             global $messagingService;
 
             if (!empty($recipientPhone)) {
-                $smsMessage = "LeaseMaster login details: Username {$recipient}. Temporary password {$password}. Please change it after login.";
+                $smsMessage = "LeaseMaster login details:\n";
+                $smsMessage .= "Login: {$loginUrl}\n";
+                $smsMessage .= "Username: {$recipient}\n";
+                $smsMessage .= "Temporary password: {$password}\n";
+                $smsMessage .= "Please change it after login.";
                 $smsResult = $messagingService->sendSystemSMS($recipientPhone, $smsMessage);
                 $sendResults['sms'] = $smsResult;
                 $messagingService->logMessage([
@@ -2972,8 +2980,9 @@ try {
                 $emailSubject = "LeaseMaster Login Details";
                 $emailBody = "<html><body>";
                 $emailBody .= "<h3>Your LeaseMaster Login Details</h3>";
-                $emailBody .= "<p>Username: {$recipient}</p>";
-                $emailBody .= "<p>Temporary Password: {$password}</p>";
+                $emailBody .= "<p><strong>Login:</strong> <a href='{$loginUrl}'>{$loginUrl}</a></p>";
+                $emailBody .= "<p><strong>Username:</strong> {$recipient}</p>";
+                $emailBody .= "<p><strong>Temporary Password:</strong> {$password}</p>";
                 $emailBody .= "<p>Please change your password after logging in.</p>";
                 $emailBody .= "</body></html>";
                 $emailResult = $messagingService->sendEmail($recipientEmail, $recipientName, $emailSubject, $emailBody, true);
