@@ -305,40 +305,17 @@ export function UserDetail() {
     },
     onSuccess: (data: any) => {
       toast({
-        title: "Login details sent",
+        title: "Password generated",
         description: data?.generatedPassword
           ? `Temporary password: ${data.generatedPassword}`
-          : "Login details sent.",
+          : "Temporary password sent to the user.",
       })
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to send login details",
-        description: error?.message || "Unable to send login details.",
-        variant: "destructive",
-      })
-    },
-  })
-
-  const resetPasswordMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", `/api/users/${userId}/reset-password`)
-      return await response.json()
-    },
-    onSuccess: (data: any) => {
-      toast({
-        title: "Password reset",
-        description: data?.generatedPassword
-          ? `Temporary password: ${data.generatedPassword}`
-          : "Password reset successfully.",
-      })
-      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Password reset failed",
-        description: error?.message || "Unable to reset password.",
+        title: "Failed to generate password",
+        description: error?.message || "Unable to send password.",
         variant: "destructive",
       })
     },
@@ -486,17 +463,13 @@ export function UserDetail() {
       <Card>
         <CardHeader>
           <CardTitle>Account Actions</CardTitle>
-          <CardDescription>Send logins, reset password, and OTP controls</CardDescription>
+          <CardDescription>Generate and send a temporary password, plus OTP controls</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3">
             <Button onClick={() => sendLoginMutation.mutate()} disabled={sendLoginMutation.isPending}>
-              <Mail className="h-4 w-4 mr-2" />
-              Send Logins
-            </Button>
-            <Button variant="outline" onClick={() => resetPasswordMutation.mutate()} disabled={resetPasswordMutation.isPending}>
               <KeyRound className="h-4 w-4 mr-2" />
-              Reset Password
+              Generate & Send Password
             </Button>
           </div>
           <div className="flex items-center justify-between border rounded-lg p-4">
