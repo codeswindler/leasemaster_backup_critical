@@ -1075,6 +1075,38 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    public function getTenantsByLandlordAndProperty($landlordId, $propertyId) {
+        $hasPropertyId = $this->columnExists('tenants', 'property_id');
+        if ($hasPropertyId) {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT t.*
+                 FROM tenants t
+                 LEFT JOIN properties p_direct ON p_direct.id = t.property_id
+                 LEFT JOIN leases l ON l.tenant_id = t.id
+                 LEFT JOIN units u ON u.id = l.unit_id
+                 LEFT JOIN properties p_lease ON p_lease.id = u.property_id
+                 WHERE (p_direct.landlord_id = ? OR p_lease.landlord_id = ?)
+                   AND (t.property_id = ? OR u.property_id = ?)
+                 ORDER BY t.created_at DESC"
+            );
+            $stmt->execute([$landlordId, $landlordId, $propertyId, $propertyId]);
+            return $stmt->fetchAll();
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT DISTINCT t.*
+             FROM tenants t
+             INNER JOIN leases l ON l.tenant_id = t.id
+             INNER JOIN units u ON u.id = l.unit_id
+             INNER JOIN properties p ON p.id = u.property_id
+             WHERE p.landlord_id = ?
+               AND p.id = ?
+             ORDER BY t.created_at DESC"
+        );
+        $stmt->execute([$landlordId, $propertyId]);
+        return $stmt->fetchAll();
+    }
+
     public function getTenant($id) {
         $stmt = $this->pdo->prepare("SELECT * FROM tenants WHERE id = ?");
         $stmt->execute([$id]);
