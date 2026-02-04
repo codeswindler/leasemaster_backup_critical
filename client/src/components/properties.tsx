@@ -924,18 +924,16 @@ export function Properties() {
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <Building2 className="h-12 w-12 mb-4" />
           <h3 className="text-lg font-semibold mb-2">No properties found</h3>
-          {isAdmin && (
-            {canCreateProperty && (
-              <Button
-                onClick={() => setIsAddDialogOpen(true)}
-                className="mt-4"
-                disabled={propertyLimitReached}
-                title={propertyLimitReached ? "Property limit reached" : undefined}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Property
-              </Button>
-            )}
+          {canCreateProperty && (
+            <Button
+              onClick={() => setIsAddDialogOpen(true)}
+              className="mt-4"
+              disabled={propertyLimitReached}
+              title={propertyLimitReached ? "Property limit reached" : undefined}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Property
+            </Button>
           )}
           <p className="text-center max-w-md mt-4">
             Get started by creating your first property. Click the "Add Property" button below.
