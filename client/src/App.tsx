@@ -101,7 +101,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
                   return null;
                 }
                 const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-                const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants|clients|enquiries)\./, '');
+                const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
                 window.location.href = `${protocol}//admin.${rootDomain}/login`;
                 return null;
               }
@@ -148,7 +148,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
             } else {
               // Fallback: redirect to admin login
               const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-              const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants)\./, '');
+              const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants)\./, '');
               window.location.href = `${protocol}//admin.${rootDomain}/login`;
               return null;
             }
@@ -793,7 +793,7 @@ function AppContent() {
           setLocation('/admin/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
           window.location.href = `${protocol}//admin.${rootDomain}/login`;
         }
         return null;
@@ -803,7 +803,7 @@ function AppContent() {
         setLocation('/portal');
       } else {
         const protocol = window.location.protocol;
-        const rootDomain = hostname.replace(/^(admin|portal)\./, '');
+        const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
         window.location.href = `${protocol}//portal.${rootDomain}`;
       }
       return null;
@@ -902,7 +902,8 @@ function AppContent() {
           setLocation('/admin/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//admin.${rootDomain}/login`;
           return null;
         }
@@ -950,7 +951,7 @@ function AppContent() {
             setLocation('/portal');
           } else {
             const protocol = window.location.protocol;
-            const rootDomain = hostname.replace(/^(admin|portal)\./, '');
+            const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
             window.location.href = `${protocol}//portal.${rootDomain}`;
           }
           return null;
@@ -964,7 +965,7 @@ function AppContent() {
           setLocation('/portal');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(admin|portal)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}`;
         }
         return null;

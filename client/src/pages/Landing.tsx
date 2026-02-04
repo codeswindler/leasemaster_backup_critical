@@ -362,8 +362,9 @@ export function Landing() {
       // Local development - go to /portal/login
       setLocation('/portal/login');
     } else {
-      // Production - redirect to portal subdomain
-      window.location.href = `${protocol}//portal.${hostname}/login`;
+      // Production - redirect to portal subdomain (strip any existing subdomain first)
+      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
+      window.location.href = `${protocol}//portal.${rootDomain}/login`;
     }
   };
 
@@ -376,7 +377,7 @@ export function Landing() {
       setLocation('/admin/login');
     } else {
       // Production - redirect to admin subdomain (strip any existing subdomain first)
-      const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
       window.location.href = `${protocol}//admin.${rootDomain}/login`;
     }
   };
@@ -387,7 +388,7 @@ export function Landing() {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       setLocation("/tenant/login");
     } else {
-      const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries|tenant|tenants)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
       window.location.href = `${protocol}//tenants.${rootDomain}/login`;
     }
   };
@@ -1342,20 +1343,20 @@ export function Landing() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid md:grid-cols-3 gap-6 mt-6">
-            {/* Starter Plan */}
+            {/* Basic Plan */}
             <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
               <CardContent className="p-8">
                 <h3 className="text-2xl font-bold mb-2 text-white">
-                  Starter
+                  Basic
                 </h3>
                 <p className="text-3xl font-bold mb-4 text-primary">
-                  $50
+                  $85
                 </p>
                 <p className="text-sm mb-6 text-slate-300">
                   per month
                 </p>
                 <p className="text-sm mb-6 font-semibold text-slate-300">
-                  Up to 10 properties
+                  Up to 2 properties
                 </p>
                 <ul className="space-y-3 mb-8 text-slate-300">
                   <li className="flex items-center gap-2 text-sm">
@@ -1376,7 +1377,7 @@ export function Landing() {
                   </li>
                 </ul>
                 <Button className="w-full" variant="outline">
-                  Start Free Trial
+                  Start 7 Day Free Trial
                 </Button>
               </CardContent>
             </Card>
@@ -1389,17 +1390,15 @@ export function Landing() {
                 </span>
               </div>
               <CardContent className="p-8">
-                <h3 className="text-2xl font-bold mb-2 text-white">
-                  Professional
-                </h3>
+                <h3 className="text-2xl font-bold mb-2 text-white">Popular</h3>
                 <p className="text-3xl font-bold mb-4 text-primary">
-                  $100
+                  $150
                 </p>
                 <p className="text-sm mb-6 text-slate-300">
                   per month
                 </p>
                 <p className="text-sm mb-6 font-semibold text-slate-300">
-                  Up to 50 properties
+                  Up to 5 properties
                 </p>
                 <ul className="space-y-3 mb-8 text-slate-300">
                   <li className="flex items-center gap-2 text-sm">
@@ -1424,7 +1423,7 @@ export function Landing() {
                   </li>
                 </ul>
                 <Button className="w-full">
-                  Start Free Trial
+                  Start 7 Day Free Trial
                 </Button>
               </CardContent>
             </Card>
@@ -1466,8 +1465,15 @@ export function Landing() {
                     <span>24/7 support</span>
                   </li>
                 </ul>
-                <Button className="w-full" variant="outline">
-                  Start Free Trial
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => {
+                    setShowSubscriptionPopup(false);
+                    setShowContactPopup(true);
+                  }}
+                >
+                  Start 7 Day Free Trial
                 </Button>
               </CardContent>
             </Card>
