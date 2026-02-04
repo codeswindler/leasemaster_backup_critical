@@ -70,6 +70,56 @@ export function AppSidebar() {
   });
 
   const currentRole = (authData?.user?.role || "").toLowerCase();
+<<<<<<< HEAD
+=======
+  const isAdminUser = currentRole === "admin" || currentRole === "super_admin";
+  const permissionsRaw = authData?.user?.permissions;
+  const permissions = Array.isArray(permissionsRaw)
+    ? permissionsRaw
+    : typeof permissionsRaw === "string" && permissionsRaw.trim().length > 0
+      ? (() => {
+          try {
+            const parsed = JSON.parse(permissionsRaw);
+            return Array.isArray(parsed) ? parsed : permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
+          } catch (error) {
+            return permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
+          }
+        })()
+      : [];
+
+  const hasCategoryPermission = (category: string) =>
+    isAdminUser ||
+    permissions.includes(category) ||
+    permissions.some((permission: string) => permission.startsWith(`${category}.`));
+
+  const canViewDashboard = hasCategoryPermission("dashboard");
+  const canViewProperties = hasCategoryPermission("properties");
+  const canViewHouses = hasCategoryPermission("house_types") || hasCategoryPermission("units");
+  const canViewTenants = hasCategoryPermission("tenants");
+  const canViewAccounting =
+    hasCategoryPermission("invoices") ||
+    hasCategoryPermission("payments") ||
+    hasCategoryPermission("receipts") ||
+    hasCategoryPermission("bills") ||
+    hasCategoryPermission("water_units");
+  const canViewMaintenance = hasCategoryPermission("maintenance");
+  const canViewMessaging = hasCategoryPermission("messaging");
+  const canViewReports = hasCategoryPermission("reports");
+  const canViewUsers = hasCategoryPermission("users");
+  const canViewCreditUsage = hasCategoryPermission("settings");
+  const canViewSettings = hasCategoryPermission("settings");
+  const canViewActivity = hasCategoryPermission("activity_logs");
+
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check");
+      return await response.json();
+    },
+  });
+
+  const currentRole = (authData?.user?.role || "").toLowerCase();
+>>>>>>> a0ba28e (Enforce permissions and property limits)
   const permissionsRaw = authData?.user?.permissions;
   const permissions = Array.isArray(permissionsRaw)
     ? permissionsRaw
@@ -380,13 +430,36 @@ export function AppSidebar() {
       icon: Mail,
     }
   ]
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.title === "Dashboard") return canViewDashboard;
+    if (item.title === "Properties") return canViewProperties;
+    if (item.title === "Houses") return canViewHouses;
+    return true;
+  })
+
+  const visibleTenantItems = canViewTenants ? tenantItems : []
+  const visibleAccountingItems = canViewAccounting ? accountingItems : []
+  const visibleMessagingItems = canViewMessaging ? messagingItems : []
+  const visibleOtherItems = otherItems.filter((item) => {
+    if (item.title === "Maintenance") return canViewMaintenance;
+    if (item.title === "Reports") return canViewReports;
+    if (item.title === "User Management") return canViewUsers;
+    if (item.title === "Credit Usage") return canViewCreditUsage;
+    if (item.title === "Settings") return canViewSettings;
+    return true;
+  })
+  const visibleOtherItemsWithoutMaintenance = visibleOtherItems.filter(
+    (item) => item.title !== "Maintenance"
+  )
+  const hasOtherSection =
+    canViewMaintenance || visibleMessagingItems.length > 0 || visibleOtherItemsWithoutMaintenance.length > 0
   const iconClassForIndex = (index: number) => getPaletteByIndex(index).icon
   const menuOffset = 0
-  const tenantsOffset = menuItems.length
+  const tenantsOffset = visibleMenuItems.length
   const tenantItemsOffset = tenantsOffset + 1
-  const accountingOffset = tenantItemsOffset + tenantItems.length
-  const otherOffset = accountingOffset + accountingItems.length
-  const messagingOffset = otherOffset + otherItems.length
+  const accountingOffset = tenantItemsOffset + visibleTenantItems.length
+  const otherOffset = accountingOffset + visibleAccountingItems.length
+  const messagingOffset = otherOffset + visibleOtherItems.length
 
   return (
     <Sidebar className="bg-sidebar/95 backdrop-blur-sm border-r-2" collapsible="offcanvas">
@@ -413,7 +486,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item, index) => (
+              {visibleMenuItems.map((item, index) => (
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}
@@ -450,11 +523,12 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 </motion.div>
               ))}
+              {visibleTenantItems.length > 0 && (
               <Collapsible open={tenantsOpen} onOpenChange={setTenantsOpen}>
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: menuItems.length * 0.05 }}
+                  transition={{ duration: 0.3, delay: visibleMenuItems.length * 0.05 }}
                 >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
@@ -483,7 +557,7 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {tenantItems.map((item, index) => (
+                        {visibleTenantItems.map((item, index) => (
                           <SidebarMenuSubItem key={item.title}>
                             <SidebarMenuSubButton asChild>
                               <Link href={item.url} data-testid={`nav-tenants-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -498,20 +572,22 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 </motion.div>
               </Collapsible>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {visibleAccountingItems.length > 0 && (
         <SidebarGroup>
           <SidebarGroupLabel>Accounting</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {accountingItems.map((item, index) => (
+              {visibleAccountingItems.map((item, index) => (
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (menuItems.length + index) * 0.05 }}
+                  transition={{ duration: 0.3, delay: (visibleMenuItems.length + index) * 0.05 }}
                 >
                   <SidebarMenuItem>
                     <SidebarMenuButton 
@@ -549,16 +625,19 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
+        {hasOtherSection && (
         <SidebarGroup>
           <SidebarGroupLabel>Other</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {/* Maintenance item */}
+              {canViewMaintenance && (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: (menuItems.length + accountingItems.length) * 0.05 }}
+                transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length) * 0.05 }}
               >
                 <SidebarMenuItem>
                   <SidebarMenuButton 
@@ -578,13 +657,15 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </motion.div>
+              )}
 
               {/* Messaging Collapsible Dropdown */}
+              {visibleMessagingItems.length > 0 && (
               <Collapsible open={messagingOpen} onOpenChange={setMessagingOpen}>
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (menuItems.length + accountingItems.length + 1) * 0.05 }}
+                  transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 1) * 0.05 }}
                 >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
@@ -613,7 +694,7 @@ export function AppSidebar() {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <SidebarMenuSub>
-                        {messagingItems.map((item, index) => (
+                        {visibleMessagingItems.map((item, index) => (
                           <SidebarMenuSubItem key={item.title}>
                             <SidebarMenuSubButton asChild>
                               <Link href={item.url} data-testid={`nav-messaging-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -628,17 +709,22 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 </motion.div>
               </Collapsible>
+              )}
 
               {/* Remaining other items (Reports, User Management, Settings) */}
+<<<<<<< HEAD
               {otherItems
                 .filter(item => !['Maintenance'].includes(item.title))
                 .filter(item => item.title !== "User Management" || hasUsersAccess)
                 .map((item, index) => (
+=======
+              {visibleOtherItemsWithoutMaintenance.map((item, index) => (
+>>>>>>> a0ba28e (Enforce permissions and property limits)
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (menuItems.length + accountingItems.length + 2 + index) * 0.05 }}
+                  transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 2 + index) * 0.05 }}
                 >
                   <SidebarMenuItem>
                     <SidebarMenuButton 
@@ -673,6 +759,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
       </SidebarContent>
       
       <SidebarFooter className="p-4 space-y-2">

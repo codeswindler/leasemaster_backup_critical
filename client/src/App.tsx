@@ -298,6 +298,10 @@ function AppContent() {
     username: string;
     role?: string;
     permissions?: string[] | string | null;
+<<<<<<< HEAD
+=======
+    propertyLimit?: number | null;
+>>>>>>> a0ba28e (Enforce permissions and property limits)
   } | null>(null)
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
@@ -374,7 +378,12 @@ function AppContent() {
                 id: data.user.id, 
                 username: data.user.username, 
                 role: userRole,
+<<<<<<< HEAD
                 permissions: data.user.permissions ?? null
+=======
+                permissions: data.user.permissions ?? null,
+                propertyLimit: data.user.propertyLimit ?? null
+>>>>>>> a0ba28e (Enforce permissions and property limits)
               });
               
               // Clear filters for admin users on login (they should see all data by default)
@@ -444,7 +453,12 @@ function AppContent() {
                 id: data.user.id, 
                 username: data.user.username, 
                 role: data.user.role || 'client',
+<<<<<<< HEAD
                 permissions: data.user.permissions ?? null
+=======
+                permissions: data.user.permissions ?? null,
+                propertyLimit: data.user.propertyLimit ?? null
+>>>>>>> a0ba28e (Enforce permissions and property limits)
               });
             }
           }
@@ -976,6 +990,25 @@ function AppContent() {
         hasPermissionCategory("users", permissions) ||
         permissions.includes("users.view") ||
         permissions.includes("users.manage_permissions");
+<<<<<<< HEAD
+=======
+      const routePermissionMap: { prefix: string; categories: string[]; required?: string[] }[] = [
+        { prefix: '/users', categories: ['users'], required: ['users.view', 'users.manage_permissions'] },
+        { prefix: '/properties', categories: ['properties'] },
+        { prefix: '/houses', categories: ['house_types', 'units'] },
+        { prefix: '/tenants', categories: ['tenants'] },
+        { prefix: '/accounting', categories: ['invoices', 'payments', 'receipts', 'bills', 'water_units'] },
+        { prefix: '/maintenance', categories: ['maintenance'] },
+        { prefix: '/messaging', categories: ['messaging'] },
+        { prefix: '/reports', categories: ['reports'] },
+        { prefix: '/credit-usage', categories: ['settings'] },
+        { prefix: '/settings', categories: ['settings'] },
+        { prefix: '/activity', categories: ['activity_logs'] },
+        { prefix: '/upload-data', categories: ['data_import'] },
+        { prefix: '/leases', categories: ['leases'] },
+        { prefix: '/water-units', categories: ['water_units'] },
+      ];
+>>>>>>> a0ba28e (Enforce permissions and property limits)
       
       // Clients and Enquiries pages require admin role (they're routes under admin subdomain)
       if (currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries')) {
@@ -1004,6 +1037,35 @@ function AppContent() {
         return null;
       }
 
+<<<<<<< HEAD
+=======
+      if (!hasAdminAccess) {
+        const matchedPermission = routePermissionMap.find((entry) =>
+          currentPathname.startsWith(entry.prefix)
+        );
+
+        if (matchedPermission) {
+          const hasRequiredPermission = matchedPermission.required?.some((permission) =>
+            permissions.includes(permission)
+          );
+          const hasCategoryPermission = matchedPermission.categories.some((category) =>
+            hasPermissionCategory(category, permissions)
+          );
+
+          if (!hasRequiredPermission && !hasCategoryPermission) {
+            if (isLocalhost) {
+              setLocation('/portal');
+            } else {
+              const protocol = window.location.protocol;
+              const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+              window.location.href = `${protocol}//portal.${rootDomain}`;
+            }
+            return null;
+          }
+        }
+      }
+
+>>>>>>> a0ba28e (Enforce permissions and property limits)
       // Admin portal requires admin role (admin or super_admin)
       if ((isAdminContext || (isLocalhost && currentPathname.startsWith('/admin') && !currentPathname.includes('/login'))) && !hasAdminAccess) {
         // Redirect to client portal

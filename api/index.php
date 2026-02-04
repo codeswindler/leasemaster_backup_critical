@@ -63,6 +63,39 @@ function getQuery($key, $default = null) {
     return $_GET[$key] ?? $default;
 }
 
+function parsePermissions($permissionsRaw) {
+    if (empty($permissionsRaw)) {
+        return [];
+    }
+    if (is_array($permissionsRaw)) {
+        return $permissionsRaw;
+    }
+    if (is_string($permissionsRaw)) {
+        $trimmed = trim($permissionsRaw);
+        if ($trimmed === '') {
+            return [];
+        }
+        $decoded = json_decode($trimmed, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+        return array_values(array_filter(array_map('trim', explode(',', $trimmed))));
+    }
+    return [];
+}
+
+function hasPermissionCategory($permissions, $category) {
+    if (in_array($category, $permissions, true)) {
+        return true;
+    }
+    foreach ($permissions as $permission) {
+        if (strpos($permission, $category . '.') === 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function getPropertyIdByLease($storage, $leaseId) {
     if (!$leaseId) return null;
     $lease = $storage->getLease($leaseId);
@@ -926,7 +959,12 @@ try {
                             'username' => $user['username'],
                             'role' => $userRole,
                             'mustChangePassword' => $mustChangePassword,
+<<<<<<< HEAD
                             'permissions' => $user['permissions'] ?? null
+=======
+                            'permissions' => $user['permissions'] ?? null,
+                            'propertyLimit' => $user['property_limit'] ?? null
+>>>>>>> a0ba28e (Enforce permissions and property limits)
                         ]
                     ]);
                 } else {
@@ -1063,6 +1101,21 @@ try {
         }
         
         if ($method === 'POST') {
+            $userId = $_SESSION['userId'] ?? null;
+            if (!$userId) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+            $user = $storage->getUser($userId);
+            $userRole = $user['role'] ?? 'client';
+            $permissions = parsePermissions($user['permissions'] ?? null);
+            $canCreateProperty =
+                $userRole === 'admin' ||
+                $userRole === 'super_admin' ||
+                in_array('properties.create', $permissions, true) ||
+                hasPermissionCategory($permissions, 'properties');
+            if (!$canCreateProperty) {
+                sendJson(['error' => 'You do not have permission to create properties.'], 403);
+            }
             try {
                 $property = $storage->createProperty($body);
                 $storage->logActivity([
@@ -1256,6 +1309,21 @@ try {
         }
         
         if ($method === 'POST' && !$id) {
+            $userId = $_SESSION['userId'] ?? null;
+            if (!$userId) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+            $user = $storage->getUser($userId);
+            $userRole = $user['role'] ?? 'client';
+            $permissions = parsePermissions($user['permissions'] ?? null);
+            $canCreateLandlord =
+                $userRole === 'admin' ||
+                $userRole === 'super_admin' ||
+                in_array('landlords.create', $permissions, true) ||
+                hasPermissionCategory($permissions, 'landlords');
+            if (!$canCreateLandlord) {
+                sendJson(['error' => 'You do not have permission to create landlords.'], 403);
+            }
             try {
                 $landlord = $storage->createLandlord($body);
                 // Verify landlord was actually created in database

@@ -68,6 +68,22 @@ export function Properties() {
   })
   const currentUser = authData?.authenticated ? authData.user : null
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin"
+  const permissionsRaw = currentUser?.permissions
+  const permissions = Array.isArray(permissionsRaw)
+    ? permissionsRaw
+    : typeof permissionsRaw === "string" && permissionsRaw.trim().length > 0
+      ? (() => {
+          try {
+            const parsed = JSON.parse(permissionsRaw)
+            return Array.isArray(parsed) ? parsed : permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean)
+          } catch (error) {
+            return permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean)
+          }
+        })()
+      : []
+  const hasPermissionCategory = (category: string) =>
+    permissions.includes(category) || permissions.some((permission: string) => permission.startsWith(`${category}.`))
+  const canCreateProperty = isAdmin || hasPermissionCategory("properties") || permissions.includes("properties.create")
 
   // Edit property form
   const editForm = useForm({
@@ -198,6 +214,23 @@ export function Properties() {
       : null
 
   const buildPropertyPayload = (data: any) => {
+    if (!canCreateProperty) {
+      toast({
+        title: "Permission denied",
+        description: "You do not have permission to create properties.",
+        variant: "destructive",
+      })
+      return null
+    }
+
+    if (propertyLimitReached) {
+      toast({
+        title: "Property limit reached",
+        description: "You have reached the maximum number of properties allowed for your account.",
+        variant: "destructive",
+      })
+      return null
+    }
     if (!data.name?.trim()) {
       toast({
         title: "Validation Error",
@@ -217,11 +250,12 @@ export function Properties() {
     }
 
     // Auto-assign userId as landlordId for client users (userId = landlordId)
-    // Admin users must select a landlord, client users can use their own userId
+    // Admin users must select a landlord, client users are locked to their own id.
     // Handle "all" as empty/null (not a valid landlord ID)
     const landlordIdValue = data.landlordId === "all" ? "" : data.landlordId
-    const landlordIdToUse =
-      selectedLandlordId || landlordIdValue || (currentUser && !isAdmin ? currentUser.id : null)
+    const landlordIdToUse = isAdmin
+      ? (selectedLandlordId || landlordIdValue || null)
+      : (currentUser ? currentUser.id : null)
 
     if (!landlordIdToUse) {
       // Only require selection for admin users
@@ -241,9 +275,13 @@ export function Properties() {
       return null
     }
 
-    const landlord = getLandlordById(String(landlordIdToUse))
-    const landlordName = data.landlordName?.trim() || landlord?.username || landlord?.fullName || ""
-    const landlordEmail = data.landlordEmail?.trim() || landlord?.username || ""
+    const landlord = isAdmin ? getLandlordById(String(landlordIdToUse)) : null
+    const landlordName = isAdmin
+      ? (data.landlordName?.trim() || landlord?.username || landlord?.fullName || "")
+      : (currentUser?.username || "")
+    const landlordEmail = isAdmin
+      ? (data.landlordEmail?.trim() || landlord?.username || "")
+      : (currentUser?.username || "")
 
     return {
       name: data.name,
@@ -305,6 +343,28 @@ export function Properties() {
     retry: 1,
   })
 
+  const getPropertyLandlordId = (property: any) =>
+    property?.landlordId ?? property?.landlord_id ?? null
+
+  const propertyLimitValue =
+    typeof currentUser?.propertyLimit === "number"
+      ? currentUser.propertyLimit
+      : currentUser?.propertyLimit !== null && currentUser?.propertyLimit !== undefined && currentUser?.propertyLimit !== ""
+        ? Number(currentUser.propertyLimit)
+        : null
+
+  const propertyCountForUser = !isAdmin && currentUser
+    ? (Array.isArray(properties)
+        ? properties.filter((property: any) => String(getPropertyLandlordId(property)) === String(currentUser.id)).length
+        : 0)
+    : (Array.isArray(properties) ? properties.length : 0)
+
+  const propertyLimitReached =
+    !isAdmin &&
+    propertyLimitValue !== null &&
+    !Number.isNaN(propertyLimitValue) &&
+    propertyCountForUser >= propertyLimitValue
+
   // Fetch units for occupancy data
   const { data: units = [] } = useQuery({
     queryKey: ["/api/units", selectedPropertyId, selectedLandlordId],
@@ -345,12 +405,18 @@ export function Properties() {
   // Auto-populate landlordId when dialog opens if filter is active
   useEffect(() => {
     if (!isAddDialogOpen) return
+    if (!isAdmin && currentUser) {
+      form.setValue("landlordId", String(currentUser.id))
+      form.setValue("landlordName", currentUser.username || "")
+      form.setValue("landlordEmail", currentUser.username || "")
+      return
+    }
     if (selectedLandlordId) {
       form.setValue("landlordId", normalizeId(selectedLandlordId) || "")
     } else {
       form.setValue("landlordId", "")
     }
-  }, [isAddDialogOpen, selectedLandlordId, form])
+  }, [isAddDialogOpen, selectedLandlordId, form, isAdmin, currentUser])
 
   // Create property mutation with comprehensive debugging
   const createPropertyMutation = useMutation({
@@ -562,8 +628,8 @@ export function Properties() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Add Property Dialog - Always rendered when admin (moved to top level) */}
-      {isAdmin && (
+      {/* Add Property Dialog - Render when user can create properties */}
+      {canCreateProperty && (
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-8">
             <DialogHeader>
@@ -572,6 +638,11 @@ export function Properties() {
                 Create a new property and configure its details.
               </DialogDescription>
             </DialogHeader>
+            {propertyLimitReached && (
+              <p className="text-sm text-destructive">
+                You have reached the maximum number of properties allowed for your account.
+              </p>
+            )}
             <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleAddProperty)} className="space-y-6">
                     <FormField
@@ -625,6 +696,7 @@ export function Properties() {
                       </FormItem>
                     )}
                   />
+                  {isAdmin ? (
                     <FormField
                       control={form.control}
                       name="landlordId"
@@ -654,15 +726,13 @@ export function Properties() {
                                 <SelectValue placeholder="Select landlord or create new" />
                               </SelectTrigger>
                               <SelectContent>
-                                {isAdmin && (
-                                  <SelectItem value="all">
-                                    <span className="flex items-center gap-2">
-                                      <Building2 className="h-4 w-4" />
-                                      All Landlords
-                                    </span>
-                                  </SelectItem>
-                                )}
-                                {!selectedLandlordId && isAdmin && (
+                                <SelectItem value="all">
+                                  <span className="flex items-center gap-2">
+                                    <Building2 className="h-4 w-4" />
+                                    All Landlords
+                                  </span>
+                                </SelectItem>
+                                {!selectedLandlordId && (
                                   <SelectItem value="create-new">
                                     <span className="flex items-center gap-2">
                                       <Plus className="h-4 w-4" />
@@ -682,6 +752,14 @@ export function Properties() {
                         </FormItem>
                       )}
                     />
+                  ) : (
+                    <FormItem>
+                      <FormLabel>Landlord</FormLabel>
+                      <FormControl>
+                        <Input value={currentUser?.username || ""} disabled />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 </form>
             </Form>
             <div className="flex justify-end gap-2 pt-4">
@@ -697,7 +775,7 @@ export function Properties() {
                 type="button" 
                 variant="outline"
                 data-testid="button-save-close-property"
-                disabled={createPropertyMutation.isPending}
+                disabled={createPropertyMutation.isPending || propertyLimitReached}
                 onClick={() => handleAddProperty(form.getValues())}
               >
                 {createPropertyMutation.isPending && (
@@ -708,7 +786,7 @@ export function Properties() {
               <Button
                 type="button"
                 data-testid="button-save-add-units-property"
-                disabled={createPropertyMutation.isPending}
+                disabled={createPropertyMutation.isPending || propertyLimitReached}
                 onClick={handleAddPropertyWithRedirect}
               >
                 {createPropertyMutation.isPending && (
@@ -729,10 +807,12 @@ export function Properties() {
             <p className="text-muted-foreground">Manage your rental properties and units</p>
           </div>
           {/* Add Property Button - Only show in header when properties exist */}
-          {isAdmin && enhancedProperties.length > 0 && (
+          {canCreateProperty && enhancedProperties.length > 0 && (
             <Button 
               onClick={() => setIsAddDialogOpen(true)}
               data-testid="button-add-property"
+              disabled={propertyLimitReached}
+              title={propertyLimitReached ? "Property limit reached" : undefined}
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Property
@@ -741,43 +821,45 @@ export function Properties() {
         </div>
           
         {/* Create New Landlord Dialog */}
-        <Dialog open={isCreateLandlordDialogOpen} onOpenChange={setIsCreateLandlordDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Create New Landlord</DialogTitle>
-              <DialogDescription>
-                Create a new landlord account. Credentials will be sent via email and SMS.
-              </DialogDescription>
-            </DialogHeader>
-            <CreateLandlordForm
-              onSuccess={(landlord) => {
-                // Close dialog
-                setIsCreateLandlordDialogOpen(false)
-                // Refresh landlords list
-                refetchLandlords()
+        {isAdmin && (
+          <Dialog open={isCreateLandlordDialogOpen} onOpenChange={setIsCreateLandlordDialogOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Create New Landlord</DialogTitle>
+                <DialogDescription>
+                  Create a new landlord account. Credentials will be sent via email and SMS.
+                </DialogDescription>
+              </DialogHeader>
+              <CreateLandlordForm
+                onSuccess={(landlord) => {
+                  // Close dialog
+                  setIsCreateLandlordDialogOpen(false)
+                  // Refresh landlords list
+                  refetchLandlords()
 
-                if (isAddDialogOpen) {
-                  // Auto-select newly created landlord for add flow
-                  form.setValue("landlordId", landlord.id)
-                  form.setValue("landlordEmail", landlord.username)
-                }
+                  if (isAddDialogOpen) {
+                    // Auto-select newly created landlord for add flow
+                    form.setValue("landlordId", landlord.id)
+                    form.setValue("landlordEmail", landlord.username)
+                  }
 
-                if (isEditDialogOpen) {
-                  // Update edit form to the newly created landlord
-                  editForm.setValue("landlordName", landlord.username || landlord.fullName || "")
-                  editForm.setValue("landlordEmail", landlord.username || "")
-                }
+                  if (isEditDialogOpen) {
+                    // Update edit form to the newly created landlord
+                    editForm.setValue("landlordName", landlord.username || landlord.fullName || "")
+                    editForm.setValue("landlordEmail", landlord.username || "")
+                  }
 
-                // Show success toast with password
-                toast({
-                  title: "Landlord Created",
-                  description: `Landlord account created. Credentials sent to ${landlord.username}. Temporary password: ${(landlord as any).tempPassword || 'Check email'}`,
-                })
-              }}
-              onCancel={() => setIsCreateLandlordDialogOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
+                  // Show success toast with password
+                  toast({
+                    title: "Landlord Created",
+                    description: `Landlord account created. Credentials sent to ${landlord.username}. Temporary password: ${(landlord as any).tempPassword || 'Check email'}`,
+                  })
+                }}
+                onCancel={() => setIsCreateLandlordDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
         
         {/* Search Bar */}
         <div className="flex gap-4 items-center">
@@ -843,13 +925,17 @@ export function Properties() {
           <Building2 className="h-12 w-12 mb-4" />
           <h3 className="text-lg font-semibold mb-2">No properties found</h3>
           {isAdmin && (
-            <Button 
-              onClick={() => setIsAddDialogOpen(true)}
-              className="mt-4"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Property
-            </Button>
+            {canCreateProperty && (
+              <Button
+                onClick={() => setIsAddDialogOpen(true)}
+                className="mt-4"
+                disabled={propertyLimitReached}
+                title={propertyLimitReached ? "Property limit reached" : undefined}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Property
+              </Button>
+            )}
           )}
           <p className="text-center max-w-md mt-4">
             Get started by creating your first property. Click the "Add Property" button below.
