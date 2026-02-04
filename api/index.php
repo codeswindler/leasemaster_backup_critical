@@ -615,6 +615,9 @@ try {
             // Set session
             $_SESSION['userId'] = $user['id'];
             $_SESSION['username'] = $user['username'];
+            if (!empty($loginType)) {
+                $_SESSION['loginType'] = $loginType;
+            }
             
             // Check if user must change password (for landlords on first login)
             $mustChangePassword = false;
@@ -901,6 +904,9 @@ try {
                 if ($user) {
                     // Ensure role is always returned (default to 'client' if missing)
                     $userRole = $user['role'] ?? 'client';
+                    if (empty($user['role']) && (($_SESSION['loginType'] ?? null) === 'admin')) {
+                        $userRole = 'admin';
+                    }
                     
                     // Log warning if role is missing (shouldn't happen but helps debug)
                     if (empty($user['role'])) {
@@ -933,6 +939,7 @@ try {
         }
         
         if ($action === 'logout' && $method === 'POST') {
+            unset($_SESSION['loginType']);
             session_destroy();
             sendJson(['success' => true]);
         }
