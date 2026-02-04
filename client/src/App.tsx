@@ -293,7 +293,12 @@ function AppContent() {
   const prefetched = useRef(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string; role?: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    username: string;
+    role?: string;
+    permissions?: string[] | string | null;
+  } | null>(null)
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
   const [smsBalanceNotified, setSmsBalanceNotified] = useState(false)
@@ -303,6 +308,29 @@ function AppContent() {
     '/messaging', '/reports', '/users', '/credit-usage', '/settings', '/activity',
     '/payments', '/upload-data', '/leases', '/water-units'
   ]
+
+  const getUserPermissions = () => {
+    if (!currentUser?.permissions) return [];
+    if (Array.isArray(currentUser.permissions)) return currentUser.permissions;
+    if (typeof currentUser.permissions === "string") {
+      const trimmed = currentUser.permissions.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (error) {
+        // Fall through to comma-split fallback.
+      }
+      return trimmed.split(",").map((value) => value.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  const hasPermissionCategory = (category: string, permissions: string[]) => {
+    if (!permissions.length) return false;
+    if (permissions.includes(category)) return true;
+    return permissions.some((permission) => permission.startsWith(`${category}.`));
+  };
   
   // Check if we're on portal subdomain
   useEffect(() => {
@@ -345,7 +373,8 @@ function AppContent() {
               setCurrentUser({ 
                 id: data.user.id, 
                 username: data.user.username, 
-                role: userRole
+                role: userRole,
+                permissions: data.user.permissions ?? null
               });
               
               // Clear filters for admin users on login (they should see all data by default)
@@ -414,7 +443,8 @@ function AppContent() {
               setCurrentUser({ 
                 id: data.user.id, 
                 username: data.user.username, 
-                role: data.user.role || 'client' 
+                role: data.user.role || 'client',
+                permissions: data.user.permissions ?? null
               });
             }
           }
@@ -941,6 +971,11 @@ function AppContent() {
     if (isAuthenticated && currentUser) {
       // Check if user has admin access (admin or super_admin roles) - with null-safety
       const hasAdminAccess = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+      const permissions = getUserPermissions();
+      const hasUsersAccess =
+        hasPermissionCategory("users", permissions) ||
+        permissions.includes("users.view") ||
+        permissions.includes("users.manage_permissions");
       
       // Clients and Enquiries pages require admin role (they're routes under admin subdomain)
       if (currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries')) {
@@ -957,6 +992,18 @@ function AppContent() {
         }
       }
       
+      // User management requires explicit permission (clients should not access it)
+      if (currentPathname.startsWith('/users') && !hasAdminAccess && !hasUsersAccess) {
+        if (isLocalhost) {
+          setLocation('/portal');
+        } else {
+          const protocol = window.location.protocol;
+          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          window.location.href = `${protocol}//portal.${rootDomain}`;
+        }
+        return null;
+      }
+
       // Admin portal requires admin role (admin or super_admin)
       if ((isAdminContext || (isLocalhost && currentPathname.startsWith('/admin') && !currentPathname.includes('/login'))) && !hasAdminAccess) {
         // Redirect to client portal

@@ -61,6 +61,37 @@ export function AppSidebar() {
   const getLeaseId = (item: any) => normalizeId(item?.leaseId ?? item?.lease_id);
   const getTenantId = (item: any) => normalizeId(item?.tenantId ?? item?.tenant_id);
 
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check");
+      return await response.json();
+    },
+  });
+
+  const currentRole = (authData?.user?.role || "").toLowerCase();
+  const permissionsRaw = authData?.user?.permissions;
+  const permissions = Array.isArray(permissionsRaw)
+    ? permissionsRaw
+    : typeof permissionsRaw === "string" && permissionsRaw.trim().length > 0
+      ? (() => {
+          try {
+            const parsed = JSON.parse(permissionsRaw);
+            return Array.isArray(parsed) ? parsed : permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
+          } catch (error) {
+            return permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
+          }
+        })()
+      : [];
+
+  const hasUsersAccess =
+    currentRole === "admin" ||
+    currentRole === "super_admin" ||
+    permissions.includes("users") ||
+    permissions.includes("users.view") ||
+    permissions.includes("users.manage_permissions") ||
+    permissions.some((permission: string) => permission.startsWith("users."));
+
   // Fetch data for badges
   const { data: allProperties = [] } = useQuery({
     queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
@@ -599,7 +630,10 @@ export function AppSidebar() {
               </Collapsible>
 
               {/* Remaining other items (Reports, User Management, Settings) */}
-              {otherItems.filter(item => !['Maintenance'].includes(item.title)).map((item, index) => (
+              {otherItems
+                .filter(item => !['Maintenance'].includes(item.title))
+                .filter(item => item.title !== "User Management" || hasUsersAccess)
+                .map((item, index) => (
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}

@@ -925,7 +925,8 @@ try {
                             'id' => $user['id'], 
                             'username' => $user['username'],
                             'role' => $userRole,
-                            'mustChangePassword' => $mustChangePassword
+                            'mustChangePassword' => $mustChangePassword,
+                            'permissions' => $user['permissions'] ?? null
                         ]
                     ]);
                 } else {
