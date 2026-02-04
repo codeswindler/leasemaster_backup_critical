@@ -903,7 +903,6 @@ function AppContent() {
         } else {
           const protocol = window.location.protocol;
           const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
-          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//admin.${rootDomain}/login`;
           return null;
         }
@@ -912,7 +911,7 @@ function AppContent() {
           setLocation('/portal/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}/login`;
           return null;
         }
