@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { 
   Users, 
@@ -49,18 +49,20 @@ export function UserManagement() {
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const [, setLocation] = useLocation()
-  const landlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
-  const propertySelected = !!selectedPropertyId && selectedPropertyId !== "all"
-  const actionsDisabled = !propertySelected
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
     role: "",
     password: "",
     permissions: [] as string[],
+    propertyIds: [] as string[],
     region: "Africa/Nairobi", // Default to Nairobi, Kenya
     timezone: "Africa/Nairobi"
   })
+  const landlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
+  const propertySelected = !!selectedPropertyId && selectedPropertyId !== "all"
+  const hasAssignedProperties = newUser.propertyIds.length > 0
+  const actionsDisabled = !hasAssignedProperties
 
   const { data: authData } = useQuery({
     queryKey: ["/api/auth/check"],
@@ -89,6 +91,20 @@ export function UserManagement() {
     },
     enabled: isAdmin || landlordSelected || propertySelected,
   })
+
+  const { data: availableProperties = [] } = useQuery({
+    queryKey: ["/api/properties", selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedLandlordId && selectedLandlordId !== "all") {
+        params.append("landlordId", selectedLandlordId)
+      }
+      const url = `/api/properties${params.toString() ? `?${params}` : ""}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: landlordSelected,
+  })
   
   // Enhanced users with role/permission info (since basic users table only has username/password)
   const users = apiUsers.map((user: any) => {
@@ -114,6 +130,11 @@ export function UserManagement() {
       permissions
     }
   })
+
+  const allPermissionIds = useMemo(
+    () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
+    []
+  )
 
   const permissionCategories = [
     {
@@ -329,7 +350,7 @@ export function UserManagement() {
   const addUserMutation = useMutation({
     mutationFn: async () => {
       if (actionsDisabled) {
-        throw new Error("Select a property before adding users.")
+        throw new Error("Assign at least one property before adding users.")
       }
       const response = await apiRequest("POST", "/api/users", {
         username: newUser.email || newUser.name,
@@ -337,7 +358,7 @@ export function UserManagement() {
         role: newUser.role || "Administrator",
         password: newUser.password,
         permissions: newUser.permissions,
-        propertyId: selectedPropertyId,
+        propertyIds: newUser.propertyIds,
         region: newUser.region,
         timezone: newUser.timezone,
       })
@@ -357,6 +378,7 @@ export function UserManagement() {
         role: "",
         password: "",
         permissions: [],
+        propertyIds: [],
         region: "Africa/Nairobi",
         timezone: "Africa/Nairobi",
       })
@@ -382,6 +404,28 @@ export function UserManagement() {
     }))
   }
 
+  const handleToggleProperty = (propertyId: string) => {
+    setNewUser(prev => ({
+      ...prev,
+      propertyIds: prev.propertyIds.includes(propertyId)
+        ? prev.propertyIds.filter(id => id !== propertyId)
+        : [...prev.propertyIds, propertyId]
+    }))
+  }
+
+  const handleSelectAllPermissions = () => {
+    setNewUser((prev) => ({
+      ...prev,
+      permissions: allPermissionIds,
+    }))
+  }
+
+  const handleClearAllPermissions = () => {
+    setNewUser((prev) => ({
+      ...prev,
+      permissions: [],
+    }))
+  }
   const handleToggleCategory = (categoryId: string) => {
     const category = permissionCategories.find((item) => item.id === categoryId)
     if (!category) return
@@ -573,7 +617,49 @@ export function UserManagement() {
               </div>
 
               <div>
-                <Label className="text-base font-medium mb-3 block">Permissions</Label>
+                <Label className="text-base font-medium mb-3 block">Assigned Properties</Label>
+                {!landlordSelected ? (
+                  <p className="text-sm text-muted-foreground">
+                    Select a landlord to load available properties.
+                  </p>
+                ) : availableProperties.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No properties available for assignment.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                    {availableProperties.map((property: any) => (
+                      <div key={property.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`property-${property.id}`}
+                          checked={newUser.propertyIds.includes(String(property.id))}
+                          onCheckedChange={() => handleToggleProperty(String(property.id))}
+                          data-testid={`checkbox-property-${property.id}`}
+                        />
+                        <Label htmlFor={`property-${property.id}`} className="text-sm">
+                          {property.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  At least one property must be assigned.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <Label className="text-base font-medium">Permissions</Label>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPermissions}>
+                      Select all
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleClearAllPermissions}>
+                      Clear all
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
                   {permissionCategories.map((category) => {
                     const permissionIds = category.permissions.map((permission) => permission.id)

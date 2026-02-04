@@ -294,7 +294,7 @@ function AppContent() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ id: string; username: string; role?: string } | null>(null)
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedPropertyId, selectedLandlordId, setSelectedLandlordId } = useFilter()
   const { toast } = useToast()
   const [smsBalanceNotified, setSmsBalanceNotified] = useState(false)
   const [emailBalanceNotified, setEmailBalanceNotified] = useState(false)
@@ -384,6 +384,17 @@ function AppContent() {
 
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (currentUser.role !== "client") {
+      return;
+    }
+    const userLandlordId = String(currentUser.id);
+    if (selectedLandlordId !== userLandlordId) {
+      setSelectedLandlordId(userLandlordId);
+    }
+  }, [currentUser, selectedLandlordId, setSelectedLandlordId]);
 
   useEffect(() => {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';

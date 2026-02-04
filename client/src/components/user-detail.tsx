@@ -210,11 +210,16 @@ export function UserDetail() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
+  const [assignedPropertyIds, setAssignedPropertyIds] = useState<string[]>([])
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(
     Object.fromEntries(permissionCategories.map((category) => [category.id, true]))
   )
   const [otpEnabled, setOtpEnabled] = useState(true)
   const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const allPermissionIds = useMemo(
+    () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
+    []
+  )
 
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/users", userId],
@@ -276,6 +281,9 @@ export function UserDetail() {
     } else if (typeof user.alertsEnabled === "boolean") {
       setAlertsEnabled(user.alertsEnabled)
     }
+    if (Array.isArray(user.propertyIds)) {
+      setAssignedPropertyIds(user.propertyIds.map((id: any) => String(id)))
+    }
   }, [user])
 
   const updatePermissionsMutation = useMutation({
@@ -293,6 +301,26 @@ export function UserDetail() {
       toast({
         title: "Failed to update permissions",
         description: error?.message || "Unable to save permissions.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const updateAssignedPropertiesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PUT", `/api/users/${userId}`, {
+        propertyIds: assignedPropertyIds,
+      })
+      return await response.json()
+    },
+    onSuccess: () => {
+      toast({ title: "Assigned properties updated" })
+      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update properties",
+        description: error?.message || "Unable to save assigned properties.",
         variant: "destructive",
       })
     },
@@ -398,6 +426,19 @@ export function UserDetail() {
     )
   }
 
+  const toggleAssignedProperty = (propertyId: string) => {
+    setAssignedPropertyIds((prev) =>
+      prev.includes(propertyId) ? prev.filter((id) => id !== propertyId) : [...prev, propertyId]
+    )
+  }
+
+  const selectAllPermissions = () => {
+    setSelectedPermissions(allPermissionIds)
+  }
+
+  const clearAllPermissions = () => {
+    setSelectedPermissions([])
+  }
   const toggleCategory = (categoryId: string) => {
     const category = permissionCategories.find((item) => item.id === categoryId)
     if (!category) return
@@ -518,8 +559,55 @@ export function UserDetail() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Permission Management</CardTitle>
-          <CardDescription>Manage access for this user</CardDescription>
+          <CardTitle>Assigned Properties</CardTitle>
+          <CardDescription>Select which properties this user can manage</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {properties.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No properties available.</div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+              {(properties as any[]).map((property: any) => (
+                <div key={property.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`user-property-${property.id}`}
+                    checked={assignedPropertyIds.includes(String(property.id))}
+                    onCheckedChange={() => toggleAssignedProperty(String(property.id))}
+                  />
+                  <Label htmlFor={`user-property-${property.id}`} className="text-sm">
+                    {property.name}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => updateAssignedPropertiesMutation.mutate()}
+              disabled={updateAssignedPropertiesMutation.isPending}
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Save Assigned Properties
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Permission Management</CardTitle>
+            <CardDescription>Manage access for this user</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={selectAllPermissions}>
+              Select all
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={clearAllPermissions}>
+              Clear all
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">

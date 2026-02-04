@@ -48,6 +48,16 @@ CREATE TABLE users (
     INDEX idx_users_property (property_id)
 );
 
+CREATE TABLE user_properties (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    property_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_user_property (user_id, property_id),
+    INDEX idx_user_properties_user (user_id),
+    INDEX idx_user_properties_property (property_id)
+);
+
 -- Create properties table
 CREATE TABLE properties (
     id INT PRIMARY KEY AUTO_INCREMENT,

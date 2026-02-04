@@ -1008,9 +1008,20 @@ try {
                 } else {
                     sendJson($storage->getAllProperties());
                 }
+            } elseif ($userRole === 'client') {
+                if (!$user) {
+                    sendJson(['error' => 'Unauthorized'], 401);
+                }
+                // Landlords see all their properties
+                $landlordId = $user['id'] ?? null;
+                sendJson($storage->getAllProperties($landlordId, null));
             } else {
-                // Client users: filter by landlordId if provided
-                sendJson($storage->getAllProperties($landlordId, $propertyId));
+                if (!$user) {
+                    sendJson(['error' => 'Unauthorized'], 401);
+                }
+                // System users: only assigned properties
+                $propertyIds = $storage->getUserPropertyIds($user['id']);
+                sendJson($storage->getPropertiesByIds($propertyIds));
             }
         }
         
@@ -1050,6 +1061,34 @@ try {
                     'message' => 'The property may have been deleted or does not exist. Please refresh the page.'
                 ], 404);
             } else {
+                // Restrict non-admin users to their allowed scope
+                $userRole = null;
+                $user = null;
+                if (isset($_SESSION['userId'])) {
+                    $user = $storage->getUser($_SESSION['userId']);
+                    $userRole = $user['role'] ?? 'client';
+                }
+                if ($userRole !== 'admin' && $userRole !== 'super_admin') {
+                    if (!$user) {
+                        sendJson(['error' => 'Unauthorized'], 401);
+                    }
+                    if ($userRole === 'client') {
+                        $landlordId = $user['id'] ?? null;
+                        $ownsLandlord = isset($property['landlord_id']) && (string)$property['landlord_id'] === (string)$landlordId;
+                        if (!$ownsLandlord && $landlordId) {
+                            $landlord = $storage->getUser($landlordId);
+                            $ownsLandlord = $landlord && isset($property['landlord_email']) && $property['landlord_email'] === $landlord['username'];
+                        }
+                        if (!$ownsLandlord) {
+                            sendJson(['error' => 'Forbidden'], 403);
+                        }
+                    } else {
+                        $propertyIds = $storage->getUserPropertyIds($user['id']);
+                        if (!in_array($property['id'], $propertyIds, false)) {
+                            sendJson(['error' => 'Forbidden'], 403);
+                        }
+                    }
+                }
                 sendJson($property, 200);
             }
         }
@@ -1548,12 +1587,34 @@ try {
         if ($method === 'GET' && !$id) {
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
-            if ($propertyId) {
-                sendJson($storage->getTenantsByProperty($propertyId));
-            } elseif ($landlordId) {
-                sendJson($storage->getTenantsByLandlord($landlordId));
+            $userRole = null;
+            $user = null;
+            if (isset($_SESSION['userId'])) {
+                $user = $storage->getUser($_SESSION['userId']);
+                $userRole = $user['role'] ?? 'client';
+            }
+
+            if ($userRole === 'admin' || $userRole === 'super_admin') {
+                if ($propertyId && $landlordId) {
+                    sendJson($storage->getTenantsByLandlordAndProperty($landlordId, $propertyId));
+                } elseif ($propertyId) {
+                    sendJson($storage->getTenantsByProperty($propertyId));
+                } elseif ($landlordId) {
+                    sendJson($storage->getTenantsByLandlord($landlordId));
+                } else {
+                    sendJson($storage->getAllTenants());
+                }
             } else {
-            sendJson($storage->getAllTenants());
+                if (!$user) {
+                    sendJson(['error' => 'Unauthorized'], 401);
+                }
+                if ($userRole === 'client') {
+                    $landlordId = $user['id'] ?? null;
+                    sendJson($storage->getTenantsByLandlord($landlordId));
+                } else {
+                    $propertyIds = $storage->getUserPropertyIds($user['id']);
+                    sendJson($storage->getTenantsByPropertyIds($propertyIds));
+                }
             }
         }
         
@@ -2881,18 +2942,43 @@ try {
             if ($landlordId) {
                 $filters['landlordId'] = $landlordId;
             }
-            sendJson($storage->getUsers($filters));
+            $users = $storage->getUsers($filters);
+            foreach ($users as &$user) {
+                $user['propertyIds'] = $storage->getUserPropertyIds($user['id']);
+            }
+            unset($user);
+            sendJson($users);
         }
         
         if ($method === 'GET' && $id) {
             $user = $storage->getUser($id);
+            if ($user) {
+                $user['propertyIds'] = $storage->getUserPropertyIds($user['id']);
+            }
             sendJson($user ?: ['error' => 'User not found'], $user ? 200 : 404);
         }
         
         if ($method === 'POST' && !$id) {
-            $propertyId = $body['propertyId'] ?? null;
-            if (!$propertyId) {
-                sendJson(['error' => 'propertyId is required'], 400);
+            $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
+            $currentRole = $currentUser['role'] ?? 'client';
+            $isAdmin = $currentRole === 'admin' || $currentRole === 'super_admin';
+            $propertyIds = $body['propertyIds'] ?? [];
+            if (!is_array($propertyIds)) {
+                $propertyIds = [];
+            }
+            if (!$isAdmin && empty($propertyIds)) {
+                sendJson(['error' => 'At least one property must be assigned'], 400);
+            }
+            if ($currentRole === 'client' && !empty($propertyIds)) {
+                $allowedProperties = $storage->getAllProperties($currentUser['id'] ?? null, null);
+                $allowedIds = array_map(static function ($property) {
+                    return (string)($property['id'] ?? '');
+                }, $allowedProperties);
+                $propertyIds = array_values(array_unique(array_map('strval', $propertyIds)));
+                $invalid = array_diff($propertyIds, $allowedIds);
+                if (!empty($invalid)) {
+                    sendJson(['error' => 'One or more assigned properties are not allowed'], 403);
+                }
             }
             if (empty($body['username'])) {
                 sendJson(['error' => 'username is required'], 400);
@@ -2902,6 +2988,7 @@ try {
             if (strpos($password, '$2') !== 0) {
                 $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
             }
+            $primaryPropertyId = !empty($propertyIds) ? $propertyIds[0] : null;
             $user = $storage->createUser([
                 'username' => $body['username'] ?? null,
                 'password' => $hashedPassword,
@@ -2909,20 +2996,22 @@ try {
                 'fullName' => $body['fullName'] ?? null,
                 'phone' => $body['phone'] ?? null,
                 'idNumber' => $body['idNumber'] ?? null,
-                'propertyId' => $propertyId,
+                'propertyId' => $primaryPropertyId,
                 'permissions' => $body['permissions'] ?? [],
                 'otpEnabled' => $body['otpEnabled'] ?? null
             ]);
             if (!$user) {
                 sendJson(['error' => 'Failed to create user'], 400);
             }
+            $storage->setUserProperties($user['id'], $propertyIds);
+            $user['propertyIds'] = $storage->getUserPropertyIds($user['id']);
             $storage->logActivity([
                 'action' => 'User Created',
                 'details' => "User \"{$user['username']}\" created",
                 'type' => 'user',
                 'status' => 'success',
                 'userId' => $_SESSION['userId'] ?? null,
-                'propertyId' => $propertyId
+                'propertyId' => $primaryPropertyId
             ]);
             sendJson(array_merge($user, ['generatedPassword' => $password]), 201);
         }
@@ -3063,7 +3152,32 @@ try {
         }
         
         if ($method === 'PUT' && $id) {
+            $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
+            $currentRole = $currentUser['role'] ?? 'client';
+            $isAdmin = $currentRole === 'admin' || $currentRole === 'super_admin';
+            $propertyIds = $body['propertyIds'] ?? null;
+            if ($propertyIds !== null && !is_array($propertyIds)) {
+                $propertyIds = [];
+            }
+            if (!$isAdmin && is_array($propertyIds) && empty($propertyIds)) {
+                sendJson(['error' => 'At least one property must be assigned'], 400);
+            }
+            if ($currentRole === 'client' && is_array($propertyIds) && !empty($propertyIds)) {
+                $allowedProperties = $storage->getAllProperties($currentUser['id'] ?? null, null);
+                $allowedIds = array_map(static function ($property) {
+                    return (string)($property['id'] ?? '');
+                }, $allowedProperties);
+                $propertyIds = array_values(array_unique(array_map('strval', $propertyIds)));
+                $invalid = array_diff($propertyIds, $allowedIds);
+                if (!empty($invalid)) {
+                    sendJson(['error' => 'One or more assigned properties are not allowed'], 403);
+                }
+            }
             $user = $storage->updateUser($id, $body);
+            if ($user && is_array($propertyIds)) {
+                $storage->setUserProperties($id, $propertyIds);
+                $user['propertyIds'] = $storage->getUserPropertyIds($id);
+            }
             if ($user) {
                 $storage->logActivity([
                     'action' => 'User Updated',

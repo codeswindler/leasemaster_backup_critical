@@ -188,18 +188,26 @@ class Storage {
         $hasPropertyId = $this->columnExists('users', 'property_id');
         $hasLandlordId = $this->columnExists('properties', 'landlord_id');
         $hasRole = $this->columnExists('users', 'role');
+        $hasUserProperties = $this->tableExists('user_properties');
 
         $where = [];
         $params = [];
+        $joins = [];
 
         if (!empty($filters['propertyId']) && $hasPropertyId) {
-            if (!empty($filters['landlordId'])) {
-                $where[] = "(u.property_id = ? OR u.id = ?)";
+            if ($hasUserProperties) {
+                $joins[] = "LEFT JOIN user_properties up ON up.user_id = u.id";
+                $where[] = "up.property_id = ?";
                 $params[] = $filters['propertyId'];
-                $params[] = $filters['landlordId'];
             } else {
-                $where[] = "u.property_id = ?";
-                $params[] = $filters['propertyId'];
+                if (!empty($filters['landlordId'])) {
+                    $where[] = "(u.property_id = ? OR u.id = ?)";
+                    $params[] = $filters['propertyId'];
+                    $params[] = $filters['landlordId'];
+                } else {
+                    $where[] = "u.property_id = ?";
+                    $params[] = $filters['propertyId'];
+                }
             }
         } elseif (!empty($filters['landlordId']) && $hasLandlordId && $hasPropertyId) {
             $where[] = "(p.landlord_id = ? OR u.id = ?)";
@@ -217,12 +225,45 @@ class Storage {
         if (!empty($filters['landlordId']) && $hasLandlordId && $hasPropertyId) {
             $sql .= " LEFT JOIN properties p ON u.property_id = p.id";
         }
+        if (!empty($joins)) {
+            $sql .= " " . implode(" ", $joins);
+        }
         if (!empty($where)) {
             $sql .= " WHERE " . implode(" AND ", $where);
         }
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll();
+    }
+
+    public function getUserPropertyIds($userId) {
+        if (!$this->tableExists('user_properties')) {
+            return [];
+        }
+        $stmt = $this->pdo->prepare("SELECT property_id FROM user_properties WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        return array_map(static function ($row) {
+            return $row['property_id'];
+        }, $stmt->fetchAll());
+    }
+
+    public function setUserProperties($userId, $propertyIds) {
+        if (!$this->tableExists('user_properties')) {
+            return false;
+        }
+        $stmt = $this->pdo->prepare("DELETE FROM user_properties WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        if (empty($propertyIds)) {
+            return true;
+        }
+        $unique = array_values(array_unique(array_filter($propertyIds, static function ($value) {
+            return $value !== null && $value !== '';
+        })));
+        foreach ($unique as $propertyId) {
+            $insert = $this->pdo->prepare("INSERT INTO user_properties (user_id, property_id) VALUES (?, ?)");
+            $insert->execute([$userId, $propertyId]);
+        }
+        return true;
     }
 
     public function createUser($data) {
@@ -1075,6 +1116,71 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    public function getTenantsByLandlordAndProperty($landlordId, $propertyId) {
+        $hasPropertyId = $this->columnExists('tenants', 'property_id');
+        if ($hasPropertyId) {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT t.*
+                 FROM tenants t
+                 LEFT JOIN properties p_direct ON p_direct.id = t.property_id
+                 LEFT JOIN leases l ON l.tenant_id = t.id
+                 LEFT JOIN units u ON u.id = l.unit_id
+                 LEFT JOIN properties p_lease ON p_lease.id = u.property_id
+                 WHERE (p_direct.landlord_id = ? OR p_lease.landlord_id = ?)
+                   AND (t.property_id = ? OR u.property_id = ?)
+                 ORDER BY t.created_at DESC"
+            );
+            $stmt->execute([$landlordId, $landlordId, $propertyId, $propertyId]);
+            return $stmt->fetchAll();
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT DISTINCT t.*
+             FROM tenants t
+             INNER JOIN leases l ON l.tenant_id = t.id
+             INNER JOIN units u ON u.id = l.unit_id
+             INNER JOIN properties p ON p.id = u.property_id
+             WHERE p.landlord_id = ?
+               AND p.id = ?
+             ORDER BY t.created_at DESC"
+        );
+        $stmt->execute([$landlordId, $propertyId]);
+        return $stmt->fetchAll();
+    }
+
+    public function getTenantsByPropertyIds($propertyIds) {
+        if (empty($propertyIds)) {
+            return [];
+        }
+        $hasPropertyId = $this->columnExists('tenants', 'property_id');
+        $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        if ($hasPropertyId) {
+            $stmt = $this->pdo->prepare(
+                "SELECT DISTINCT t.*
+                 FROM tenants t
+                 LEFT JOIN leases l ON l.tenant_id = t.id
+                 LEFT JOIN units u ON u.id = l.unit_id
+                 WHERE t.property_id IN ($placeholders)
+                    OR u.property_id IN ($placeholders)
+                 ORDER BY t.created_at DESC"
+            );
+            $params = array_merge(array_values($propertyIds), array_values($propertyIds));
+            $stmt->execute($params);
+            return $stmt->fetchAll();
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT DISTINCT t.*
+             FROM tenants t
+             INNER JOIN leases l ON l.tenant_id = t.id
+             INNER JOIN units u ON u.id = l.unit_id
+             INNER JOIN properties p ON p.id = u.property_id
+             WHERE p.id IN ($placeholders)
+             ORDER BY t.created_at DESC"
+        );
+        $stmt->execute(array_values($propertyIds));
+        return $stmt->fetchAll();
+    }
     public function getTenant($id) {
         $stmt = $this->pdo->prepare("SELECT * FROM tenants WHERE id = ?");
         $stmt->execute([$id]);
@@ -2610,6 +2716,16 @@ class Storage {
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public function getPropertiesByIds($propertyIds) {
+        if (empty($propertyIds)) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        $stmt = $this->pdo->prepare("SELECT * FROM properties WHERE id IN ($placeholders) ORDER BY created_at DESC");
+        $stmt->execute(array_values($propertyIds));
         return $stmt->fetchAll();
     }
 
