@@ -268,6 +268,17 @@ export function UserManagement() {
       ],
     },
     {
+      id: "maintenance",
+      name: "Maintenance",
+      description: "Manage maintenance requests",
+      permissions: [
+        { id: "maintenance.view", name: "View maintenance requests" },
+        { id: "maintenance.create", name: "Create maintenance requests" },
+        { id: "maintenance.edit", name: "Edit maintenance requests" },
+        { id: "maintenance.delete", name: "Delete maintenance requests" },
+      ],
+    },
+    {
       id: "reports",
       name: "Reports",
       description: "Generate and export reports",
@@ -316,10 +327,14 @@ export function UserManagement() {
     },
   ]
 
+  const allPermissionIds = permissionCategories.flatMap((category) =>
+    category.permissions.map((permission) => permission.id)
+  )
+
   const permissionCategoryAliases: Record<string, string[]> = {
     properties: ["properties"],
     tenants: ["tenants"],
-    accounting: ["invoices", "payments"],
+    accounting: ["invoices", "payments", "receipts", "bills", "water_readings"],
     reports: ["reports"],
     messaging: ["messaging"],
     users: ["users"],
@@ -379,6 +394,20 @@ export function UserManagement() {
       permissions: prev.permissions.includes(permissionId)
         ? prev.permissions.filter(p => p !== permissionId)
         : [...prev.permissions, permissionId]
+    }))
+  }
+
+  const handleSelectAllPermissions = () => {
+    setNewUser((prev) => ({
+      ...prev,
+      permissions: allPermissionIds,
+    }))
+  }
+
+  const handleClearAllPermissions = () => {
+    setNewUser((prev) => ({
+      ...prev,
+      permissions: [],
     }))
   }
 
@@ -573,7 +602,17 @@ export function UserManagement() {
               </div>
 
               <div>
-                <Label className="text-base font-medium mb-3 block">Permissions</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <Label className="text-base font-medium">Permissions</Label>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPermissions}>
+                      Select all
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={handleClearAllPermissions}>
+                      Clear all
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
                   {permissionCategories.map((category) => {
                     const permissionIds = category.permissions.map((permission) => permission.id)

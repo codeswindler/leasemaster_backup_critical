@@ -70,8 +70,6 @@ export function AppSidebar() {
   });
 
   const currentRole = (authData?.user?.role || "").toLowerCase();
-<<<<<<< HEAD
-=======
   const isAdminUser = currentRole === "admin" || currentRole === "super_admin";
   const permissionsRaw = authData?.user?.permissions;
   const permissions = Array.isArray(permissionsRaw)
@@ -101,7 +99,7 @@ export function AppSidebar() {
     hasCategoryPermission("payments") ||
     hasCategoryPermission("receipts") ||
     hasCategoryPermission("bills") ||
-    hasCategoryPermission("water_units");
+    hasCategoryPermission("water_readings");
   const canViewMaintenance = hasCategoryPermission("maintenance");
   const canViewMessaging = hasCategoryPermission("messaging");
   const canViewReports = hasCategoryPermission("reports");
@@ -109,34 +107,8 @@ export function AppSidebar() {
   const canViewCreditUsage = hasCategoryPermission("settings");
   const canViewSettings = hasCategoryPermission("settings");
   const canViewActivity = hasCategoryPermission("activity_logs");
-
-  const { data: authData } = useQuery({
-    queryKey: ["/api/auth/check"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/auth/check");
-      return await response.json();
-    },
-  });
-
-  const currentRole = (authData?.user?.role || "").toLowerCase();
->>>>>>> a0ba28e (Enforce permissions and property limits)
-  const permissionsRaw = authData?.user?.permissions;
-  const permissions = Array.isArray(permissionsRaw)
-    ? permissionsRaw
-    : typeof permissionsRaw === "string" && permissionsRaw.trim().length > 0
-      ? (() => {
-          try {
-            const parsed = JSON.parse(permissionsRaw);
-            return Array.isArray(parsed) ? parsed : permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
-          } catch (error) {
-            return permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
-          }
-        })()
-      : [];
-
   const hasUsersAccess =
-    currentRole === "admin" ||
-    currentRole === "super_admin" ||
+    isAdminUser ||
     permissions.includes("users") ||
     permissions.includes("users.view") ||
     permissions.includes("users.manage_permissions") ||
@@ -712,14 +684,7 @@ export function AppSidebar() {
               )}
 
               {/* Remaining other items (Reports, User Management, Settings) */}
-<<<<<<< HEAD
-              {otherItems
-                .filter(item => !['Maintenance'].includes(item.title))
-                .filter(item => item.title !== "User Management" || hasUsersAccess)
-                .map((item, index) => (
-=======
               {visibleOtherItemsWithoutMaintenance.map((item, index) => (
->>>>>>> a0ba28e (Enforce permissions and property limits)
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}

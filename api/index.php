@@ -959,12 +959,8 @@ try {
                             'username' => $user['username'],
                             'role' => $userRole,
                             'mustChangePassword' => $mustChangePassword,
-<<<<<<< HEAD
-                            'permissions' => $user['permissions'] ?? null
-=======
                             'permissions' => $user['permissions'] ?? null,
                             'propertyLimit' => $user['property_limit'] ?? null
->>>>>>> a0ba28e (Enforce permissions and property limits)
                         ]
                     ]);
                 } else {

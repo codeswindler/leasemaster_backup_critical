@@ -151,6 +151,16 @@ const permissionCategories = [
     ],
   },
   {
+    id: "maintenance",
+    name: "Maintenance",
+    permissions: [
+      { id: "maintenance.view", name: "View maintenance requests" },
+      { id: "maintenance.create", name: "Create maintenance requests" },
+      { id: "maintenance.edit", name: "Edit maintenance requests" },
+      { id: "maintenance.delete", name: "Delete maintenance requests" },
+    ],
+  },
+  {
     id: "reports",
     name: "Reports",
     permissions: [
@@ -197,7 +207,7 @@ const permissionCategories = [
 const permissionCategoryAliases: Record<string, string[]> = {
   properties: ["properties"],
   tenants: ["tenants"],
-  accounting: ["invoices", "payments"],
+  accounting: ["invoices", "payments", "receipts", "bills", "water_readings"],
   reports: ["reports"],
   messaging: ["messaging"],
   users: ["users"],
@@ -215,6 +225,10 @@ export function UserDetail() {
   )
   const [otpEnabled, setOtpEnabled] = useState(true)
   const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const allPermissionIds = useMemo(
+    () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
+    []
+  )
 
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/users", userId],
@@ -398,6 +412,14 @@ export function UserDetail() {
     )
   }
 
+  const selectAllPermissions = () => {
+    setSelectedPermissions(allPermissionIds)
+  }
+
+  const clearAllPermissions = () => {
+    setSelectedPermissions([])
+  }
+
   const toggleCategory = (categoryId: string) => {
     const category = permissionCategories.find((item) => item.id === categoryId)
     if (!category) return
@@ -517,9 +539,19 @@ export function UserDetail() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Permission Management</CardTitle>
-          <CardDescription>Manage access for this user</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Permission Management</CardTitle>
+            <CardDescription>Manage access for this user</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={selectAllPermissions}>
+              Select all
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={clearAllPermissions}>
+              Clear all
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-4">
