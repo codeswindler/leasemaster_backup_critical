@@ -220,6 +220,7 @@ export function UserDetail() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
+  const [assignedPropertyIds, setAssignedPropertyIds] = useState<string[]>([])
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(
     Object.fromEntries(permissionCategories.map((category) => [category.id, true]))
   )
@@ -290,6 +291,9 @@ export function UserDetail() {
     } else if (typeof user.alertsEnabled === "boolean") {
       setAlertsEnabled(user.alertsEnabled)
     }
+    if (Array.isArray(user.propertyIds)) {
+      setAssignedPropertyIds(user.propertyIds.map((id: any) => String(id)))
+    }
   }, [user])
 
   const updatePermissionsMutation = useMutation({
@@ -307,6 +311,26 @@ export function UserDetail() {
       toast({
         title: "Failed to update permissions",
         description: error?.message || "Unable to save permissions.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const updateAssignedPropertiesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PUT", `/api/users/${userId}`, {
+        propertyIds: assignedPropertyIds,
+      })
+      return await response.json()
+    },
+    onSuccess: () => {
+      toast({ title: "Assigned properties updated" })
+      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update properties",
+        description: error?.message || "Unable to save assigned properties.",
         variant: "destructive",
       })
     },
@@ -409,6 +433,12 @@ export function UserDetail() {
   const togglePermission = (permissionId: string) => {
     setSelectedPermissions((prev) =>
       prev.includes(permissionId) ? prev.filter((p) => p !== permissionId) : [...prev, permissionId]
+    )
+  }
+
+  const toggleAssignedProperty = (propertyId: string) => {
+    setAssignedPropertyIds((prev) =>
+      prev.includes(propertyId) ? prev.filter((id) => id !== propertyId) : [...prev, propertyId]
     )
   }
 
@@ -534,6 +564,43 @@ export function UserDetail() {
               <Badge variant="outline">{otpEnabled ? "Enabled" : "Disabled"}</Badge>
               <Switch checked={otpEnabled} onCheckedChange={handleOtpToggle} />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assigned Properties</CardTitle>
+          <CardDescription>Select which properties this user can manage</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {properties.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No properties available.</div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+              {(properties as any[]).map((property: any) => (
+                <div key={property.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`user-property-${property.id}`}
+                    checked={assignedPropertyIds.includes(String(property.id))}
+                    onCheckedChange={() => toggleAssignedProperty(String(property.id))}
+                  />
+                  <Label htmlFor={`user-property-${property.id}`} className="text-sm">
+                    {property.name}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => updateAssignedPropertiesMutation.mutate()}
+              disabled={updateAssignedPropertiesMutation.isPending}
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Save Assigned Properties
+            </Button>
           </div>
         </CardContent>
       </Card>

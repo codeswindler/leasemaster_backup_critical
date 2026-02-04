@@ -402,25 +402,14 @@ function AppContent() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const isAdminUser = currentUser.role === "admin" || currentUser.role === "super_admin";
-    if (isAdminUser) return;
+    if (currentUser.role !== "client") {
+      return;
+    }
     const userLandlordId = String(currentUser.id);
     if (selectedLandlordId !== userLandlordId) {
       setSelectedLandlordId(userLandlordId);
     }
-    if (currentUser.propertyId !== null && currentUser.propertyId !== undefined) {
-      const userPropertyId = String(currentUser.propertyId);
-      if (selectedPropertyId !== userPropertyId) {
-        setSelectedPropertyId(userPropertyId);
-      }
-    }
-  }, [
-    currentUser,
-    selectedLandlordId,
-    selectedPropertyId,
-    setSelectedLandlordId,
-    setSelectedPropertyId,
-  ]);
+  }, [currentUser, selectedLandlordId, setSelectedLandlordId]);
 
   useEffect(() => {
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
