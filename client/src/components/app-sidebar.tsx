@@ -402,7 +402,6 @@ export function AppSidebar() {
       icon: Mail,
     }
   ]
-
   const visibleMenuItems = menuItems.filter((item) => {
     if (item.title === "Dashboard") return canViewDashboard;
     if (item.title === "Properties") return canViewProperties;
@@ -550,7 +549,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {visibleAccountingItems.length > 0 && (
+                {visibleAccountingItems.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Accounting</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -563,8 +562,8 @@ export function AppSidebar() {
                     transition={{ duration: 0.3, delay: (visibleMenuItems.length + index) * 0.05 }}
                   >
                     <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        asChild 
+                      <SidebarMenuButton
+                        asChild
                         className="group transition-all duration-200 hover:scale-[1.02]"
                         tooltip={item.title}
                       >
@@ -582,8 +581,8 @@ export function AppSidebar() {
                               animate={{ scale: 1 }}
                               transition={{ type: "spring", stiffness: 500, damping: 30 }}
                             >
-                              <Badge 
-                                variant={(item.badgeVariant as "default" | "destructive" | "outline" | "secondary") || "default"} 
+                              <Badge
+                                variant={(item.badgeVariant as "default" | "destructive" | "outline" | "secondary") || "default"}
                                 className={`ml-auto text-xs ${item.badgeVariant === "destructive" ? "text-overdue-foreground bg-overdue animate-pulse" : ""}`}
                               >
                                 {item.badge}
@@ -613,8 +612,8 @@ export function AppSidebar() {
                     transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length) * 0.05 }}
                   >
                     <SidebarMenuItem>
-                      <SidebarMenuButton 
-                        asChild 
+                      <SidebarMenuButton
+                        asChild
                         className="group transition-all duration-200 hover:scale-[1.02]"
                         tooltip="Maintenance"
                       >
@@ -642,7 +641,7 @@ export function AppSidebar() {
                     >
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
-                          <SidebarMenuButton 
+                          <SidebarMenuButton
                             className="group transition-all duration-200 hover:scale-[1.02]"
                             tooltip="Messaging"
                           >
@@ -684,47 +683,48 @@ export function AppSidebar() {
                   </Collapsible>
                 )}
 
-              {/* Remaining other items (Reports, User Management, Settings) */}
-              {visibleOtherItemsWithoutMaintenance.map((item, index) => (
-                <motion.div
-                  key={item.title}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 2 + index) * 0.05 }}
-                >
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      className="group transition-all duration-200 hover:scale-[1.02]"
-                      tooltip={item.title}
-                    >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 2 + index)}`} />
-                        </motion.div>
-                        <span>{item.title}</span>
-                        {item.badge && (
+                {/* Remaining other items (Reports, User Management, Settings) */}
+                {visibleOtherItemsWithoutMaintenance.map((item, index) => (
+                  <motion.div
+                    key={item.title}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 2 + index) * 0.05 }}
+                  >
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        className="group transition-all duration-200 hover:scale-[1.02]"
+                        tooltip={item.title}
+                      >
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
                           <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
                           >
-                            <Badge variant="outline" className="ml-auto text-xs">
-                              {item.badge}
-                            </Badge>
+                            <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 2 + index)}`} />
                           </motion.div>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </motion.div>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                          <span>{item.title}</span>
+                          {item.badge && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            >
+                              <Badge variant="outline" className="ml-auto text-xs">
+                                {item.badge}
+                              </Badge>
+                            </motion.div>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       
       <SidebarFooter className="p-4 space-y-2">

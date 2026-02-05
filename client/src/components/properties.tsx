@@ -231,7 +231,6 @@ export function Properties() {
       })
       return null
     }
-
     if (!data.name?.trim()) {
       toast({
         title: "Validation Error",
@@ -787,7 +786,7 @@ export function Properties() {
               <Button
                 type="button"
                 data-testid="button-save-add-units-property"
-                disabled={createPropertyMutation.isPending}
+                disabled={createPropertyMutation.isPending || propertyLimitReached}
                 onClick={handleAddPropertyWithRedirect}
               >
                 {createPropertyMutation.isPending && (

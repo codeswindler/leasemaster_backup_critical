@@ -297,10 +297,16 @@ function AppContent() {
     id: string;
     username: string;
     role?: string;
+    propertyId?: string | number | null;
     permissions?: string[] | string | null;
     propertyLimit?: number | null;
   } | null>(null)
-  const { selectedPropertyId, selectedLandlordId, setSelectedLandlordId } = useFilter()
+  const {
+    selectedPropertyId,
+    selectedLandlordId,
+    setSelectedLandlordId,
+    setSelectedPropertyId,
+  } = useFilter()
   const { toast } = useToast()
   const [smsBalanceNotified, setSmsBalanceNotified] = useState(false)
   const [emailBalanceNotified, setEmailBalanceNotified] = useState(false)
@@ -375,6 +381,7 @@ function AppContent() {
                 id: data.user.id, 
                 username: data.user.username, 
                 role: userRole,
+                propertyId: data.user.propertyId ?? null,
                 permissions: data.user.permissions ?? null,
                 propertyLimit: data.user.propertyLimit ?? null
               });
@@ -457,6 +464,7 @@ function AppContent() {
                 id: data.user.id, 
                 username: data.user.username, 
                 role: data.user.role || 'client',
+                propertyId: data.user.propertyId ?? null,
                 permissions: data.user.permissions ?? null,
                 propertyLimit: data.user.propertyLimit ?? null
               });
@@ -1235,3 +1243,5 @@ function App() {
 }
 
 export default App;
+
+

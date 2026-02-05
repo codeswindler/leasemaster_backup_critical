@@ -449,6 +449,7 @@ export function UserDetail() {
   const clearAllPermissions = () => {
     setSelectedPermissions([])
   }
+
   const toggleCategory = (categoryId: string) => {
     const category = permissionCategories.find((item) => item.id === categoryId)
     if (!category) return

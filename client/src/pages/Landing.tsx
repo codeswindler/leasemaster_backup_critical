@@ -377,7 +377,7 @@ export function Landing() {
       setLocation('/admin/login');
     } else {
       // Production - redirect to admin subdomain (strip any existing subdomain first)
-      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
       window.location.href = `${protocol}//admin.${rootDomain}/login`;
     }
   };

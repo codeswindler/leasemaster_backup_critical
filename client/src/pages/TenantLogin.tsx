@@ -507,7 +507,7 @@ export function TenantLogin() {
                     if (hostname === 'localhost' || hostname === '127.0.0.1') {
                       setLocation('/');
                     } else {
-                      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+                      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
                       window.location.href = `${protocol}//${rootDomain}/`;
                     }
                   }}

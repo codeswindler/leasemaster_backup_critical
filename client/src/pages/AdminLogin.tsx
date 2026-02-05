@@ -639,7 +639,7 @@ export function AdminLogin() {
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         window.location.href = '/clients';
       } else {
-        const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+        const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
         window.location.href = `${protocol}//admin.${rootDomain}/clients`;
       }
     } else {
@@ -647,7 +647,7 @@ export function AdminLogin() {
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         window.location.href = '/enquiries';
       } else {
-        const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+        const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
         window.location.href = `${protocol}//admin.${rootDomain}/enquiries`;
       }
     }
@@ -663,7 +663,7 @@ export function AdminLogin() {
       window.location.href = '/admin';
     } else {
       // Remove any existing subdomain and use admin subdomain
-      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
       const adminUrl = `${protocol}//admin.${rootDomain}`;
       console.log('Navigating to', adminUrl);
       window.location.href = adminUrl;
@@ -1211,7 +1211,7 @@ export function AdminLogin() {
                     setLocation('/');
                   } else {
                     // Production: always redirect to root domain (theleasemaster.com)
-                    const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+                    const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
                     window.location.href = `${protocol}//${rootDomain}/`;
                   }
                 }}

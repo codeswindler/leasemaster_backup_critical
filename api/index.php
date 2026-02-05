@@ -665,6 +665,7 @@ try {
                     'username' => $updatedUser['username'],
                     'role' => $updatedUser['role'] ?? 'client',
                     'mustChangePassword' => $mustChangePassword,
+                    'propertyId' => $updatedUser['property_id'] ?? null,
                     'permissions' => $updatedUser['permissions'] ?? null,
                     'propertyLimit' => $updatedUser['property_limit'] ?? null
                 ]
@@ -834,7 +835,9 @@ try {
                         'id' => $user['id'],
                         'username' => $user['username'],
                         'role' => $user['role'] ?? 'client',
-                        'mustChangePassword' => $mustChangePassword
+                        'mustChangePassword' => $mustChangePassword,
+                        'propertyId' => $user['property_id'] ?? null,
+                        'permissions' => $user['permissions'] ?? null
                     ]
                 ]);
             }
@@ -961,6 +964,7 @@ try {
                             'username' => $user['username'],
                             'role' => $userRole,
                             'mustChangePassword' => $mustChangePassword,
+                            'propertyId' => $user['property_id'] ?? null,
                             'permissions' => $user['permissions'] ?? null,
                             'propertyLimit' => $user['property_limit'] ?? null
                         ]
@@ -1040,6 +1044,7 @@ try {
             
             // Get current user role from session
             $userRole = null;
+            $user = null;
             if (isset($_SESSION['userId'])) {
                 $user = $storage->getUser($_SESSION['userId']);
                 $userRole = $user['role'] ?? 'client';

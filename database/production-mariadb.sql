@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS invoice_items;
 DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS leases;
+DROP TABLE IF EXISTS user_properties;
 DROP TABLE IF EXISTS message_recipients;
 DROP TABLE IF EXISTS bulk_messages;
 DROP TABLE IF EXISTS messages;
@@ -69,6 +70,15 @@ CREATE TABLE properties (
     landlord_id INT NULL,
     status VARCHAR(20) DEFAULT 'active' NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create user_properties table for multi-property assignments
+CREATE TABLE user_properties (
+    user_id INT NOT NULL,
+    property_id INT NOT NULL,
+    PRIMARY KEY (user_id, property_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
 );
 
 -- Create tenants table
