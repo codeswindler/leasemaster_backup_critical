@@ -131,11 +131,6 @@ export function UserManagement() {
     }
   })
 
-  const allPermissionIds = useMemo(
-    () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
-    []
-  )
-
   const permissionCategories = [
     {
       id: "dashboard",
@@ -336,6 +331,11 @@ export function UserManagement() {
       permissions: [{ id: "data_import.upload", name: "Upload/import data" }],
     },
   ]
+
+  const allPermissionIds = useMemo(
+    () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
+    []
+  )
 
   const permissionCategoryAliases: Record<string, string[]> = {
     properties: ["properties"],
