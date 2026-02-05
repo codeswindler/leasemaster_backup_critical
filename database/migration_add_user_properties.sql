@@ -1,3 +1,4 @@
+-- Create table if it doesn't exist, or ensure it has the correct structure
 CREATE TABLE IF NOT EXISTS user_properties (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
@@ -8,6 +9,10 @@ CREATE TABLE IF NOT EXISTS user_properties (
     INDEX idx_user_properties_property (property_id)
 );
 
+-- Ensure id column has AUTO_INCREMENT (in case table existed without it)
+ALTER TABLE user_properties MODIFY COLUMN id INT AUTO_INCREMENT;
+
+-- Insert data
 INSERT INTO user_properties (user_id, property_id)
 SELECT u.id, u.property_id
 FROM users u

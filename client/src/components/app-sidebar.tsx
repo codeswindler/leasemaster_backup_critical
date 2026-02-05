@@ -61,6 +61,59 @@ export function AppSidebar() {
   const getLeaseId = (item: any) => normalizeId(item?.leaseId ?? item?.lease_id);
   const getTenantId = (item: any) => normalizeId(item?.tenantId ?? item?.tenant_id);
 
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check");
+      return await response.json();
+    },
+  });
+
+  const currentRole = (authData?.user?.role || "").toLowerCase();
+  const isAdminUser = currentRole === "admin" || currentRole === "super_admin";
+  const permissionsRaw = authData?.user?.permissions;
+  const permissions = Array.isArray(permissionsRaw)
+    ? permissionsRaw
+    : typeof permissionsRaw === "string" && permissionsRaw.trim().length > 0
+      ? (() => {
+          try {
+            const parsed = JSON.parse(permissionsRaw);
+            return Array.isArray(parsed) ? parsed : permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
+          } catch (error) {
+            return permissionsRaw.split(",").map((value: string) => value.trim()).filter(Boolean);
+          }
+        })()
+      : [];
+
+  const hasCategoryPermission = (category: string) =>
+    isAdminUser ||
+    permissions.includes(category) ||
+    permissions.some((permission: string) => permission.startsWith(`${category}.`));
+
+  const canViewDashboard = hasCategoryPermission("dashboard");
+  const canViewProperties = hasCategoryPermission("properties");
+  const canViewHouses = hasCategoryPermission("house_types") || hasCategoryPermission("units");
+  const canViewTenants = hasCategoryPermission("tenants");
+  const canViewAccounting =
+    hasCategoryPermission("invoices") ||
+    hasCategoryPermission("payments") ||
+    hasCategoryPermission("receipts") ||
+    hasCategoryPermission("bills") ||
+    hasCategoryPermission("water_readings");
+  const canViewMaintenance = hasCategoryPermission("maintenance");
+  const canViewMessaging = hasCategoryPermission("messaging");
+  const canViewReports = hasCategoryPermission("reports");
+  const canViewUsers = hasCategoryPermission("users");
+  const canViewCreditUsage = hasCategoryPermission("settings");
+  const canViewSettings = hasCategoryPermission("settings");
+  const canViewActivity = hasCategoryPermission("activity_logs");
+  const hasUsersAccess =
+    isAdminUser ||
+    permissions.includes("users") ||
+    permissions.includes("users.view") ||
+    permissions.includes("users.manage_permissions") ||
+    permissions.some((permission: string) => permission.startsWith("users."));
+
   // Fetch data for badges
   const { data: allProperties = [] } = useQuery({
     queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
@@ -349,13 +402,37 @@ export function AppSidebar() {
       icon: Mail,
     }
   ]
+
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.title === "Dashboard") return canViewDashboard;
+    if (item.title === "Properties") return canViewProperties;
+    if (item.title === "Houses") return canViewHouses;
+    return true;
+  })
+
+  const visibleTenantItems = canViewTenants ? tenantItems : []
+  const visibleAccountingItems = canViewAccounting ? accountingItems : []
+  const visibleMessagingItems = canViewMessaging ? messagingItems : []
+  const visibleOtherItems = otherItems.filter((item) => {
+    if (item.title === "Maintenance") return canViewMaintenance;
+    if (item.title === "Reports") return canViewReports;
+    if (item.title === "User Management") return canViewUsers;
+    if (item.title === "Credit Usage") return canViewCreditUsage;
+    if (item.title === "Settings") return canViewSettings;
+    return true;
+  })
+  const visibleOtherItemsWithoutMaintenance = visibleOtherItems.filter(
+    (item) => item.title !== "Maintenance"
+  )
+  const hasOtherSection =
+    canViewMaintenance || visibleMessagingItems.length > 0 || visibleOtherItemsWithoutMaintenance.length > 0
   const iconClassForIndex = (index: number) => getPaletteByIndex(index).icon
   const menuOffset = 0
-  const tenantsOffset = menuItems.length
+  const tenantsOffset = visibleMenuItems.length
   const tenantItemsOffset = tenantsOffset + 1
-  const accountingOffset = tenantItemsOffset + tenantItems.length
-  const otherOffset = accountingOffset + accountingItems.length
-  const messagingOffset = otherOffset + otherItems.length
+  const accountingOffset = tenantItemsOffset + visibleTenantItems.length
+  const otherOffset = accountingOffset + visibleAccountingItems.length
+  const messagingOffset = otherOffset + visibleOtherItems.length
 
   return (
     <Sidebar className="bg-sidebar/95 backdrop-blur-sm border-r-2" collapsible="offcanvas">
@@ -382,7 +459,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Management</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item, index) => (
+              {visibleMenuItems.map((item, index) => (
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}
@@ -419,192 +496,201 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 </motion.div>
               ))}
-              <Collapsible open={tenantsOpen} onOpenChange={setTenantsOpen}>
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: menuItems.length * 0.05 }}
-                >
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton 
-                        className="group transition-all duration-200 hover:scale-[1.02]"
-                        tooltip="Tenants"
-                      >
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <Users className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(tenantsOffset)}`} />
-                        </motion.div>
-                        <span>Tenants</span>
-                        {Array.isArray(tenants) && tenants.length > 0 && (
-                          <Badge variant="secondary" className="ml-auto text-xs mr-2">
-                            {tenants.length}
-                          </Badge>
-                        )}
-                        {tenantsOpen ? (
-                          <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
-                        )}
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {tenantItems.map((item, index) => (
-                          <SidebarMenuSubItem key={item.title}>
-                            <SidebarMenuSubButton asChild>
-                              <Link href={item.url} data-testid={`nav-tenants-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                <item.icon className={`h-4 w-4 ${iconClassForIndex(tenantItemsOffset + index)}`} />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </motion.div>
-              </Collapsible>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Accounting</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {accountingItems.map((item, index) => (
-                <motion.div
-                  key={item.title}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (menuItems.length + index) * 0.05 }}
-                >
-                  <SidebarMenuItem>
-                    <SidebarMenuButton 
-                      asChild 
-                      className="group transition-all duration-200 hover:scale-[1.02]"
-                      tooltip={item.title}
-                    >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                        >
-                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(accountingOffset + index)}`} />
-                        </motion.div>
-                        <span>{item.title}</span>
-                        {item.badge && (
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                          >
-                            <Badge 
-                              variant={(item.badgeVariant as "default" | "destructive" | "outline" | "secondary") || "default"} 
-                              className={`ml-auto text-xs ${item.badgeVariant === "destructive" ? "text-overdue-foreground bg-overdue animate-pulse" : ""}`}
-                            >
-                              {item.badge}
-                            </Badge>
-                          </motion.div>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </motion.div>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Other</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {/* Maintenance item */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: (menuItems.length + accountingItems.length) * 0.05 }}
-              >
-                <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    asChild 
-                    className="group transition-all duration-200 hover:scale-[1.02]"
-                    tooltip="Maintenance"
+              {visibleTenantItems.length > 0 && (
+                <Collapsible open={tenantsOpen} onOpenChange={setTenantsOpen}>
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: visibleMenuItems.length * 0.05 }}
                   >
-                    <Link href="/maintenance" data-testid="nav-maintenance">
-                      <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <AlertTriangle className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset)}`} />
-                      </motion.div>
-                      <span>Maintenance</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </motion.div>
-
-              {/* Messaging Collapsible Dropdown */}
-              <Collapsible open={messagingOpen} onOpenChange={setMessagingOpen}>
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (menuItems.length + accountingItems.length + 1) * 0.05 }}
-                >
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton 
-                        className="group transition-all duration-200 hover:scale-[1.02]"
-                        tooltip="Messaging"
-                      >
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton 
+                          className="group transition-all duration-200 hover:scale-[1.02]"
+                          tooltip="Tenants"
                         >
-                          <MessageSquare className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 1)}`} />
-                        </motion.div>
-                        <span>Messaging</span>
-                        {Array.isArray(bulkMessages) && bulkMessages.length > 0 && (
-                          <Badge variant="outline" className="ml-auto text-xs mr-2">
-                            {bulkMessages.length}
-                          </Badge>
-                        )}
-                        {messagingOpen ? (
-                          <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
-                        )}
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <Users className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(tenantsOffset)}`} />
+                          </motion.div>
+                          <span>Tenants</span>
+                          {Array.isArray(tenants) && tenants.length > 0 && (
+                            <Badge variant="secondary" className="ml-auto text-xs mr-2">
+                              {tenants.length}
+                            </Badge>
+                          )}
+                          {tenantsOpen ? (
+                            <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
+                          )}
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {visibleTenantItems.map((item, index) => (
+                            <SidebarMenuSubItem key={item.title}>
+                              <SidebarMenuSubButton asChild>
+                                <Link href={item.url} data-testid={`nav-tenants-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                                  <item.icon className={`h-4 w-4 ${iconClassForIndex(tenantItemsOffset + index)}`} />
+                                  <span>{item.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </motion.div>
+                </Collapsible>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {visibleAccountingItems.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Accounting</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleAccountingItems.map((item, index) => (
+                  <motion.div
+                    key={item.title}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: (visibleMenuItems.length + index) * 0.05 }}
+                  >
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        asChild 
+                        className="group transition-all duration-200 hover:scale-[1.02]"
+                        tooltip={item.title}
+                      >
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(accountingOffset + index)}`} />
+                          </motion.div>
+                          <span>{item.title}</span>
+                          {item.badge && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            >
+                              <Badge 
+                                variant={(item.badgeVariant as "default" | "destructive" | "outline" | "secondary") || "default"} 
+                                className={`ml-auto text-xs ${item.badgeVariant === "destructive" ? "text-overdue-foreground bg-overdue animate-pulse" : ""}`}
+                              >
+                                {item.badge}
+                              </Badge>
+                            </motion.div>
+                          )}
+                        </Link>
                       </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {messagingItems.map((item, index) => (
-                          <SidebarMenuSubItem key={item.title}>
-                            <SidebarMenuSubButton asChild>
-                              <Link href={item.url} data-testid={`nav-messaging-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                <item.icon className={`h-4 w-4 ${iconClassForIndex(messagingOffset + index)}`} />
-                                <span>{item.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </motion.div>
-              </Collapsible>
+                    </SidebarMenuItem>
+                  </motion.div>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {hasOtherSection && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Other</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {/* Maintenance item */}
+                {canViewMaintenance && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length) * 0.05 }}
+                  >
+                    <SidebarMenuItem>
+                      <SidebarMenuButton 
+                        asChild 
+                        className="group transition-all duration-200 hover:scale-[1.02]"
+                        tooltip="Maintenance"
+                      >
+                        <Link href="/maintenance" data-testid="nav-maintenance">
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                          >
+                            <AlertTriangle className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset)}`} />
+                          </motion.div>
+                          <span>Maintenance</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+                )}
+
+                {/* Messaging Collapsible Dropdown */}
+                {visibleMessagingItems.length > 0 && (
+                  <Collapsible open={messagingOpen} onOpenChange={setMessagingOpen}>
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 1) * 0.05 }}
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton 
+                            className="group transition-all duration-200 hover:scale-[1.02]"
+                            tooltip="Messaging"
+                          >
+                            <motion.div
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                            >
+                              <MessageSquare className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 1)}`} />
+                            </motion.div>
+                            <span>Messaging</span>
+                            {Array.isArray(bulkMessages) && bulkMessages.length > 0 && (
+                              <Badge variant="outline" className="ml-auto text-xs mr-2">
+                                {bulkMessages.length}
+                              </Badge>
+                            )}
+                            {messagingOpen ? (
+                              <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
+                            )}
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {visibleMessagingItems.map((item, index) => (
+                              <SidebarMenuSubItem key={item.title}>
+                                <SidebarMenuSubButton asChild>
+                                  <Link href={item.url} data-testid={`nav-messaging-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                                    <item.icon className={`h-4 w-4 ${iconClassForIndex(messagingOffset + index)}`} />
+                                    <span>{item.title}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </motion.div>
+                  </Collapsible>
+                )}
 
               {/* Remaining other items (Reports, User Management, Settings) */}
-              {otherItems.filter(item => !['Maintenance'].includes(item.title)).map((item, index) => (
+              {visibleOtherItemsWithoutMaintenance.map((item, index) => (
                 <motion.div
                   key={item.title}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: (menuItems.length + accountingItems.length + 2 + index) * 0.05 }}
+                  transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 2 + index) * 0.05 }}
                 >
                   <SidebarMenuItem>
                     <SidebarMenuButton 
@@ -659,7 +745,7 @@ export function AppSidebar() {
                 window.location.href = '/landing';
               } else {
                 // Production: always redirect to root domain (theleasemaster.com)
-                const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries)\./, '');
+                const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
                 window.location.href = `${protocol}//${rootDomain}/`;
               }
             }}

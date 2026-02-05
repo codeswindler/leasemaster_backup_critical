@@ -273,7 +273,7 @@ export function ClientLogin() {
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           window.location.href = '/portal';
         } else {
-          const rootDomain = hostname.replace(/^(admin|portal)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}`;
         }
         return;
@@ -311,7 +311,7 @@ export function ClientLogin() {
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           window.location.href = '/portal';
         } else {
-          const rootDomain = hostname.replace(/^(admin|portal)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}`;
         }
       } else {
@@ -396,7 +396,7 @@ export function ClientLogin() {
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           window.location.href = '/portal';
         } else {
-          const rootDomain = hostname.replace(/^(admin|portal)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|portal)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}`;
         }
       } else {
@@ -741,7 +741,7 @@ export function ClientLogin() {
                           window.location.href = '/';
                         } else {
                           // Production: always redirect to root domain (theleasemaster.com)
-                          const rootDomain = hostname.replace(/^(admin|portal|clients|enquiries)\./, '');
+                          const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
                           window.location.href = `${protocol}//${rootDomain}/`;
                         }
                       }}

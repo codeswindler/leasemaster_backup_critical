@@ -151,6 +151,16 @@ const permissionCategories = [
     ],
   },
   {
+    id: "maintenance",
+    name: "Maintenance",
+    permissions: [
+      { id: "maintenance.view", name: "View maintenance requests" },
+      { id: "maintenance.create", name: "Create maintenance requests" },
+      { id: "maintenance.edit", name: "Edit maintenance requests" },
+      { id: "maintenance.delete", name: "Delete maintenance requests" },
+    ],
+  },
+  {
     id: "reports",
     name: "Reports",
     permissions: [
@@ -197,7 +207,7 @@ const permissionCategories = [
 const permissionCategoryAliases: Record<string, string[]> = {
   properties: ["properties"],
   tenants: ["tenants"],
-  accounting: ["invoices", "payments"],
+  accounting: ["invoices", "payments", "receipts", "bills", "water_readings"],
   reports: ["reports"],
   messaging: ["messaging"],
   users: ["users"],

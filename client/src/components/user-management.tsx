@@ -289,6 +289,17 @@ export function UserManagement() {
       ],
     },
     {
+      id: "maintenance",
+      name: "Maintenance",
+      description: "Manage maintenance requests",
+      permissions: [
+        { id: "maintenance.view", name: "View maintenance requests" },
+        { id: "maintenance.create", name: "Create maintenance requests" },
+        { id: "maintenance.edit", name: "Edit maintenance requests" },
+        { id: "maintenance.delete", name: "Delete maintenance requests" },
+      ],
+    },
+    {
       id: "reports",
       name: "Reports",
       description: "Generate and export reports",
@@ -340,7 +351,7 @@ export function UserManagement() {
   const permissionCategoryAliases: Record<string, string[]> = {
     properties: ["properties"],
     tenants: ["tenants"],
-    accounting: ["invoices", "payments"],
+    accounting: ["invoices", "payments", "receipts", "bills", "water_readings"],
     reports: ["reports"],
     messaging: ["messaging"],
     users: ["users"],
