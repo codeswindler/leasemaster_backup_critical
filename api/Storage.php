@@ -1181,7 +1181,6 @@ class Storage {
         $stmt->execute(array_values($propertyIds));
         return $stmt->fetchAll();
     }
-
     public function getTenant($id) {
         $stmt = $this->pdo->prepare("SELECT * FROM tenants WHERE id = ?");
         $stmt->execute([$id]);
@@ -3178,4 +3177,5 @@ class Storage {
 
 // Create global storage instance
 $storage = new Storage();
+
 

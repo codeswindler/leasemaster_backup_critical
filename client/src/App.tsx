@@ -306,8 +306,7 @@ function AppContent() {
     selectedLandlordId,
     setSelectedLandlordId,
     setSelectedPropertyId,
-  } = useFilter()
-  const { toast } = useToast()
+  } = useFilter()  const { toast } = useToast()
   const [smsBalanceNotified, setSmsBalanceNotified] = useState(false)
   const [emailBalanceNotified, setEmailBalanceNotified] = useState(false)
   const portalModuleRoutes = [
@@ -1160,3 +1159,5 @@ function App() {
 }
 
 export default App;
+
+

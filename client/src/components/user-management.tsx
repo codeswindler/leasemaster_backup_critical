@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { 
   Users, 
@@ -63,6 +63,10 @@ export function UserManagement() {
     region: "Africa/Nairobi", // Default to Nairobi, Kenya
     timezone: "Africa/Nairobi"
   })
+  const landlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
+  const propertySelected = !!selectedPropertyId && selectedPropertyId !== "all"
+  const hasAssignedProperties = newUser.propertyIds.length > 0
+  const actionsDisabled = !hasAssignedProperties
 
   const { data: authData } = useQuery({
     queryKey: ["/api/auth/check"],
@@ -345,6 +349,9 @@ export function UserManagement() {
 
   const allPermissionIds = permissionCategories.flatMap((category) =>
     category.permissions.map((permission) => permission.id)
+  const allPermissionIds = useMemo(
+    () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
+    []
   )
 
   const permissionCategoryAliases: Record<string, string[]> = {
@@ -436,7 +443,6 @@ export function UserManagement() {
       permissions: [],
     }))
   }
-
   const handleToggleCategory = (categoryId: string) => {
     const category = permissionCategories.find((item) => item.id === categoryId)
     if (!category) return
@@ -868,3 +874,6 @@ export function UserManagement() {
     </div>
   )
 }
+
+
+
