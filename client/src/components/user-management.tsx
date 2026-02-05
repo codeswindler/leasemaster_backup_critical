@@ -49,10 +49,6 @@ export function UserManagement() {
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const [, setLocation] = useLocation()
-  const landlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
-  const propertySelected = !!selectedPropertyId && selectedPropertyId !== "all"
-  const hasAssignedProperties = newUser.propertyIds.length > 0
-  const actionsDisabled = !hasAssignedProperties
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
@@ -347,8 +343,6 @@ export function UserManagement() {
     },
   ]
 
-  const allPermissionIds = permissionCategories.flatMap((category) =>
-    category.permissions.map((permission) => permission.id)
   const allPermissionIds = useMemo(
     () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
     []
