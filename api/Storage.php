@@ -2346,6 +2346,199 @@ class Storage {
         return false;
     }
 
+    // ========== BILLS ==========
+    public function getBillsByScope($filters = []) {
+        $hasLandlordId = $this->columnExists('properties', 'landlord_id');
+        $hasAdminId = $this->columnExists('users', 'admin_id');
+
+        $sql = "
+            SELECT b.*
+            FROM bills b
+            LEFT JOIN properties p ON b.property_id = p.id
+        ";
+        $params = [];
+        $where = [];
+
+        if (!empty($filters['adminId']) && $hasAdminId && $hasLandlordId) {
+            $sql .= " LEFT JOIN users landlord ON landlord.id = p.landlord_id";
+            $where[] = "landlord.admin_id = ?";
+            $params[] = $filters['adminId'];
+        }
+
+        if (!empty($filters['landlordId']) && $hasLandlordId) {
+            $where[] = "p.landlord_id = ?";
+            $params[] = $filters['landlordId'];
+        }
+
+        if (!empty($filters['propertyId'])) {
+            $where[] = "b.property_id = ?";
+            $params[] = $filters['propertyId'];
+        }
+
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+
+        $sql .= " ORDER BY b.created_at DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public function getBillsByPropertyIds($propertyIds = []) {
+        if (empty($propertyIds)) return [];
+        $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        $sql = "
+            SELECT b.*
+            FROM bills b
+            WHERE b.property_id IN ({$placeholders})
+            ORDER BY b.created_at DESC
+        ";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(array_values($propertyIds));
+        return $stmt->fetchAll();
+    }
+
+    public function getBill($id) {
+        $stmt = $this->pdo->prepare("SELECT * FROM bills WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function createBill($data) {
+        $vendor = $data['vendor'] ?? $data['vendorName'] ?? $data['vendor_name'] ?? null;
+        $category = $data['category'] ?? null;
+        $amount = $data['amount'] ?? null;
+        $dueDate = $data['dueDate'] ?? $data['due_date'] ?? null;
+        if (!$vendor || !$category || !$amount || !$dueDate) {
+            throw new Exception("Missing required bill fields");
+        }
+
+        $propertyId = $data['propertyId'] ?? $data['property_id'] ?? null;
+        $landlordId = $data['landlordId'] ?? $data['landlord_id'] ?? null;
+        if ($propertyId && empty($landlordId)) {
+            $property = $this->getProperty($propertyId);
+            if ($property && !empty($property['landlord_id'])) {
+                $landlordId = $property['landlord_id'];
+            }
+        }
+
+        $id = $this->generateUUID();
+        $stmt = $this->pdo->prepare("
+            INSERT INTO bills
+            (id, landlord_id, property_id, vendor_name, category, amount, issue_date, due_date, status, account_number, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $id,
+            $landlordId,
+            $propertyId,
+            $vendor,
+            $category,
+            $amount,
+            $data['issueDate'] ?? $data['issue_date'] ?? date('Y-m-d'),
+            $dueDate,
+            $data['status'] ?? 'draft',
+            $data['accountNumber'] ?? $data['account_number'] ?? null,
+            $data['description'] ?? null
+        ]);
+        return $this->getBill($id);
+    }
+
+    public function updateBill($id, $data) {
+        $fields = [];
+        $values = [];
+        $mapping = [
+            'vendor' => 'vendor_name',
+            'vendorName' => 'vendor_name',
+            'category' => 'category',
+            'amount' => 'amount',
+            'issueDate' => 'issue_date',
+            'dueDate' => 'due_date',
+            'status' => 'status',
+            'accountNumber' => 'account_number',
+            'description' => 'description',
+            'propertyId' => 'property_id',
+            'landlordId' => 'landlord_id'
+        ];
+
+        foreach ($mapping as $key => $field) {
+            if (isset($data[$key])) {
+                $fields[] = "{$field} = ?";
+                $values[] = $data[$key];
+            }
+        }
+
+        if (empty($fields)) return $this->getBill($id);
+
+        $values[] = $id;
+        $sql = "UPDATE bills SET " . implode(', ', $fields) . " WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($values);
+        return $this->getBill($id);
+    }
+
+    public function deleteBill($id) {
+        $stmt = $this->pdo->prepare("DELETE FROM bills WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function getBillPaymentsByBill($billId) {
+        $stmt = $this->pdo->prepare("SELECT * FROM bill_payments WHERE bill_id = ? ORDER BY payment_date DESC");
+        $stmt->execute([$billId]);
+        return $stmt->fetchAll();
+    }
+
+    private function updateBillStatusAfterPayment($billId) {
+        $bill = $this->getBill($billId);
+        if (!$bill) return;
+        $payments = $this->getBillPaymentsByBill($billId);
+        $totalPaid = array_sum(array_column($payments, 'amount'));
+        $newStatus = $bill['status'] ?? 'draft';
+        if ($totalPaid >= floatval($bill['amount'])) {
+            $newStatus = 'paid';
+        } elseif ($totalPaid > 0) {
+            $newStatus = 'pending';
+        } else {
+            $dueDate = $bill['due_date'] ?? null;
+            if ($dueDate && strtotime($dueDate) < strtotime(date('Y-m-d'))) {
+                $newStatus = 'overdue';
+            }
+        }
+        if ($newStatus !== ($bill['status'] ?? 'draft')) {
+            $this->updateBill($billId, ['status' => $newStatus]);
+        }
+    }
+
+    public function createBillPayment($billId, $data) {
+        $bill = $this->getBill($billId);
+        if (!$bill) {
+            throw new Exception("Bill not found");
+        }
+        $amount = $data['amount'] ?? null;
+        $method = $data['method'] ?? $data['paymentMethod'] ?? null;
+        if (!$amount || !$method) {
+            throw new Exception("Missing payment fields");
+        }
+        $paymentDate = $data['paymentDate'] ?? $data['payment_date'] ?? date('Y-m-d');
+        $stmt = $this->pdo->prepare("
+            INSERT INTO bill_payments (id, bill_id, amount, payment_date, method, reference)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $this->generateUUID(),
+            $billId,
+            $amount,
+            $paymentDate,
+            $method,
+            $data['reference'] ?? null
+        ]);
+        $this->updateBillStatusAfterPayment($billId);
+        return $this->getBill($billId);
+    }
+
     // Helper: Update invoice status after payment
     private function updateInvoiceStatusAfterPayment($invoiceId) {
         $invoice = $this->getInvoice($invoiceId);

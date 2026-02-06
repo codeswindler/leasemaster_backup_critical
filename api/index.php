@@ -1977,6 +1977,78 @@ try {
         }
     }
     
+    // ========== BILLS ==========
+    elseif ($endpoint === 'bills') {
+        if ($method === 'GET' && !$id) {
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
+            $user = null;
+            $userRole = null;
+
+            if (isset($_SESSION['userId'])) {
+                $user = $storage->getUser($_SESSION['userId']);
+                $userRole = $user['role'] ?? 'landlord';
+            }
+
+            if (!$user) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+
+            if ($userRole === 'admin' || $userRole === 'super_admin') {
+                $filters = [
+                    'adminId' => $user['id'] ?? null,
+                    'landlordId' => $landlordId,
+                    'propertyId' => $propertyId
+                ];
+                $bills = $storage->getBillsByScope($filters);
+            } elseif (isLandlordRole($userRole)) {
+                $filters = [
+                    'landlordId' => $user['id'] ?? null,
+                    'propertyId' => $propertyId
+                ];
+                $bills = $storage->getBillsByScope($filters);
+            } else {
+                $propertyIds = $storage->getUserPropertyIds($user['id']);
+                $bills = $storage->getBillsByPropertyIds($propertyIds);
+            }
+
+            sendJson($bills);
+        }
+
+        if ($method === 'GET' && $id) {
+            $bill = $storage->getBill($id);
+            sendJson($bill ?: ['error' => 'Bill not found'], $bill ? 200 : 404);
+        }
+
+        if ($method === 'POST' && $id && $action === 'payments') {
+            try {
+                $bill = $storage->createBillPayment($id, $body);
+                sendJson($bill, 201);
+            } catch (Exception $e) {
+                sendJson(['error' => $e->getMessage()], 400);
+            }
+        }
+
+        if ($method === 'POST' && !$id) {
+            try {
+                $bill = $storage->createBill($body);
+                sendJson($bill, 201);
+            } catch (Exception $e) {
+                sendJson(['error' => $e->getMessage()], 400);
+            }
+        }
+
+        if ($method === 'PUT' && $id) {
+            $bill = $storage->updateBill($id, $body);
+            sendJson($bill ?: ['error' => 'Bill not found'], $bill ? 200 : 404);
+        }
+
+        if ($method === 'DELETE' && $id) {
+            $success = $storage->deleteBill($id);
+            sendJson([], $success ? 204 : 404);
+        }
+    }
+
     // ========== PAYMENTS ==========
     elseif ($endpoint === 'payments') {
         if ($method === 'GET' && !$id) {

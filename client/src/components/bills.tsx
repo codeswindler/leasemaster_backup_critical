@@ -47,13 +47,15 @@ import {
 type Bill = {
   id: string
   vendor: string
-  property: string
+  property?: string
+  propertyId?: string
   category: string
   amount: number
   dueDate: string
   issueDate: string
   status: "draft" | "pending" | "paid" | "overdue"
-  accountNumber: string
+  accountNumber?: string
+  description?: string
 }
 
 export function Bills() {
@@ -80,6 +82,15 @@ export function Bills() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
   const [selectedBill, setSelectedBill] = useState<any>(null)
+  const [billForm, setBillForm] = useState({
+    vendor: "",
+    propertyId: selectedPropertyId || "",
+    category: "",
+    amount: "",
+    dueDate: "",
+    accountNumber: "",
+    description: "",
+  })
   const [paymentData, setPaymentData] = useState({
     billId: "",
     amount: "",
@@ -87,66 +98,66 @@ export function Bills() {
     reference: ""
   })
 
-  // Mock bills data (keeping for fallback)
-  const mockBills: Bill[] = [
-    {
-      id: "BILL-2024-001",
-      vendor: "Kenya Power & Lighting",
-      property: "BigRock Apartments",
-      category: "Electricity",
-      amount: 45000,
-      dueDate: "2024-12-31",
-      issueDate: "2024-12-01",
-      status: "pending",
-      accountNumber: "1234567890"
-    },
-    {
-      id: "BILL-2024-002",
-      vendor: "Nairobi Water & Sewerage",
-      property: "Riverside Complex",
-      category: "Water",
-      amount: 28000,
-      dueDate: "2024-12-28",
-      issueDate: "2024-11-28",
-      status: "overdue",
-      accountNumber: "WS789012345"
-    },
-    {
-      id: "BILL-2024-003",
-      vendor: "SecureGuard Services",
-      property: "Garden View Estates",
-      category: "Security",
-      amount: 15000,
-      dueDate: "2025-01-15",
-      issueDate: "2024-12-15",
-      status: "draft",
-      accountNumber: "SG2024001"
-    },
-    {
-      id: "BILL-2024-004",
-      vendor: "CleanCorp Services",
-      property: "All Properties",
-      category: "Maintenance",
-      amount: 12000,
-      dueDate: "2024-12-20",
-      issueDate: "2024-12-05",
-      status: "paid",
-      accountNumber: "CC456789"
-    }
-  ]
-
-  // Fetch bills from API (using mock data for now since we don't have bills API)
-  const { data: bills = [], isLoading: billsLoading, error: billsError } = useQuery<Bill[]>({
-    queryKey: ["/api/bills"],
+  const { data: propertiesData = [] } = useQuery({
+    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/bills")
-      if (!response.ok) {
-        return mockBills
-      }
-      const data = await response.json()
-      return Array.isArray(data) ? data : mockBills
+      const params = new URLSearchParams()
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const url = `/api/properties${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
     },
-    initialData: mockBills,
+    enabled: isLandlordSelected,
+  })
+
+  // Fetch bills from API
+  const { data: bills = [], isLoading: billsLoading, error: billsError } = useQuery<Bill[]>({
+    queryKey: ["/api/bills", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/bills${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    },
+    enabled: isLandlordSelected,
+  })
+
+  const createBillMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (actionsDisabled) {
+        throw new Error("Select a client and property in the header to add bills.")
+      }
+      const response = await apiRequest("POST", "/api/bills", payload)
+      return await response.json()
+    },
+    onSuccess: () => {
+      toast({
+        title: "Bill Added",
+        description: "Bill created successfully.",
+      })
+      setIsAddDialogOpen(false)
+      setBillForm({
+        vendor: "",
+        propertyId: selectedPropertyId || "",
+        category: "",
+        amount: "",
+        dueDate: "",
+        accountNumber: "",
+        description: "",
+      })
+      queryClient.invalidateQueries({ queryKey: ["/api/bills"] })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Add Bill Failed",
+        description: error.message || "Unable to add bill.",
+        variant: "destructive",
+      })
+    },
   })
 
   // Payment mutation
@@ -155,16 +166,14 @@ export function Bills() {
       if (actionsDisabled) {
         throw new Error("Select a client and property in the header to record bill payments.")
       }
-      // Mock payment processing
-      return Promise.resolve({
-        id: `PAY-${Date.now()}`,
-        billId: data.billId,
-        amount: data.amount,
+      const payload = {
+        amount: parseFloat(data.amount),
         method: data.method,
-        reference: data.reference,
-        status: "completed",
-        timestamp: new Date().toISOString()
-      })
+        reference: data.reference || null,
+        paymentDate: new Date().toISOString().slice(0, 10),
+      }
+      const response = await apiRequest("POST", `/api/bills/${data.billId}/payments`, payload)
+      return await response.json()
     },
     onSuccess: (payment) => {
       toast({
@@ -190,8 +199,8 @@ export function Bills() {
       if (actionsDisabled) {
         throw new Error("Select a client and property in the header to update bills.")
       }
-      // Mock status update
-      return Promise.resolve({ id: billId, status })
+      const response = await apiRequest("PUT", `/api/bills/${billId}`, { status })
+      return await response.json()
     },
     onSuccess: (updatedBill) => {
       toast({
@@ -239,6 +248,29 @@ export function Bills() {
     setIsPaymentDialogOpen(true)
   }
 
+  const propertyMap = Array.isArray(propertiesData)
+    ? propertiesData.reduce<Record<string, any>>((acc, property: any) => {
+        acc[String(property.id)] = property
+        return acc
+      }, {})
+    : {}
+
+  const normalizedBills = Array.isArray(bills)
+    ? bills.map((bill: any) => ({
+        ...bill,
+        vendor: bill.vendor ?? bill.vendor_name ?? "",
+        propertyId: bill.propertyId ?? bill.property_id ?? "",
+        property: bill.property ?? propertyMap[String(bill.propertyId ?? bill.property_id)]?.name ?? "No property",
+        category: bill.category ?? "",
+        amount: Number(bill.amount ?? 0),
+        dueDate: bill.dueDate ?? bill.due_date ?? "",
+        issueDate: bill.issueDate ?? bill.issue_date ?? "",
+        status: (bill.status ?? "draft").toLowerCase(),
+        accountNumber: bill.accountNumber ?? bill.account_number ?? "",
+        description: bill.description ?? "",
+      }))
+    : []
+
   const handleConfirmDraft = (bill: any) => {
     updateBillStatusMutation.mutate({ billId: bill.id, status: "pending" })
   }
@@ -263,7 +295,7 @@ export function Bills() {
     paymentMutation.mutate(paymentData)
   }
 
-  const filteredBills = bills.filter(bill => {
+  const filteredBills = normalizedBills.filter(bill => {
     const matchesSearch = 
       bill.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       bill.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -312,16 +344,32 @@ export function Bills() {
       })
       return
     }
-    console.log("Add bill form submitted")
-    setIsAddDialogOpen(false)
+    if (!billForm.vendor || !billForm.propertyId || !billForm.category || !billForm.amount || !billForm.dueDate) {
+      toast({
+        title: "Missing Information",
+        description: "Please complete all required bill fields.",
+        variant: "destructive",
+      })
+      return
+    }
+    createBillMutation.mutate({
+      vendor: billForm.vendor,
+      propertyId: billForm.propertyId,
+      landlordId: selectedLandlordId,
+      category: billForm.category,
+      amount: parseFloat(billForm.amount),
+      dueDate: billForm.dueDate,
+      accountNumber: billForm.accountNumber || null,
+      description: billForm.description || null,
+    })
   }
 
   const statusCounts = {
-    all: bills.length,
-    draft: bills.filter(bill => bill.status === "draft").length,
-    pending: bills.filter(bill => bill.status === "pending").length,
-    paid: bills.filter(bill => bill.status === "paid").length,
-    overdue: bills.filter(bill => bill.status === "overdue").length
+    all: normalizedBills.length,
+    draft: normalizedBills.filter(bill => bill.status === "draft").length,
+    pending: normalizedBills.filter(bill => bill.status === "pending").length,
+    paid: normalizedBills.filter(bill => bill.status === "paid").length,
+    overdue: normalizedBills.filter(bill => bill.status === "overdue").length
   }
 
   if (actionsDisabled) {
@@ -374,7 +422,9 @@ export function Bills() {
               Add Bill
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent
+            className={`sm:max-w-[500px] vibrant-card ${billsCardVariants[(billsCardSeed + 3) % billsCardVariants.length]}`}
+          >
             <DialogHeader>
               <DialogTitle>Add New Bill</DialogTitle>
               <DialogDescription>
@@ -387,26 +437,35 @@ export function Bills() {
                 <Input
                   id="vendor"
                   placeholder="e.g., Kenya Power & Lighting"
+                  value={billForm.vendor}
+                  onChange={(e) => setBillForm((prev) => ({ ...prev, vendor: e.target.value }))}
                   data-testid="input-vendor"
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="property">Property</Label>
-                <Select>
+                <Select
+                  value={billForm.propertyId}
+                  onValueChange={(value) => setBillForm((prev) => ({ ...prev, propertyId: value }))}
+                >
                   <SelectTrigger data-testid="select-property">
                     <SelectValue placeholder="Select property" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Properties</SelectItem>
-                    <SelectItem value="bigrock">BigRock Apartments</SelectItem>
-                    <SelectItem value="riverside">Riverside Complex</SelectItem>
-                    <SelectItem value="garden">Garden View Estates</SelectItem>
+                    {propertiesData.map((property: any) => (
+                      <SelectItem key={property.id} value={property.id}>
+                        {property.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="category">Category</Label>
-                <Select>
+                <Select
+                  value={billForm.category}
+                  onValueChange={(value) => setBillForm((prev) => ({ ...prev, category: value }))}
+                >
                   <SelectTrigger data-testid="select-category">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
@@ -426,6 +485,8 @@ export function Bills() {
                   id="amount"
                   type="number"
                   placeholder="Enter bill amount"
+                  value={billForm.amount}
+                  onChange={(e) => setBillForm((prev) => ({ ...prev, amount: e.target.value }))}
                   data-testid="input-amount"
                 />
               </div>
@@ -434,6 +495,8 @@ export function Bills() {
                 <Input
                   id="due-date"
                   type="date"
+                  value={billForm.dueDate}
+                  onChange={(e) => setBillForm((prev) => ({ ...prev, dueDate: e.target.value }))}
                   data-testid="input-due-date"
                 />
               </div>
@@ -442,6 +505,8 @@ export function Bills() {
                 <Input
                   id="account-number"
                   placeholder="Vendor account number"
+                  value={billForm.accountNumber}
+                  onChange={(e) => setBillForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
                   data-testid="input-account-number"
                 />
               </div>
@@ -451,6 +516,8 @@ export function Bills() {
                   id="description"
                   placeholder="Bill description or notes"
                   rows={3}
+                  value={billForm.description}
+                  onChange={(e) => setBillForm((prev) => ({ ...prev, description: e.target.value }))}
                   data-testid="textarea-description"
                 />
               </div>
@@ -515,7 +582,7 @@ export function Bills() {
         <CardHeader>
           <CardTitle>Bills List</CardTitle>
           <CardDescription>
-            Showing {filteredBills.length} of {bills.length} bills
+            Showing {filteredBills.length} of {normalizedBills.length} bills
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -613,12 +680,22 @@ export function Bills() {
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="bill-select">Select Bill</Label>
-                  <Select>
+                  <Select
+                    value={paymentData.billId}
+                    onValueChange={(value) => {
+                      const bill = normalizedBills.find((entry) => entry.id === value)
+                      setPaymentData((prev) => ({
+                        ...prev,
+                        billId: value,
+                        amount: bill ? String(bill.amount) : prev.amount,
+                      }))
+                    }}
+                  >
                     <SelectTrigger id="bill-select">
                       <SelectValue placeholder="Choose a bill to pay" />
                     </SelectTrigger>
                     <SelectContent>
-                      {bills.filter(bill => bill.status === "pending").map((bill) => (
+                      {normalizedBills.filter(bill => bill.status === "pending").map((bill) => (
                         <SelectItem key={bill.id} value={bill.id}>
                           {bill.id} - {bill.vendor} - KSh {bill.amount.toLocaleString()}
                         </SelectItem>
@@ -628,7 +705,10 @@ export function Bills() {
                 </div>
                 <div>
                   <Label htmlFor="payment-method">Payment Method</Label>
-                  <Select>
+                  <Select
+                    value={paymentData.method}
+                    onValueChange={(value) => setPaymentData((prev) => ({ ...prev, method: value }))}
+                  >
                     <SelectTrigger id="payment-method">
                       <SelectValue placeholder="Select payment method" />
                     </SelectTrigger>
@@ -645,6 +725,8 @@ export function Bills() {
                   <Input 
                     id="payment-reference" 
                     placeholder="Enter payment reference or transaction ID"
+                    value={paymentData.reference}
+                    onChange={(e) => setPaymentData((prev) => ({ ...prev, reference: e.target.value }))}
                   />
                 </div>
                 <Button
@@ -666,19 +748,19 @@ export function Bills() {
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                   <span className="text-sm font-medium">Total Outstanding Bills</span>
                   <span className="font-mono font-semibold">
-                    KSh {bills.filter(bill => bill.status === "pending").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
+                    KSh {normalizedBills.filter(bill => bill.status === "pending").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                   <span className="text-sm font-medium">Overdue Bills</span>
                   <span className="font-mono font-semibold text-destructive">
-                    KSh {bills.filter(bill => bill.status === "overdue").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
+                    KSh {normalizedBills.filter(bill => bill.status === "overdue").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
                   <span className="text-sm font-medium">Paid This Month</span>
                   <span className="font-mono font-semibold text-green-600 dark:text-green-400">
-                    KSh {bills.filter(bill => bill.status === "paid").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
+                    KSh {normalizedBills.filter(bill => bill.status === "paid").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
                   </span>
                 </div>
               </div>
