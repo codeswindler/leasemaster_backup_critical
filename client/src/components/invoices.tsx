@@ -364,7 +364,7 @@ export function Invoices() {
             <p className="text-muted-foreground">Error loading invoice data</p>
           </div>
         </div>
-        <Card>
+        <Card className={`vibrant-card ${invoicesListVariants[(invoicesListSeed.current + 1) % invoicesListVariants.length]}`}>
           <CardContent className="p-6">
             <div className="text-center space-y-2">
               <div className="text-destructive">Failed to load invoice data</div>
