@@ -288,6 +288,39 @@ export function ReceivePayments() {
     recordPaymentMutation.mutate()
   }
 
+  if (actionsDisabled) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="receive-payments-title">Receive Payments</h1>
+            <p className="text-muted-foreground">Record tenant payments and manage transactions</p>
+          </div>
+        </div>
+        <Card className={`vibrant-card ${paymentsCardVariants[(paymentsCardSeed + 2) % paymentsCardVariants.length]}`}>
+          <CardContent className="p-6">
+            <div className="rounded-xl border border-white/5 bg-slate-900/30 px-6 py-8">
+              <div className="mx-auto max-w-xl text-center space-y-2">
+                <div className="flex items-center justify-center">
+                  <span
+                    className={`inline-flex items-center rounded-full px-4 py-1 text-sm font-semibold shadow-sm animate-pulse ${
+                      paymentsCardVariants[paymentsCardSeed % paymentsCardVariants.length]
+                    }`}
+                  >
+                    Please select a client and property filter first.
+                  </span>
+                </div>
+                <div className="text-sm text-muted-foreground animate-[pulse_2.2s_ease-in-out_infinite]">
+                  Apply filters in the top nav so I can fetch payments.
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
