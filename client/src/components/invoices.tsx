@@ -395,8 +395,19 @@ export function Invoices() {
         </div>
         <Card>
           <CardContent className="p-6">
-            <div className="text-center space-y-2">
-              <div>Loading invoices data...</div>
+            <div className="text-center space-y-3">
+              <div className="flex flex-col items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl animate-bounce">🤖</span>
+                  <span className="text-xl animate-pulse">⇦</span>
+                </div>
+                <div className="font-semibold">
+                  Robo guide says: pick a client and property in the nav bar.
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  I’m pointing up there — let’s sync your scope before I fetch invoices.
+                </div>
+              </div>
               <div className="text-sm text-muted-foreground">
                 {invoicesQuery.isLoading && "• Loading invoices..."}
                 {invoiceItemsQuery.isLoading && "• Loading invoice items..."}
