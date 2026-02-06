@@ -49,6 +49,7 @@ export function ReceivePayments() {
   const [selectedLeaseId, setSelectedLeaseId] = useState("")
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("")
   const [amount, setAmount] = useState("")
+  const [paymentDate, setPaymentDate] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
   const [reference, setReference] = useState("")
   const [notes, setNotes] = useState("")
@@ -282,9 +283,10 @@ export function ReceivePayments() {
         throw new Error("Unable to compute account number for this tenant/unit.")
       }
 
+      const resolvedPaymentDate = paymentDate || new Date().toISOString().slice(0, 10)
       const payload: any = {
         amount: parseFloat(amount),
-        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentDate: resolvedPaymentDate,
         paymentMethod,
         reference: reference || null,
         notes: notes || null,
@@ -307,6 +309,7 @@ export function ReceivePayments() {
         description: "Payment saved as draft in receipts for confirmation.",
       })
       setAmount("")
+      setPaymentDate("")
       setPaymentMethod("")
       setReference("")
       setNotes("")
@@ -392,6 +395,16 @@ export function ReceivePayments() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="payment-date">Payment Date</Label>
+                <Input
+                  id="payment-date"
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  data-testid="input-payment-date"
+                />
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="search-tenant">Search tenant/unit/mobile</Label>
                 <Input

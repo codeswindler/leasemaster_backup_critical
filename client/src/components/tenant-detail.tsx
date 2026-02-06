@@ -978,7 +978,9 @@ export function TenantDetail() {
           </TabsContent>
 
           <TabsContent value="invoices">
-            <Card>
+            <Card
+              className={`vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 1) % tenantDetailVariants.length]}`}
+            >
               <CardHeader>
                 <CardTitle>Invoices</CardTitle>
                 {leaseSummaries.length > 0 && (
@@ -1029,7 +1031,9 @@ export function TenantDetail() {
           </TabsContent>
 
           <TabsContent value="payments">
-            <Card>
+            <Card
+              className={`vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 2) % tenantDetailVariants.length]}`}
+            >
               <CardHeader>
                 <CardTitle>Payments</CardTitle>
                 {leaseSummaries.length > 0 && (
@@ -1077,19 +1081,25 @@ export function TenantDetail() {
 
           <TabsContent value="statement">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-              <Card>
+              <Card
+                className={`vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 3) % tenantDetailVariants.length]}`}
+              >
                 <CardHeader>
                   <CardTitle>Total Invoiced</CardTitle>
                 </CardHeader>
                 <CardContent className="text-xl font-mono">KSh {totalInvoiced.toLocaleString()}</CardContent>
               </Card>
-              <Card>
+              <Card
+                className={`vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 4) % tenantDetailVariants.length]}`}
+              >
                 <CardHeader>
                   <CardTitle>Total Paid</CardTitle>
                 </CardHeader>
                 <CardContent className="text-xl font-mono">KSh {totalPaid.toLocaleString()}</CardContent>
               </Card>
-              <Card>
+              <Card
+                className={`vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 5) % tenantDetailVariants.length]}`}
+              >
                 <CardHeader>
                   <CardTitle>Current Balance</CardTitle>
                 </CardHeader>
@@ -1099,7 +1109,9 @@ export function TenantDetail() {
               </Card>
             </div>
 
-            <Card>
+            <Card
+              className={`vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 6) % tenantDetailVariants.length]}`}
+            >
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5" />
