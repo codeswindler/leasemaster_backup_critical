@@ -8,6 +8,14 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 
@@ -745,11 +753,15 @@ export function UserDetail() {
                 if (isLandlord) {
                   return (
                     <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                      {assigned.map((property: any) => (
-                        <div key={property.id} className="text-sm">
-                          {property.name}
-                        </div>
-                      ))}
+                      {properties.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No properties found.</div>
+                      ) : (
+                        (properties as any[]).map((property: any) => (
+                          <div key={property.id} className="text-sm">
+                            {property.name}
+                          </div>
+                        ))
+                      )}
                     </div>
                   )
                 }
@@ -757,20 +769,24 @@ export function UserDetail() {
                 return (
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
-                      {assigned.map((property: any) => (
-                        <Badge key={property.id} variant="outline" className="flex items-center gap-2">
-                          {property.name}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAssignedProperty(String(property.id))}
-                            disabled={updateAssignedPropertiesMutation.isPending}
-                            className="rounded-full p-1 hover:bg-muted"
-                            aria-label={`Remove ${property.name}`}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
+                      {assigned.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No properties assigned.</div>
+                      ) : (
+                        assigned.map((property: any) => (
+                          <Badge key={property.id} variant="outline" className="flex items-center gap-2">
+                            {property.name}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAssignedProperty(String(property.id))}
+                              disabled={updateAssignedPropertiesMutation.isPending}
+                              className="rounded-full p-1 hover:bg-muted"
+                              aria-label={`Remove ${property.name}`}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      )}
                     </div>
                     <Dialog open={isAssignPropertyOpen} onOpenChange={setIsAssignPropertyOpen}>
                       <DialogTrigger asChild>
