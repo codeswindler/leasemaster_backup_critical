@@ -233,6 +233,8 @@ CREATE TABLE payments (
     payment_date DATE NOT NULL,
     payment_method VARCHAR(50) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'verified',
+    account_number VARCHAR(50),
+    allocation_status VARCHAR(20) NOT NULL DEFAULT 'allocated',
     reference VARCHAR(255),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
