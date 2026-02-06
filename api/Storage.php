@@ -1959,26 +1959,33 @@ class Storage {
         $sql = "
             SELECT pmt.* 
             FROM payments pmt
-            JOIN leases l ON pmt.lease_id = l.id
-            JOIN units u ON l.unit_id = u.id
-            JOIN properties p ON u.property_id = p.id
+            LEFT JOIN leases l ON pmt.lease_id = l.id
+            LEFT JOIN units u ON l.unit_id = u.id
+            LEFT JOIN properties p ON u.property_id = p.id
+            LEFT JOIN properties p_acc
+              ON pmt.account_number IS NOT NULL
+             AND p_acc.account_prefix IS NOT NULL
+             AND p_acc.account_prefix != ''
+             AND pmt.account_number LIKE CONCAT(p_acc.account_prefix, '%')
         ";
         $params = [];
         $where = [];
 
         if (!empty($filters['adminId']) && $hasAdminId && $hasLandlordId) {
-            $sql .= " JOIN users landlord ON p.landlord_id = landlord.id";
+            $sql .= " LEFT JOIN users landlord ON landlord.id = COALESCE(p.landlord_id, p_acc.landlord_id)";
             $where[] = "landlord.admin_id = ?";
             $params[] = $filters['adminId'];
         }
 
         if (!empty($filters['landlordId']) && $hasLandlordId) {
-            $where[] = "p.landlord_id = ?";
+            $where[] = "(p.landlord_id = ? OR p_acc.landlord_id = ?)";
+            $params[] = $filters['landlordId'];
             $params[] = $filters['landlordId'];
         }
 
         if (!empty($filters['propertyId'])) {
-            $where[] = "p.id = ?";
+            $where[] = "(p.id = ? OR p_acc.id = ?)";
+            $params[] = $filters['propertyId'];
             $params[] = $filters['propertyId'];
         }
 
@@ -1999,14 +2006,19 @@ class Storage {
         $sql = "
             SELECT pmt.* 
             FROM payments pmt
-            JOIN leases l ON pmt.lease_id = l.id
-            JOIN units u ON l.unit_id = u.id
-            JOIN properties p ON u.property_id = p.id
-            WHERE p.id IN ({$placeholders})
+            LEFT JOIN leases l ON pmt.lease_id = l.id
+            LEFT JOIN units u ON l.unit_id = u.id
+            LEFT JOIN properties p ON u.property_id = p.id
+            LEFT JOIN properties p_acc
+              ON pmt.account_number IS NOT NULL
+             AND p_acc.account_prefix IS NOT NULL
+             AND p_acc.account_prefix != ''
+             AND pmt.account_number LIKE CONCAT(p_acc.account_prefix, '%')
+            WHERE (p.id IN ({$placeholders}) OR p_acc.id IN ({$placeholders}))
             ORDER BY pmt.created_at DESC
         ";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(array_values($propertyIds));
+        $stmt->execute(array_merge(array_values($propertyIds), array_values($propertyIds)));
         return $stmt->fetchAll();
     }
 
@@ -2028,34 +2040,106 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    public function findLeaseByAccountNumber($accountNumber) {
+        if (empty($accountNumber)) return null;
+        if (!$this->columnExists('properties', 'account_prefix')) return null;
+
+        $stmt = $this->pdo->prepare("
+            SELECT id, account_prefix
+            FROM properties
+            WHERE account_prefix IS NOT NULL
+              AND account_prefix != ''
+              AND ? LIKE CONCAT(account_prefix, '%')
+            ORDER BY LENGTH(account_prefix) DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$accountNumber]);
+        $property = $stmt->fetch();
+        if (!$property) return null;
+
+        $prefix = $property['account_prefix'] ?? '';
+        $unitNumber = substr($accountNumber, strlen($prefix));
+        if ($unitNumber === '') return null;
+
+        $unitStmt = $this->pdo->prepare("
+            SELECT id FROM units
+            WHERE unit_number = ? AND property_id = ?
+            LIMIT 1
+        ");
+        $unitStmt->execute([$unitNumber, $property['id']]);
+        $unit = $unitStmt->fetch();
+        if (!$unit) return null;
+
+        $leaseStmt = $this->pdo->prepare("
+            SELECT * FROM leases
+            WHERE unit_id = ? AND status = 'active'
+            ORDER BY start_date DESC
+            LIMIT 1
+        ");
+        $leaseStmt->execute([$unit['id']]);
+        return $leaseStmt->fetch();
+    }
+
     public function createPayment($data) {
-        // Verify lease exists
-        if (!$this->getLease($data['leaseId'])) {
-            throw new Exception("Lease not found");
+        $accountNumber = $data['accountNumber'] ?? $data['account_number'] ?? null;
+        $allocationStatus = $data['allocationStatus'] ?? $data['allocation_status'] ?? null;
+
+        if (empty($data['leaseId']) && $accountNumber) {
+            $lease = $this->findLeaseByAccountNumber($accountNumber);
+            if ($lease) {
+                $data['leaseId'] = $lease['id'];
+                $allocationStatus = 'allocated';
+            } else {
+                $allocationStatus = 'unallocated';
+            }
+        }
+
+        if (empty($data['leaseId'])) {
+            if (empty($allocationStatus)) {
+                $allocationStatus = 'unallocated';
+            }
+        } else {
+            if (!$this->getLease($data['leaseId'])) {
+                throw new Exception("Lease not found");
+            }
+            if (empty($allocationStatus)) {
+                $allocationStatus = 'allocated';
+            }
         }
         
         // Verify invoice exists if provided
         if (!empty($data['invoiceId']) && !$this->getInvoice($data['invoiceId'])) {
             throw new Exception("Invoice not found");
         }
+
+        if (!empty($data['invoiceId']) && !empty($data['leaseId'])) {
+            $invoice = $this->getInvoice($data['invoiceId']);
+            if ($invoice && (string) ($invoice['lease_id'] ?? '') !== (string) $data['leaseId']) {
+                throw new Exception("Invoice does not belong to selected lease");
+            }
+        }
         
         $id = $this->generateUUID();
         $status = $data['status'] ?? 'verified';
         $hasStatusColumn = $this->columnExists('payments', 'status');
+        $hasAccountNumber = $this->columnExists('payments', 'account_number');
+        $hasAllocationStatus = $this->columnExists('payments', 'allocation_status');
 
         if ($hasStatusColumn) {
             $stmt = $this->pdo->prepare("
-                INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, status, reference, notes) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, status, account_number, allocation_status, reference, notes) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $id,
-                $data['leaseId'],
+                $data['leaseId'] ?? null,
                 $data['invoiceId'] ?? null,
                 $data['amount'],
                 $data['paymentDate'],
                 $data['paymentMethod'],
                 $status,
+                $hasAccountNumber ? $accountNumber : null,
+                $hasAllocationStatus ? $allocationStatus : null,
                 $data['reference'] ?? null,
                 $data['notes'] ?? null
             ]);
@@ -2066,7 +2150,7 @@ class Storage {
             ");
             $stmt->execute([
                 $id,
-                $data['leaseId'],
+                $data['leaseId'] ?? null,
                 $data['invoiceId'] ?? null,
                 $data['amount'],
                 $data['paymentDate'],
@@ -2077,7 +2161,7 @@ class Storage {
         }
         
         // Update invoice status if payment is against an invoice
-        if (!empty($data['invoiceId']) && $status === 'verified') {
+        if (!empty($data['invoiceId']) && $status === 'verified' && $allocationStatus === 'allocated') {
             $this->updateInvoiceStatusAfterPayment($data['invoiceId']);
         }
         
@@ -2100,6 +2184,12 @@ class Storage {
         if ($this->columnExists('payments', 'status')) {
             $mapping['status'] = 'status';
         }
+        if ($this->columnExists('payments', 'account_number')) {
+            $mapping['accountNumber'] = 'account_number';
+        }
+        if ($this->columnExists('payments', 'allocation_status')) {
+            $mapping['allocationStatus'] = 'allocation_status';
+        }
         
         foreach ($mapping as $key => $field) {
             if (isset($data[$key])) {
@@ -2115,7 +2205,7 @@ class Storage {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
 
-        if (isset($data['invoiceId']) || isset($data['status'])) {
+        if (isset($data['invoiceId']) || isset($data['status']) || isset($data['allocationStatus'])) {
             $payment = $this->getPayment($id);
             if (!empty($payment['invoice_id'])) {
                 $this->updateInvoiceStatusAfterPayment($payment['invoice_id']);
@@ -2123,6 +2213,30 @@ class Storage {
         }
         
         return $this->getPayment($id);
+    }
+
+    public function allocatePayment($paymentId, $leaseId, $invoiceId = null) {
+        if (!$this->getPayment($paymentId)) return null;
+        if (!$this->getLease($leaseId)) {
+            throw new Exception("Lease not found");
+        }
+        if (!empty($invoiceId)) {
+            $invoice = $this->getInvoice($invoiceId);
+            if (!$invoice) {
+                throw new Exception("Invoice not found");
+            }
+            if ((string) ($invoice['lease_id'] ?? '') !== (string) $leaseId) {
+                throw new Exception("Invoice does not belong to selected lease");
+            }
+        }
+        $payload = [
+            'leaseId' => $leaseId,
+            'allocationStatus' => 'allocated'
+        ];
+        if (!empty($invoiceId)) {
+            $payload['invoiceId'] = $invoiceId;
+        }
+        return $this->updatePayment($paymentId, $payload);
     }
 
     public function deletePayment($id) {
@@ -2138,7 +2252,9 @@ class Storage {
         
         $payments = $this->getPaymentsByInvoice($invoiceId);
         $verifiedPayments = array_filter($payments, function ($payment) {
-            return ($payment['status'] ?? 'verified') === 'verified';
+            $isVerified = ($payment['status'] ?? 'verified') === 'verified';
+            $isAllocated = ($payment['allocation_status'] ?? 'allocated') === 'allocated';
+            return $isVerified && $isAllocated;
         });
         $totalPaid = array_sum(array_column($verifiedPayments, 'amount'));
         $invoiceAmount = floatval($invoice['amount']);

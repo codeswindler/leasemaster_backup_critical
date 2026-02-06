@@ -227,7 +227,7 @@ CREATE TABLE water_readings (
 -- Create payments table
 CREATE TABLE payments (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    lease_id BIGINT UNSIGNED NOT NULL,
+    lease_id BIGINT UNSIGNED NULL,
     invoice_id BIGINT UNSIGNED,
     amount DECIMAL(12, 2) NOT NULL,
     payment_date DATE NOT NULL,
@@ -238,7 +238,7 @@ CREATE TABLE payments (
     reference VARCHAR(255),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (lease_id) REFERENCES leases(id) ON DELETE CASCADE,
+    FOREIGN KEY (lease_id) REFERENCES leases(id) ON DELETE SET NULL,
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL
 );
 

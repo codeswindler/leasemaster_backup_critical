@@ -7,6 +7,8 @@ import {
   Download,
   Calendar,
   CheckCircle,
+  Trash2,
+  Send,
   X
 } from "lucide-react"
 import { useMutation, useQuery } from "@tanstack/react-query"
@@ -20,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { 
   Select,
   SelectContent,
@@ -59,6 +62,11 @@ export function Receipts() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [viewingReceipt, setViewingReceipt] = useState<any>(null)
+  const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([])
+  const [allocationPayment, setAllocationPayment] = useState<any>(null)
+  const [allocationSearch, setAllocationSearch] = useState("")
+  const [allocationLeaseId, setAllocationLeaseId] = useState<string>("")
+  const [allocationInvoiceId, setAllocationInvoiceId] = useState<string>("")
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
@@ -174,6 +182,58 @@ export function Receipts() {
     },
   })
 
+  const deleteReceiptMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      return await apiRequest("DELETE", `/api/payments/${paymentId}`)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/payments'] })
+    },
+  })
+
+  const approveReceiptMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      return await apiRequest("PUT", `/api/payments/${paymentId}`, { status: "verified" })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/payments'] })
+      await queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+    },
+  })
+
+  const sendReceiptMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      return await apiRequest("POST", `/api/payments/${paymentId}/send-receipt`)
+    },
+  })
+
+  const allocatePaymentMutation = useMutation({
+    mutationFn: async ({ paymentId, leaseId, invoiceId }: { paymentId: string; leaseId: string; invoiceId?: string }) => {
+      return await apiRequest("PUT", `/api/payments/${paymentId}?action=allocate`, {
+        leaseId,
+        invoiceId: invoiceId || null,
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/payments'] })
+      setAllocationPayment(null)
+      setAllocationSearch("")
+      setAllocationLeaseId("")
+      setAllocationInvoiceId("")
+      toast({
+        title: "Payment Allocated",
+        description: "Payment has been allocated successfully.",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Allocation Failed",
+        description: error?.message || "Unable to allocate payment.",
+        variant: "destructive",
+      })
+    },
+  })
+
   // Extract data with fallbacks
   const paymentsData = paymentsQuery.data || []
   const tenantsData = tenantsQuery.data || []
@@ -216,11 +276,14 @@ export function Receipts() {
   // Data is now guaranteed to be loaded due to combined loading state above
   const receipts = paymentsData.map((payment: any) => {
     // Find lease associated with this payment
-    const lease = leasesData.find((l: any) => l.id === payment.leaseId)
+    const lease = leasesData.find((l: any) => l.id === (payment.leaseId ?? payment.lease_id))
     
     // Find tenant from lease relationship
     const tenant = lease && lease.tenantId ? 
       tenantsData.find((t: any) => t.id === lease.tenantId) : null
+    const tenantName = tenant
+      ? (tenant.fullName ?? `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim())
+      : ''
     
     // Find unit from lease relationship
     const unit = lease && lease.unitId ? 
@@ -231,26 +294,32 @@ export function Receipts() {
       propertiesData.find((p: any) => p.id === unit.propertyId) : null
     
     // Find associated invoice
-    const invoice = payment.invoiceId ? 
-      invoicesData.find((i: any) => i.id === payment.invoiceId) : null
+    const invoice = (payment.invoiceId ?? payment.invoice_id)
+      ? invoicesData.find((i: any) => i.id === (payment.invoiceId ?? payment.invoice_id))
+      : null
+    const allocationStatus = (payment.allocation_status ?? payment.allocationStatus ?? 'allocated').toLowerCase()
     
     // Create enriched receipt object with better fallbacks
     return {
       id: `RCP-${payment.id.slice(-8).toUpperCase()}`,
       paymentId: payment.id,
-      tenant: tenant ? `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() : 'Direct Payment',
-      unit: unit?.number || 'N/A',
+      tenant: allocationStatus === 'unallocated' ? 'Unallocated' : (tenantName || 'Direct Payment'),
+      unit: allocationStatus === 'unallocated' ? '—' : (unit?.unitNumber || unit?.number || 'N/A'),
       property: property?.name || 'N/A',
       amount: payment.amount || 0,
       paymentDate: payment.paymentDate,
       paymentMethod: payment.paymentMethod || 'Unknown',
       reference: payment.reference || 'N/A',
       status: (payment.status || 'verified').toLowerCase(),
+      allocationStatus,
+      accountNumber: payment.account_number ?? payment.accountNumber ?? '',
       tenantPhone: tenant?.phone || '',
       tenantEmail: tenant?.email || '',
       unitDetails: unit,
       propertyDetails: property,
       leaseDetails: lease,
+      leaseId: payment.leaseId ?? payment.lease_id ?? null,
+      invoiceId: payment.invoiceId ?? payment.invoice_id ?? null,
       invoiceNumber: invoice?.invoiceNumber || '',
       description: payment.description || 'Payment received'
     }
@@ -275,6 +344,83 @@ export function Receipts() {
     
     return matchesSearch && matchesStatus
   })
+
+  const selectedReceipts = filteredReceipts.filter((receipt: any) => selectedReceiptIds.includes(receipt.paymentId))
+  const allSelected = filteredReceipts.length > 0 && selectedReceiptIds.length === filteredReceipts.length
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedReceiptIds([])
+    } else {
+      setSelectedReceiptIds(filteredReceipts.map((receipt: any) => receipt.paymentId))
+    }
+  }
+
+  const toggleSelectReceipt = (paymentId: string) => {
+    setSelectedReceiptIds((prev) =>
+      prev.includes(paymentId) ? prev.filter((id) => id !== paymentId) : [...prev, paymentId]
+    )
+  }
+
+  const handleBulkDelete = async () => {
+    if (actionsDisabled || selectedReceiptIds.length === 0) return
+    await Promise.all(selectedReceiptIds.map((id) => deleteReceiptMutation.mutateAsync(id)))
+    setSelectedReceiptIds([])
+    toast({
+      title: "Receipts Deleted",
+      description: "Selected receipts have been deleted.",
+    })
+  }
+
+  const handleBulkApprove = async () => {
+    if (actionsDisabled || selectedReceiptIds.length === 0) return
+    await Promise.all(selectedReceiptIds.map((id) => approveReceiptMutation.mutateAsync(id)))
+    setSelectedReceiptIds([])
+    toast({
+      title: "Receipts Approved",
+      description: "Selected receipts marked as verified.",
+    })
+  }
+
+  const handleBulkSend = async () => {
+    if (actionsDisabled || selectedReceiptIds.length === 0) return
+    await Promise.all(selectedReceiptIds.map((id) => sendReceiptMutation.mutateAsync(id)))
+    toast({
+      title: "Receipts Sent",
+      description: "Receipts have been sent to tenants.",
+    })
+  }
+
+  const handleBulkGenerate = async () => {
+    if (selectedReceipts.length === 0) return
+    for (const receipt of selectedReceipts) {
+      await downloadReceipt(receipt)
+    }
+  }
+
+  const allocationLeaseOptions = leasesData.map((lease: any) => {
+    const tenant = tenantsData.find((t: any) => t.id === lease.tenantId)
+    const unit = unitsData.find((u: any) => u.id === lease.unitId)
+    const tenantLabel = tenant?.fullName ?? `${tenant?.firstName || ''} ${tenant?.lastName || ''}`.trim()
+    return {
+      leaseId: lease.id,
+      tenantName: tenantLabel || "Unknown tenant",
+      unitLabel: unit?.unitNumber || unit?.number || "Unknown unit",
+    }
+  })
+
+  const filteredAllocationOptions = allocationLeaseOptions.filter((option) => {
+    if (!allocationSearch.trim()) return true
+    const search = allocationSearch.toLowerCase()
+    return (
+      option.tenantName.toLowerCase().includes(search) ||
+      option.unitLabel.toLowerCase().includes(search)
+    )
+  })
+
+  const allocationInvoiceOptions = invoicesData.filter((invoice: any) =>
+    allocationLeaseId ? String(invoice.leaseId ?? invoice.lease_id) === allocationLeaseId : false
+  )
 
   const downloadReceipt = (receipt: any) => {
     if (actionsDisabled) {
@@ -373,10 +519,14 @@ export function Receipts() {
       })
       return
     }
-    toast({
-      title: "Receipt Generation",
-      description: "Select a payment to generate a receipt.",
-    })
+    if (selectedReceipts.length === 0) {
+      toast({
+        title: "No Receipts Selected",
+        description: "Select one or more receipts to generate.",
+      })
+      return
+    }
+    handleBulkGenerate()
   }
 
   const getStatusBadge = (status: string) => {
@@ -493,6 +643,28 @@ export function Receipts() {
         </Select>
       </div>
 
+      {selectedReceiptIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">{selectedReceiptIds.length} selected</Badge>
+          <Button size="sm" variant="outline" onClick={handleBulkGenerate}>
+            <Download className="h-4 w-4 mr-2" />
+            Generate
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleBulkSend}>
+            <Send className="h-4 w-4 mr-2" />
+            Send
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleBulkApprove}>
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Approve
+          </Button>
+          <Button size="sm" variant="destructive" onClick={handleBulkDelete}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Trash
+          </Button>
+        </div>
+      )}
+
       {/* Receipts Table */}
       <Card className={`vibrant-card ${receiptCardVariants[(receiptSeed + 2) % receiptCardVariants.length]}`}>
         <CardHeader>
@@ -505,6 +677,13 @@ export function Receipts() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all receipts"
+                  />
+                </TableHead>
                 <TableHead>Receipt ID</TableHead>
                 <TableHead>Tenant</TableHead>
                 <TableHead>Unit</TableHead>
@@ -519,6 +698,13 @@ export function Receipts() {
             <TableBody>
               {filteredReceipts.map((receipt: any) => (
                 <TableRow key={receipt.id} className="hover-elevate">
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedReceiptIds.includes(receipt.paymentId)}
+                      onCheckedChange={() => toggleSelectReceipt(receipt.paymentId)}
+                      aria-label={`Select receipt ${receipt.id}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono text-sm">{receipt.id}</TableCell>
                   <TableCell className="font-medium">{receipt.tenant}</TableCell>
                   <TableCell>{receipt.unit}</TableCell>
@@ -526,7 +712,17 @@ export function Receipts() {
                   <TableCell>{new Date(receipt.paymentDate).toLocaleDateString()}</TableCell>
                   <TableCell>{receipt.paymentMethod}</TableCell>
                   <TableCell className="font-mono text-sm">{receipt.reference}</TableCell>
-                  <TableCell>{getStatusBadge(receipt.status)}</TableCell>
+                  <TableCell className="space-y-1">
+                    {getStatusBadge(receipt.status)}
+                    {receipt.allocationStatus === "unallocated" && (
+                      <button
+                        className="block text-xs text-amber-600 hover:underline"
+                        onClick={() => setAllocationPayment(receipt)}
+                      >
+                        Unallocated
+                      </button>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       {receipt.status === "draft" && (
@@ -666,6 +862,93 @@ export function Receipts() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!allocationPayment} onOpenChange={(open) => !open && setAllocationPayment(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Allocate Payment</DialogTitle>
+            <DialogDescription>
+              Search by tenant name or unit, then select an invoice if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="allocation-search">Search tenant/unit</Label>
+              <Input
+                id="allocation-search"
+                placeholder="Start typing tenant name or unit..."
+                value={allocationSearch}
+                onChange={(e) => setAllocationSearch(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Select Tenant/Unit</Label>
+              <div className="max-h-52 overflow-auto rounded-md border border-muted p-2 space-y-1">
+                {filteredAllocationOptions.map((option) => (
+                  <button
+                    key={option.leaseId}
+                    className={`w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted ${
+                      allocationLeaseId === String(option.leaseId) ? 'bg-muted' : ''
+                    }`}
+                    onClick={() => {
+                      setAllocationLeaseId(String(option.leaseId))
+                      setAllocationInvoiceId("")
+                    }}
+                  >
+                    {option.tenantName} • {option.unitLabel}
+                  </button>
+                ))}
+                {filteredAllocationOptions.length === 0 && (
+                  <div className="text-sm text-muted-foreground px-2 py-3">
+                    No matches found.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Invoice (optional)</Label>
+              <Select value={allocationInvoiceId} onValueChange={setAllocationInvoiceId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select invoice" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allocationInvoiceOptions.map((invoice: any) => (
+                    <SelectItem key={invoice.id} value={String(invoice.id)}>
+                      {invoice.invoiceNumber || invoice.id} • KSh {Number(invoice.amount ?? 0).toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAllocationPayment(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!allocationPayment) return
+                  if (!allocationLeaseId) {
+                    toast({
+                      title: "Select Tenant/Unit",
+                      description: "Choose a tenant or unit to allocate this payment.",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  allocatePaymentMutation.mutate({
+                    paymentId: allocationPayment.paymentId,
+                    leaseId: allocationLeaseId,
+                    invoiceId: allocationInvoiceId || undefined,
+                  })
+                }}
+                disabled={allocatePaymentMutation.isPending}
+              >
+                Allocate
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

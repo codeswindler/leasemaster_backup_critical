@@ -2033,10 +2033,24 @@ try {
             sendJson($payment ?: ['error' => 'Payment not found'], $payment ? 200 : 404);
         }
         
+        if ($method === 'POST' && $id && $action === 'send-receipt') {
+            $payment = $storage->getPayment($id);
+            if (!$payment) {
+                sendJson(['error' => 'Payment not found'], 404);
+            }
+            $propertyId = getPropertyIdByLease($storage, $payment['lease_id'] ?? null);
+            $lease = $storage->getLease($payment['lease_id'] ?? null);
+            $tenantId = $lease['tenant_id'] ?? null;
+            if ($tenantId) {
+                sendTenantPaymentConfirmation($storage, $messagingService, $propertyId, $tenantId, $payment['amount'] ?? 0);
+            }
+            sendJson(['success' => true]);
+        }
+        
         if ($method === 'POST') {
             $payment = $storage->createPayment($body);
-            $propertyId = getPropertyIdByLease($storage, $body['leaseId'] ?? null);
-            $lease = $storage->getLease($body['leaseId'] ?? null);
+            $propertyId = getPropertyIdByLease($storage, $payment['lease_id'] ?? ($body['leaseId'] ?? null));
+            $lease = $storage->getLease($payment['lease_id'] ?? ($body['leaseId'] ?? null));
             $tenantId = $lease['tenant_id'] ?? null;
             $storage->logActivity([
                 'action' => 'Payment Received',
@@ -2050,6 +2064,17 @@ try {
                 sendTenantPaymentConfirmation($storage, $messagingService, $propertyId, $tenantId, $body['amount']);
             }
             sendJson($payment, 201);
+        }
+        
+        if ($method === 'PUT' && $id && $action === 'allocate') {
+            $leaseId = $body['leaseId'] ?? null;
+            $invoiceId = $body['invoiceId'] ?? null;
+            try {
+                $payment = $storage->allocatePayment($id, $leaseId, $invoiceId);
+                sendJson($payment ?: ['error' => 'Payment not found'], $payment ? 200 : 404);
+            } catch (Exception $e) {
+                sendJson(['error' => $e->getMessage()], 400);
+            }
         }
         
         if ($method === 'PUT' && $id) {
