@@ -395,48 +395,13 @@ export function Invoices() {
         </div>
         <Card>
           <CardContent className="p-6">
-            <div className="relative overflow-hidden rounded-xl border border-white/5 bg-slate-900/30 px-6 py-8">
-              <div className="absolute right-6 top-6 animate-pulse">
-                <div className="flex items-center gap-2">
-                  <div className="text-xs uppercase tracking-wider text-sky-200/80">
-                    Select client/property
-                  </div>
-                  <div className="h-0 w-0 border-y-[10px] border-y-transparent border-l-[16px] border-l-sky-300" />
+            <div className="rounded-xl border border-white/5 bg-slate-900/30 px-6 py-8">
+              <div className="mx-auto max-w-xl text-center space-y-2">
+                <div className="text-lg font-semibold animate-pulse">
+                  Please select a client and property filter first.
                 </div>
-              </div>
-              <div className="absolute left-2 bottom-0 w-56 sm:w-64 md:w-72 animate-bounce" aria-hidden="true">
-                <svg viewBox="0 0 320 240" className="w-full h-full">
-                  <defs>
-                    <linearGradient id="robotMetal" x1="0" x2="1" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#cbd5f5" />
-                      <stop offset="45%" stopColor="#94a3b8" />
-                      <stop offset="100%" stopColor="#475569" />
-                    </linearGradient>
-                    <radialGradient id="robotGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-                  <ellipse cx="70" cy="210" rx="60" ry="12" fill="#0f172a" opacity="0.4" />
-                  <path d="M60 80 Q90 40 140 60 Q170 70 175 100 Q180 135 140 160 Q100 180 70 160 Q45 145 45 110 Q45 90 60 80 Z" fill="url(#robotMetal)" />
-                  <rect x="75" y="120" width="90" height="70" rx="22" fill="url(#robotMetal)" />
-                  <rect x="85" y="105" width="70" height="25" rx="12" fill="#1e293b" opacity="0.85" />
-                  <circle cx="105" cy="118" r="6" fill="#38bdf8" />
-                  <circle cx="135" cy="118" r="6" fill="#38bdf8" />
-                  <rect x="95" y="150" width="50" height="12" rx="6" fill="#0f172a" opacity="0.7" />
-                  <path d="M160 130 Q200 110 225 80 Q235 68 248 60 Q260 52 275 50" stroke="url(#robotMetal)" strokeWidth="16" fill="none" strokeLinecap="round" />
-                  <path d="M220 88 Q245 70 260 55" stroke="#94a3b8" strokeWidth="12" fill="none" strokeLinecap="round" />
-                  <path d="M255 52 Q280 40 300 34" stroke="url(#robotMetal)" strokeWidth="14" fill="none" strokeLinecap="round" />
-                  <circle cx="300" cy="34" r="10" fill="#0ea5e9" />
-                  <circle cx="300" cy="34" r="20" fill="url(#robotGlow)" />
-                </svg>
-              </div>
-              <div className="relative z-10 mx-auto max-w-xl text-center space-y-2">
-                <div className="text-lg font-semibold">
-                  Robo guide says: pick a client and property in the nav bar.
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  The bot is pointing up there — select filters first so I can fetch invoices.
+                <div className="text-sm text-muted-foreground animate-[pulse_2.2s_ease-in-out_infinite]">
+                  Apply filters in the top nav so I can fetch invoices.
                 </div>
               </div>
               <div className="text-sm text-muted-foreground">
