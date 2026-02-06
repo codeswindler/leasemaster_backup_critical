@@ -242,6 +242,29 @@ export function UserDetail() {
     phone: "",
     role: "",
   })
+  const cardVariants = useMemo(
+    () => [
+      "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+      "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+      "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+      "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+      "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+      "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+    ],
+    []
+  )
+  const pillVariants = useMemo(
+    () => [
+      "bg-sky-500/15 text-sky-900 dark:text-sky-200 border-sky-200/70",
+      "bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 border-emerald-200/70",
+      "bg-rose-500/15 text-rose-900 dark:text-rose-200 border-rose-200/70",
+      "bg-amber-500/15 text-amber-900 dark:text-amber-200 border-amber-200/70",
+      "bg-violet-500/15 text-violet-900 dark:text-violet-200 border-violet-200/70",
+      "bg-teal-500/15 text-teal-900 dark:text-teal-200 border-teal-200/70",
+    ],
+    []
+  )
+  const colorSeed = useMemo(() => Math.floor(Math.random() * cardVariants.length), [])
   const allPermissionIds = useMemo(
     () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
     []
@@ -298,6 +321,12 @@ export function UserDetail() {
     }
     return user?.role || "Admin"
   }, [user])
+  const roleLower = String(user?.role || "").toLowerCase()
+  const isAdminUser = useMemo(() => {
+    const role = String(user?.role || "").toLowerCase()
+    return role === "admin" || role === "super_admin" || role === "administrator"
+  }, [user])
+  const hideAssignedProperties = isAdminUser || roleLower.includes("admin")
 
   useEffect(() => {
     if (!user) return
@@ -602,7 +631,7 @@ export function UserDetail() {
         </div>
       </div>
 
-      <Card>
+      <Card className={`vibrant-card ${cardVariants[colorSeed % cardVariants.length]}`}>
         <CardHeader className="flex flex-row items-start justify-between">
           <div>
             <CardTitle>User Overview</CardTitle>
@@ -684,14 +713,16 @@ export function UserDetail() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge variant="outline">{displayRole}</Badge>
+                <Badge variant="outline" className={pillVariants[(colorSeed + 1) % pillVariants.length]}>
+                  {displayRole}
+                </Badge>
                 )}
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Property</div>
                 <div className="text-lg font-semibold">{propertyName}</div>
                 <div className="text-sm text-muted-foreground">Status</div>
-                <Badge variant="default" className="bg-green-100 text-green-800">
+                <Badge variant="default" className={`bg-green-100 text-green-800 ${pillVariants[(colorSeed + 2) % pillVariants.length]}`}>
                   Active
                 </Badge>
                 <div className="text-sm text-muted-foreground">Last Login</div>
@@ -704,7 +735,7 @@ export function UserDetail() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={`vibrant-card ${cardVariants[(colorSeed + 1) % cardVariants.length]}`}>
         <CardHeader>
           <CardTitle>Account Actions</CardTitle>
           <CardDescription>Generate and send a temporary password, plus OTP controls</CardDescription>
@@ -722,112 +753,124 @@ export function UserDetail() {
               <div className="text-sm text-muted-foreground">Toggle OTP for this user</div>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="outline">{otpEnabled ? "Enabled" : "Disabled"}</Badge>
+              <Badge variant="outline" className={pillVariants[(colorSeed + 3) % pillVariants.length]}>
+                {otpEnabled ? "Enabled" : "Disabled"}
+              </Badge>
               <Switch checked={otpEnabled} onCheckedChange={handleOtpToggle} />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Assigned Properties</CardTitle>
-          <CardDescription>Select which properties this user can manage</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {properties.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No properties available.</div>
-          ) : (
-            <>
-              {(() => {
-                const role = String(user?.role || "").toLowerCase()
-                const isLandlord = role === "landlord" || role === "client"
-                const assignedSet = new Set(assignedPropertyIds)
-                const assigned = (properties as any[]).filter((property: any) =>
-                  assignedSet.has(String(property.id))
-                )
-                const available = (properties as any[]).filter((property: any) =>
-                  !assignedSet.has(String(property.id))
-                )
+      {!hideAssignedProperties && (
+        <Card className={`vibrant-card ${cardVariants[(colorSeed + 2) % cardVariants.length]}`}>
+          <CardHeader>
+            <CardTitle>
+              {String(user?.role || "").toLowerCase() === "landlord" || String(user?.role || "").toLowerCase() === "client"
+                ? "Owned Properties"
+                : "Assigned Properties"}
+            </CardTitle>
+            <CardDescription>
+              {String(user?.role || "").toLowerCase() === "landlord" || String(user?.role || "").toLowerCase() === "client"
+                ? "Properties owned by this landlord"
+                : "Select which properties this user can manage"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {properties.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No properties available.</div>
+            ) : (
+              <>
+                {(() => {
+                  const role = String(user?.role || "").toLowerCase()
+                  const isLandlord = role === "landlord" || role === "client"
+                  const assignedSet = new Set(assignedPropertyIds)
+                  const assigned = (properties as any[]).filter((property: any) =>
+                    assignedSet.has(String(property.id))
+                  )
+                  const available = (properties as any[]).filter((property: any) =>
+                    !assignedSet.has(String(property.id))
+                  )
 
-                if (isLandlord) {
-                  return (
-                    <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                      {properties.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No properties found.</div>
-                      ) : (
-                        (properties as any[]).map((property: any) => (
+                  if (isLandlord) {
+                    return (
+                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                        {(properties as any[]).map((property: any) => (
                           <div key={property.id} className="text-sm">
                             {property.name}
                           </div>
-                        ))
-                      )}
+                        ))}
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        {assigned.length === 0 ? (
+                          <div className="text-sm text-muted-foreground">No properties assigned.</div>
+                        ) : (
+                          assigned.map((property: any) => (
+                            <Badge
+                              key={property.id}
+                              variant="outline"
+                              className={`flex items-center gap-2 ${pillVariants[(colorSeed + 4) % pillVariants.length]}`}
+                            >
+                              {property.name}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAssignedProperty(String(property.id))}
+                                disabled={updateAssignedPropertiesMutation.isPending}
+                                className="rounded-full p-1 hover:bg-muted"
+                                aria-label={`Remove ${property.name}`}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                      <Dialog open={isAssignPropertyOpen} onOpenChange={setIsAssignPropertyOpen}>
+                        <DialogTrigger asChild>
+                          <Badge variant="secondary" className={`cursor-pointer w-fit ${pillVariants[(colorSeed + 5) % pillVariants.length]}`}>
+                            Assign new property
+                          </Badge>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[420px]">
+                          <DialogHeader>
+                            <DialogTitle>Assign Property</DialogTitle>
+                            <DialogDescription>Select a property to assign to this user.</DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {available.length === 0 ? (
+                              <div className="text-sm text-muted-foreground">No more properties to assign.</div>
+                            ) : (
+                              available.map((property: any) => (
+                                <Button
+                                  key={property.id}
+                                  type="button"
+                                  variant="outline"
+                                  className="w-full justify-start"
+                                  onClick={() => handleAssignProperty(String(property.id))}
+                                  disabled={updateAssignedPropertiesMutation.isPending}
+                                >
+                                  {property.name}
+                                </Button>
+                              ))
+                            )}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   )
-                }
+                })()}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-                return (
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      {assigned.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No properties assigned.</div>
-                      ) : (
-                        assigned.map((property: any) => (
-                          <Badge key={property.id} variant="outline" className="flex items-center gap-2">
-                            {property.name}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveAssignedProperty(String(property.id))}
-                              disabled={updateAssignedPropertiesMutation.isPending}
-                              className="rounded-full p-1 hover:bg-muted"
-                              aria-label={`Remove ${property.name}`}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))
-                      )}
-                    </div>
-                    <Dialog open={isAssignPropertyOpen} onOpenChange={setIsAssignPropertyOpen}>
-                      <DialogTrigger asChild>
-                        <Badge variant="secondary" className="cursor-pointer w-fit">
-                          Assign new property
-                        </Badge>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[420px]">
-                        <DialogHeader>
-                          <DialogTitle>Assign Property</DialogTitle>
-                          <DialogDescription>Select a property to assign to this user.</DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {available.length === 0 ? (
-                            <div className="text-sm text-muted-foreground">No more properties to assign.</div>
-                          ) : (
-                            available.map((property: any) => (
-                              <Button
-                                key={property.id}
-                                type="button"
-                                variant="outline"
-                                className="w-full justify-start"
-                                onClick={() => handleAssignProperty(String(property.id))}
-                                disabled={updateAssignedPropertiesMutation.isPending}
-                              >
-                                {property.name}
-                              </Button>
-                            ))
-                          )}
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                )
-              })()}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
+      <Card className={`vibrant-card ${cardVariants[(colorSeed + 3) % cardVariants.length]}`}>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
             <CardTitle>Permission Management</CardTitle>
