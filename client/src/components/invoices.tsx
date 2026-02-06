@@ -396,16 +396,33 @@ export function Invoices() {
         <Card>
           <CardContent className="p-6">
             <div className="text-center space-y-3">
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl animate-bounce">🤖</span>
-                  <span className="text-xl animate-pulse">⇦</span>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-28 h-28 animate-bounce" aria-hidden="true">
+                  <svg viewBox="0 0 120 120" className="w-full h-full">
+                    <defs>
+                      <linearGradient id="robotBody" x1="0" x2="1" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#4f46e5" />
+                        <stop offset="100%" stopColor="#22d3ee" />
+                      </linearGradient>
+                    </defs>
+                    <rect x="28" y="36" rx="12" ry="12" width="64" height="58" fill="url(#robotBody)" opacity="0.9" />
+                    <rect x="38" y="18" rx="8" ry="8" width="44" height="24" fill="#94a3b8" />
+                    <circle cx="52" cy="30" r="6" fill="#0f172a" />
+                    <circle cx="68" cy="30" r="6" fill="#0f172a" />
+                    <rect x="46" y="54" width="28" height="8" rx="4" fill="#0f172a" opacity="0.8" />
+                    <circle cx="60" cy="12" r="4" fill="#f59e0b" />
+                    <rect x="58" y="6" width="4" height="8" fill="#f59e0b" />
+                    <rect x="90" y="42" width="18" height="10" rx="5" fill="#94a3b8" />
+                    <rect x="100" y="30" width="10" height="24" rx="5" fill="#94a3b8" />
+                    <rect x="104" y="18" width="6" height="16" rx="3" fill="#94a3b8" />
+                    <circle cx="107" cy="16" r="5" fill="#22d3ee" />
+                  </svg>
                 </div>
                 <div className="font-semibold">
                   Robo guide says: pick a client and property in the nav bar.
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  I’m pointing up there — let’s sync your scope before I fetch invoices.
+                  I am pointing up there — select filters first so I can fetch invoices.
                 </div>
               </div>
               <div className="text-sm text-muted-foreground">
