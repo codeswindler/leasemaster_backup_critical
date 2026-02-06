@@ -217,7 +217,7 @@ export function ReceivePayments() {
         balance,
       }
     })
-    .filter((invoice: any) => invoice.balance > 0 && invoice.status !== "paid")
+    .filter((invoice: any) => invoice.balance > 0)
 
   const leaseOptions = normalizedLeases.map((lease: any) => {
     const tenant = normalizedTenants.find((t: any) => String(t.id) === String(lease.tenantId))

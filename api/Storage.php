@@ -2334,9 +2334,16 @@ class Storage {
     }
 
     public function deletePayment($id) {
+        $payment = $this->getPayment($id);
         $stmt = $this->pdo->prepare("DELETE FROM payments WHERE id = ?");
         $stmt->execute([$id]);
-        return $stmt->rowCount() > 0;
+        if ($stmt->rowCount() > 0) {
+            if (!empty($payment['invoice_id'])) {
+                $this->updateInvoiceStatusAfterPayment($payment['invoice_id']);
+            }
+            return true;
+        }
+        return false;
     }
 
     // Helper: Update invoice status after payment
