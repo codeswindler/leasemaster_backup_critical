@@ -6,8 +6,8 @@ import {
   Edit,
   Trash,
   Shield,
-  Eye,
-  EyeOff
+  Check,
+  X
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -45,7 +45,13 @@ import { useLocation } from "wouter"
 
 export function UserManagement() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [showPasswords, setShowPasswords] = useState(false)
+  const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+  })
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const [, setLocation] = useLocation()
@@ -54,6 +60,7 @@ export function UserManagement() {
     email: "",
     role: "",
     password: "",
+    phone: "",
     permissions: [] as string[],
     propertyIds: [] as string[],
     region: "Africa/Nairobi", // Default to Nairobi, Kenya
@@ -145,6 +152,7 @@ export function UserManagement() {
       id: user.id,
       name: user.full_name || user.fullName || user.username,
       email: user.email || user.username,
+      phone: user.phone || "",
       role: user.role || "Administrator",
       status: user.status === 0 || user.status === "inactive" ? "inactive" : "active",
       lastLogin: lastLogin ? new Date(lastLogin).toLocaleString() : "—",
@@ -424,8 +432,9 @@ export function UserManagement() {
       const response = await apiRequest("POST", "/api/users", {
         username: newUser.email || newUser.name,
         fullName: newUser.name,
-        role: newUser.role || "Administrator",
+        role: newUser.role || "Manager",
         password: newUser.password,
+        phone: newUser.phone,
         permissions: newUser.permissions,
         propertyIds: newUser.propertyIds,
         landlordId: landlordIdToUse,
@@ -447,6 +456,7 @@ export function UserManagement() {
         email: "",
         role: "",
         password: "",
+        phone: "",
         permissions: [],
         propertyIds: [],
         region: "Africa/Nairobi",
@@ -462,6 +472,52 @@ export function UserManagement() {
       })
     },
   })
+
+  const updateUserMutation = useMutation({
+    mutationFn: async (payload: { userId: string; data: any }) => {
+      const response = await apiRequest("PUT", `/api/users/${payload.userId}`, payload.data)
+      return await response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] })
+      setEditingUserId(null)
+      toast({ title: "User updated" })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update user",
+        description: error?.message || "Unable to update user.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const startEditingUser = (user: any) => {
+    setEditingUserId(String(user.id))
+    setEditDraft({
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      role: user.role || "",
+    })
+  }
+
+  const cancelEditingUser = () => {
+    setEditingUserId(null)
+  }
+
+  const saveEditingUser = () => {
+    if (!editingUserId) return
+    updateUserMutation.mutate({
+      userId: editingUserId,
+      data: {
+        fullName: editDraft.name,
+        username: editDraft.email,
+        phone: editDraft.phone,
+        role: editDraft.role,
+      },
+    })
+  }
 
   const handleAddUser = () => addUserMutation.mutate()
 
@@ -523,7 +579,10 @@ export function UserManagement() {
       case "client":
         return <Badge variant="default" className="bg-purple-100 text-purple-800">Landlord</Badge>
       case "Administrator":
-        return <Badge variant="default" className="bg-red-100 text-red-800">Administrator</Badge>
+      case "administrator":
+      case "admin":
+      case "super_admin":
+        return <Badge variant="default" className="bg-red-100 text-red-800">Admin</Badge>
       case "Manager":
         return <Badge variant="default" className="bg-blue-100 text-blue-800">Manager</Badge>
       case "Accountant":
@@ -611,7 +670,7 @@ export function UserManagement() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="role">Role</Label>
                   <Select value={newUser.role} onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}>
@@ -619,7 +678,7 @@ export function UserManagement() {
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Administrator">Administrator</SelectItem>
+                      <SelectItem value="landlord">Landlord</SelectItem>
                       <SelectItem value="Manager">Manager</SelectItem>
                       <SelectItem value="Accountant">Accountant</SelectItem>
                       <SelectItem value="Support">Support</SelectItem>
@@ -681,14 +740,26 @@ export function UserManagement() {
                     Determines timezone for records and reports. Default: Nairobi, Kenya (EAT)
                   </p>
                 </div>
-                <div>
-                  <Label htmlFor="timezone-display">Selected Timezone</Label>
-                  <Input
-                    id="timezone-display"
-                    value={newUser.timezone}
-                    disabled
-                    className="bg-muted"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="phone">Mobile</Label>
+                    <Input
+                      id="phone"
+                      placeholder="e.g. +254700000000"
+                      value={newUser.phone}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, phone: e.target.value }))}
+                      data-testid="input-user-phone"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="timezone-display">Selected Timezone</Label>
+                    <Input
+                      id="timezone-display"
+                      value={newUser.timezone}
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -803,15 +874,7 @@ export function UserManagement() {
               <CardTitle>System Users</CardTitle>
               <CardDescription>Manage user accounts and permissions</CardDescription>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setShowPasswords(!showPasswords)}
-              data-testid="button-toggle-passwords"
-            >
-              {showPasswords ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-              {showPasswords ? "Hide" : "Show"} Passwords
-            </Button>
+            <div />
           </div>
         </CardHeader>
         <CardContent>
@@ -844,17 +907,57 @@ export function UserManagement() {
               ) : visibleUsers.map((user: any) => (
                 <TableRow key={user.id} className="hover-elevate">
                   <TableCell>
-                    <div>
-                      <p className="font-medium">{user.name}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                      {showPasswords && (
-                        <p className="text-xs font-mono text-muted-foreground">
-                          Password: ********
-                        </p>
+                    <div className="space-y-1">
+                      {editingUserId === String(user.id) ? (
+                        <>
+                          <Input
+                            value={editDraft.name}
+                            onChange={(e) => setEditDraft(prev => ({ ...prev, name: e.target.value }))}
+                            className="h-8"
+                          />
+                          <Input
+                            value={editDraft.email}
+                            onChange={(e) => setEditDraft(prev => ({ ...prev, email: e.target.value }))}
+                            className="h-8"
+                          />
+                          <Input
+                            value={editDraft.phone}
+                            onChange={(e) => setEditDraft(prev => ({ ...prev, phone: e.target.value }))}
+                            className="h-8"
+                            placeholder="Phone"
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium">{user.name}</p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                          {user.phone && (
+                            <p className="text-xs text-muted-foreground">{user.phone}</p>
+                          )}
+                        </>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
+                  <TableCell>
+                    {editingUserId === String(user.id) ? (
+                      <Select
+                        value={editDraft.role}
+                        onValueChange={(value) => setEditDraft(prev => ({ ...prev, role: value }))}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="landlord">Landlord</SelectItem>
+                          <SelectItem value="Manager">Manager</SelectItem>
+                          <SelectItem value="Accountant">Accountant</SelectItem>
+                          <SelectItem value="Support">Support</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      getRoleBadge(user.role)
+                    )}
+                  </TableCell>
                   <TableCell>{getStatusBadge(user.status)}</TableCell>
                   <TableCell className="text-sm">{user.lastLogin}</TableCell>
                   <TableCell>
@@ -907,14 +1010,35 @@ export function UserManagement() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`button-edit-user-${user.id}`}
-                        onClick={() => setLocation(`/users/${user.id}`)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      {editingUserId === String(user.id) ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={saveEditingUser}
+                            disabled={updateUserMutation.isPending}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={cancelEditingUser}
+                            disabled={updateUserMutation.isPending}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`button-edit-user-${user.id}`}
+                          onClick={() => startEditingUser(user)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -923,7 +1047,7 @@ export function UserManagement() {
                       >
                         <Shield className="h-4 w-4" />
                       </Button>
-                      {user.role !== "Administrator" && (
+                      {user.role !== "admin" && user.role !== "super_admin" && (
                         <Button variant="ghost" size="sm" data-testid={`button-delete-user-${user.id}`}>
                           <Trash className="h-4 w-4" />
                         </Button>

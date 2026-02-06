@@ -226,6 +226,13 @@ export function UserDetail() {
   )
   const [otpEnabled, setOtpEnabled] = useState(true)
   const [alertsEnabled, setAlertsEnabled] = useState(true)
+  const [isEditingUser, setIsEditingUser] = useState(false)
+  const [editUserDraft, setEditUserDraft] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "",
+  })
   const allPermissionIds = useMemo(
     () => permissionCategories.flatMap((category) => category.permissions.map((permission) => permission.id)),
     []
@@ -277,7 +284,10 @@ export function UserDetail() {
     if (role === "landlord" || role === "client") {
       return "Landlord"
     }
-    return user?.role || "Administrator"
+    if (role === "admin" || role === "super_admin" || role === "administrator") {
+      return "Admin"
+    }
+    return user?.role || "Admin"
   }, [user])
 
   useEffect(() => {
@@ -327,7 +337,39 @@ export function UserDetail() {
     if (Array.isArray(user.propertyIds)) {
       setAssignedPropertyIds(user.propertyIds.map((id: any) => String(id)))
     }
+    setEditUserDraft({
+      name: user.full_name || user.fullName || user.username || "",
+      email: user.username || "",
+      phone: user.phone || "",
+      role: user.role || "",
+    })
   }, [user])
+  const updateUserInfoMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PUT", `/api/users/${userId}`, {
+        fullName: editUserDraft.name,
+        username: editUserDraft.email,
+        phone: editUserDraft.phone,
+        role: editUserDraft.role,
+      })
+      return await response.json()
+    },
+    onSuccess: () => {
+      toast({ title: "User updated" })
+      queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
+      setIsEditingUser(false)
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update user",
+        description: error?.message || "Unable to save user details.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const handleSaveUserInfo = () => updateUserInfoMutation.mutate()
+
 
   const updatePermissionsMutation = useMutation({
     mutationFn: async () => {
@@ -540,15 +582,31 @@ export function UserDetail() {
             <CardTitle>User Overview</CardTitle>
             <CardDescription>Account and property assignment</CardDescription>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAlertsToggle}
-            aria-label={alertsEnabled ? "Disable alerts" : "Enable alerts"}
-            title={alertsEnabled ? "Alerts enabled" : "Alerts disabled"}
-          >
-            {alertsEnabled ? "🔔" : "🔕 zzz"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAlertsToggle}
+              aria-label={alertsEnabled ? "Disable alerts" : "Enable alerts"}
+              title={alertsEnabled ? "Alerts enabled" : "Alerts disabled"}
+            >
+              {alertsEnabled ? "🔔" : "🔕 zzz"}
+            </Button>
+            {isEditingUser ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setIsEditingUser(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveUserInfo} disabled={updateUserInfoMutation.isPending}>
+                  Save
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setIsEditingUser(true)}>
+                Edit
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -557,11 +615,51 @@ export function UserDetail() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Name</div>
-                <div className="text-lg font-semibold">{user.full_name || user.fullName || user.username}</div>
+                {isEditingUser ? (
+                  <Input
+                    value={editUserDraft.name}
+                    onChange={(e) => setEditUserDraft(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                ) : (
+                  <div className="text-lg font-semibold">{user.full_name || user.fullName || user.username}</div>
+                )}
                 <div className="text-sm text-muted-foreground">Username / Email</div>
-                <div>{user.username}</div>
+                {isEditingUser ? (
+                  <Input
+                    value={editUserDraft.email}
+                    onChange={(e) => setEditUserDraft(prev => ({ ...prev, email: e.target.value }))}
+                  />
+                ) : (
+                  <div>{user.username}</div>
+                )}
+                <div className="text-sm text-muted-foreground">Mobile</div>
+                {isEditingUser ? (
+                  <Input
+                    value={editUserDraft.phone}
+                    onChange={(e) => setEditUserDraft(prev => ({ ...prev, phone: e.target.value }))}
+                  />
+                ) : (
+                  <div>{user.phone || "—"}</div>
+                )}
                 <div className="text-sm text-muted-foreground">Role</div>
-                <Badge variant="outline">{displayRole}</Badge>
+                {isEditingUser && !["admin", "super_admin"].includes(String(user.role || "").toLowerCase()) ? (
+                  <Select
+                    value={editUserDraft.role}
+                    onValueChange={(value) => setEditUserDraft(prev => ({ ...prev, role: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="landlord">Landlord</SelectItem>
+                      <SelectItem value="Manager">Manager</SelectItem>
+                      <SelectItem value="Accountant">Accountant</SelectItem>
+                      <SelectItem value="Support">Support</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline">{displayRole}</Badge>
+                )}
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Property</div>

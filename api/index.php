@@ -139,19 +139,21 @@ function shouldRequireOtpForUser($user, $loginType = null) {
     $role = strtolower(trim((string)($user['role'] ?? 'landlord')));
     $userOtpEnabled = isset($user['otp_enabled']) ? ((int)$user['otp_enabled'] === 1) : false;
 
-    if ($loginType === 'admin') {
-        return $userOtpEnabled;
+    if (!$userOtpEnabled) {
+        return false;
     }
-
+    if ($loginType === 'admin') {
+        return true;
+    }
     if ($loginType === 'client') {
         return true;
     }
 
     if ($role === 'admin' || $role === 'super_admin' || $role === 'administrator') {
-        return $userOtpEnabled;
+        return true;
     }
 
-    return $userOtpEnabled;
+    return true;
 }
 
 function generateLoginOtpCode() {
