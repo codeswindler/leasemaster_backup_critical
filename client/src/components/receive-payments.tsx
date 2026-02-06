@@ -527,7 +527,10 @@ export function ReceivePayments() {
                     className="mt-1"
                     onClick={() => {
                       if (actionsDisabled) return
-                      setSelectedInvoiceId(String(invoice.id))
+                      if (invoice.leaseId) {
+                        setSelectedLeaseId(String(invoice.leaseId))
+                        setPaymentSearch(`${invoice.tenantName} • ${invoice.unitLabel}`)
+                      }
                       setAmount(invoice.balance.toString())
                       setIsDialogOpen(true)
                     }}
