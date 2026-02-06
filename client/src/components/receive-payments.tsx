@@ -197,11 +197,13 @@ export function ReceivePayments() {
 
   const outstandingInvoices = normalizedInvoices
     .map((invoice: any) => {
-      const lease = normalizedLeases.find((l: any) => l.id === invoice.leaseId)
+      const lease = normalizedLeases.find((l: any) => String(l.id) === String(invoice.leaseId))
       const tenantId = invoice.tenantId ?? lease?.tenantId
-      const tenant = tenantId ? normalizedTenants.find((t: any) => t.id === tenantId) : null
-      const unit = normalizedUnits.find((u: any) => u.id === (invoice.unitId ?? lease?.unitId))
-      const property = normalizedProperties.find((p: any) => p.id === (invoice.propertyId ?? unit?.propertyId))
+      const tenant = tenantId ? normalizedTenants.find((t: any) => String(t.id) === String(tenantId)) : null
+      const unitId = invoice.unitId ?? lease?.unitId
+      const unit = normalizedUnits.find((u: any) => String(u.id) === String(unitId))
+      const propertyId = invoice.propertyId ?? unit?.propertyId
+      const property = normalizedProperties.find((p: any) => String(p.id) === String(propertyId))
       const invoiceAmount = Number(invoice.amount ?? 0)
       const amountPaid = paymentsByInvoiceId[String(invoice.id)] ?? 0
       const balance = Math.max(0, invoiceAmount - amountPaid)
@@ -218,11 +220,11 @@ export function ReceivePayments() {
     .filter((invoice: any) => invoice.balance > 0 && invoice.status !== "paid")
 
   const leaseOptions = normalizedLeases.map((lease: any) => {
-    const tenant = normalizedTenants.find((t: any) => t.id === lease.tenantId)
-    const unit = normalizedUnits.find((u: any) => u.id === lease.unitId)
+    const tenant = normalizedTenants.find((t: any) => String(t.id) === String(lease.tenantId))
+    const unit = normalizedUnits.find((u: any) => String(u.id) === String(lease.unitId))
     const tenantName = tenant?.fullName ?? `${tenant?.firstName || ''} ${tenant?.lastName || ''}`.trim()
     return {
-      leaseId: lease.id,
+      leaseId: String(lease.id),
       tenantName: tenantName || "Unknown tenant",
       unitLabel: unit?.unitNumber || unit?.number || "Unknown unit",
       phone: tenant?.phone || "",
@@ -232,7 +234,7 @@ export function ReceivePayments() {
 
   const selectedLeaseOption = leaseOptions.find((option) => String(option.leaseId) === selectedLeaseId)
   const selectedLeaseProperty = selectedLeaseOption
-    ? normalizedProperties.find((property: any) => property.id === selectedLeaseOption.propertyId)
+    ? normalizedProperties.find((property: any) => String(property.id) === String(selectedLeaseOption.propertyId))
     : null
   const computedAccountNumber = selectedLeaseProperty?.accountPrefix && selectedLeaseOption?.unitLabel
     ? `${selectedLeaseProperty.accountPrefix}${selectedLeaseOption.unitLabel}`
@@ -248,10 +250,10 @@ export function ReceivePayments() {
   })
 
   const recentPaymentRows = normalizedPayments.slice(0, 8).map((payment: any) => {
-    const lease = normalizedLeases.find((l: any) => l.id === payment.leaseId)
+    const lease = normalizedLeases.find((l: any) => String(l.id) === String(payment.leaseId))
     const tenantId = lease?.tenantId
-    const tenant = tenantId ? normalizedTenants.find((t: any) => t.id === tenantId) : null
-    const unit = normalizedUnits.find((u: any) => u.id === lease?.unitId)
+    const tenant = tenantId ? normalizedTenants.find((t: any) => String(t.id) === String(tenantId)) : null
+    const unit = normalizedUnits.find((u: any) => String(u.id) === String(lease?.unitId))
 
     return {
       id: payment.id,

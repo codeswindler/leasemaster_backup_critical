@@ -61,6 +61,8 @@ export function Receipts() {
   )
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
   const [viewingReceipt, setViewingReceipt] = useState<any>(null)
   const [selectedReceiptIds, setSelectedReceiptIds] = useState<string[]>([])
   const [allocationPayment, setAllocationPayment] = useState<any>(null)
@@ -74,11 +76,13 @@ export function Receipts() {
 
   // Fetch all required data with complete status tracking
   const paymentsQuery = useQuery({ 
-    queryKey: ['/api/payments', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/payments', selectedPropertyId, selectedLandlordId, fromDate, toDate],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (fromDate) params.append("from", fromDate)
+      if (toDate) params.append("to", toDate)
       const url = `/api/payments${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
@@ -276,28 +280,29 @@ export function Receipts() {
   // Data is now guaranteed to be loaded due to combined loading state above
   const receipts = paymentsData.map((payment: any) => {
     // Find lease associated with this payment
-    const lease = leasesData.find((l: any) => l.id === (payment.leaseId ?? payment.lease_id))
+    const lease = leasesData.find((l: any) => String(l.id) === String(payment.leaseId ?? payment.lease_id))
     
     // Find tenant from lease relationship
     const tenant = lease && lease.tenantId ? 
-      tenantsData.find((t: any) => t.id === lease.tenantId) : null
+      tenantsData.find((t: any) => String(t.id) === String(lease.tenantId)) : null
     const tenantName = tenant
       ? (tenant.fullName ?? `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim())
       : ''
     
     // Find unit from lease relationship
     const unit = lease && lease.unitId ? 
-      unitsData.find((u: any) => u.id === lease.unitId) : null
+      unitsData.find((u: any) => String(u.id) === String(lease.unitId)) : null
     
     // Find property from unit relationship
     const property = unit && unit.propertyId ? 
-      propertiesData.find((p: any) => p.id === unit.propertyId) : null
+      propertiesData.find((p: any) => String(p.id) === String(unit.propertyId)) : null
     
     // Find associated invoice
     const invoice = (payment.invoiceId ?? payment.invoice_id)
-      ? invoicesData.find((i: any) => i.id === (payment.invoiceId ?? payment.invoice_id))
+      ? invoicesData.find((i: any) => String(i.id) === String(payment.invoiceId ?? payment.invoice_id))
       : null
     const allocationStatus = (payment.allocation_status ?? payment.allocationStatus ?? 'allocated').toLowerCase()
+    const paymentTimestamp = payment.created_at ?? payment.createdAt ?? payment.paymentDate ?? payment.payment_date
     
     // Create enriched receipt object with better fallbacks
     return {
@@ -307,7 +312,7 @@ export function Receipts() {
       unit: allocationStatus === 'unallocated' ? '—' : (unit?.unitNumber || unit?.number || 'N/A'),
       property: property?.name || 'N/A',
       amount: payment.amount || 0,
-      paymentDate: payment.paymentDate,
+      paymentDate: paymentTimestamp,
       paymentMethod: payment.paymentMethod || 'Unknown',
       reference: payment.reference || 'N/A',
       status: (payment.status || 'verified').toLowerCase(),
@@ -327,9 +332,16 @@ export function Receipts() {
 
   const filteredReceipts = receipts.filter((receipt: any) => {
     // If search term is empty, show all results
+    const receiptTime = receipt.paymentDate ? new Date(receipt.paymentDate).getTime() : null
+    const fromTime = fromDate ? new Date(fromDate).getTime() : null
+    const toTime = toDate ? new Date(toDate).getTime() : null
+    const matchesRange =
+      (!fromTime || (receiptTime !== null && receiptTime >= fromTime)) &&
+      (!toTime || (receiptTime !== null && receiptTime <= toTime))
+
     if (!searchTerm.trim()) {
       const matchesStatus = statusFilter === "all" || receipt.status === statusFilter
-      return matchesStatus
+      return matchesStatus && matchesRange
     }
     
     // Safe search with null/undefined checks
@@ -342,7 +354,7 @@ export function Receipts() {
     
     const matchesStatus = statusFilter === "all" || receipt.status === statusFilter
     
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesStatus && matchesRange
   })
 
   const selectedReceipts = filteredReceipts.filter((receipt: any) => selectedReceiptIds.includes(receipt.paymentId))
@@ -620,7 +632,7 @@ export function Receipts() {
       </div>
 
       {/* Filters and Search */}
-      <div className="flex gap-4">
+      <div className="flex flex-wrap items-end gap-4">
         <div className="flex-1">
           <Input
             placeholder="Search receipts..."
@@ -628,6 +640,26 @@ export function Receipts() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
             data-testid="input-search-receipts"
+          />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="receipt-from">From</Label>
+          <Input
+            id="receipt-from"
+            type="datetime-local"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="min-w-[210px]"
+          />
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="receipt-to">To</Label>
+          <Input
+            id="receipt-to"
+            type="datetime-local"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="min-w-[210px]"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -688,7 +720,7 @@ export function Receipts() {
                 <TableHead>Tenant</TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead>Amount</TableHead>
-                <TableHead>Payment Date</TableHead>
+                <TableHead>Payment Time</TableHead>
                 <TableHead>Method</TableHead>
                 <TableHead>Reference</TableHead>
                 <TableHead>Status</TableHead>
@@ -709,7 +741,9 @@ export function Receipts() {
                   <TableCell className="font-medium">{receipt.tenant}</TableCell>
                   <TableCell>{receipt.unit}</TableCell>
                   <TableCell className="font-mono">KSh {receipt.amount.toLocaleString()}</TableCell>
-                  <TableCell>{new Date(receipt.paymentDate).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    {receipt.paymentDate ? new Date(receipt.paymentDate).toLocaleString() : "—"}
+                  </TableCell>
                   <TableCell>{receipt.paymentMethod}</TableCell>
                   <TableCell className="font-mono text-sm">{receipt.reference}</TableCell>
                   <TableCell className="space-y-1">

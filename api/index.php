@@ -1984,6 +1984,8 @@ try {
             $invoiceId = getQuery('invoiceId');
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
+            $from = getQuery('from');
+            $to = getQuery('to');
             $user = null;
             $userRole = null;
 
@@ -2000,18 +2002,25 @@ try {
                 $filters = [
                     'adminId' => $user['id'] ?? null,
                     'landlordId' => $landlordId,
-                    'propertyId' => $propertyId
+                    'propertyId' => $propertyId,
+                    'from' => $from,
+                    'to' => $to
                 ];
                 $payments = $storage->getPaymentsByScope($filters);
             } elseif (isLandlordRole($userRole)) {
                 $filters = [
                     'landlordId' => $user['id'] ?? null,
-                    'propertyId' => $propertyId
+                    'propertyId' => $propertyId,
+                    'from' => $from,
+                    'to' => $to
                 ];
                 $payments = $storage->getPaymentsByScope($filters);
             } else {
                 $propertyIds = $storage->getUserPropertyIds($user['id']);
-                $payments = $storage->getPaymentsByPropertyIds($propertyIds);
+                $payments = $storage->getPaymentsByPropertyIds($propertyIds, [
+                    'from' => $from,
+                    'to' => $to
+                ]);
             }
 
             if ($leaseId) {

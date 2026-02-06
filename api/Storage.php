@@ -1952,6 +1952,20 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    private function normalizeDateTimeInput($value, $isEnd = false) {
+        if (empty($value)) return null;
+        $normalized = trim($value);
+        if (strpos($normalized, 'T') !== false) {
+            $normalized = str_replace('T', ' ', $normalized);
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized)) {
+            $normalized .= $isEnd ? ' 23:59:59' : ' 00:00:00';
+        } elseif (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $normalized)) {
+            $normalized .= ':00';
+        }
+        return $normalized;
+    }
+
     public function getPaymentsByScope($filters = []) {
         $hasLandlordId = $this->columnExists('properties', 'landlord_id');
         $hasAdminId = $this->columnExists('users', 'admin_id');
@@ -1989,6 +2003,16 @@ class Storage {
             $params[] = $filters['propertyId'];
         }
 
+        if (!empty($filters['from'])) {
+            $where[] = "pmt.created_at >= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['from'], false);
+        }
+
+        if (!empty($filters['to'])) {
+            $where[] = "pmt.created_at <= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['to'], true);
+        }
+
         if (!empty($where)) {
             $sql .= " WHERE " . implode(" AND ", $where);
         }
@@ -2000,7 +2024,7 @@ class Storage {
         return $stmt->fetchAll();
     }
 
-    public function getPaymentsByPropertyIds($propertyIds = []) {
+    public function getPaymentsByPropertyIds($propertyIds = [], $filters = []) {
         if (empty($propertyIds)) return [];
         $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
         $sql = "
@@ -2015,10 +2039,23 @@ class Storage {
              AND p_acc.account_prefix != ''
              AND pmt.account_number LIKE CONCAT(p_acc.account_prefix, '%')
             WHERE (p.id IN ({$placeholders}) OR p_acc.id IN ({$placeholders}))
-            ORDER BY pmt.created_at DESC
         ";
+        $params = array_merge(array_values($propertyIds), array_values($propertyIds));
+        $where = [];
+        if (!empty($filters['from'])) {
+            $where[] = "pmt.created_at >= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['from'], false);
+        }
+        if (!empty($filters['to'])) {
+            $where[] = "pmt.created_at <= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['to'], true);
+        }
+        if (!empty($where)) {
+            $sql .= " AND " . implode(" AND ", $where);
+        }
+        $sql .= " ORDER BY pmt.created_at DESC";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(array_merge(array_values($propertyIds), array_values($propertyIds)));
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
@@ -2038,6 +2075,55 @@ class Storage {
         $stmt = $this->pdo->prepare("SELECT * FROM payments WHERE invoice_id = ? ORDER BY payment_date DESC");
         $stmt->execute([$invoiceId]);
         return $stmt->fetchAll();
+    }
+
+    private function getOldestOutstandingInvoiceForLease($leaseId) {
+        $stmt = $this->pdo->prepare("
+            SELECT * FROM invoices
+            WHERE lease_id = ?
+              AND status != 'paid'
+            ORDER BY issue_date ASC, created_at ASC
+        ");
+        $stmt->execute([$leaseId]);
+        $invoices = $stmt->fetchAll();
+        foreach ($invoices as $invoice) {
+            $payments = $this->getPaymentsByInvoice($invoice['id']);
+            $verifiedPayments = array_filter($payments, function ($payment) {
+                $isVerified = ($payment['status'] ?? 'verified') === 'verified';
+                $isAllocated = ($payment['allocation_status'] ?? 'allocated') === 'allocated';
+                return $isVerified && $isAllocated;
+            });
+            $totalPaid = array_sum(array_column($verifiedPayments, 'amount'));
+            if ($totalPaid < floatval($invoice['amount'])) {
+                return $invoice;
+            }
+        }
+        return null;
+    }
+
+    private function autoAllocatePaymentToOldestInvoice($payment) {
+        if (empty($payment['lease_id']) || !empty($payment['invoice_id'])) {
+            return $payment;
+        }
+        $status = $payment['status'] ?? 'verified';
+        $allocationStatus = $payment['allocation_status'] ?? 'allocated';
+        if ($status !== 'verified' || $allocationStatus !== 'allocated') {
+            return $payment;
+        }
+        $invoice = $this->getOldestOutstandingInvoiceForLease($payment['lease_id']);
+        if (!$invoice) {
+            return $payment;
+        }
+        $hasAllocationStatus = $this->columnExists('payments', 'allocation_status');
+        if ($hasAllocationStatus) {
+            $stmt = $this->pdo->prepare("UPDATE payments SET invoice_id = ?, allocation_status = 'allocated' WHERE id = ?");
+            $stmt->execute([$invoice['id'], $payment['id']]);
+        } else {
+            $stmt = $this->pdo->prepare("UPDATE payments SET invoice_id = ? WHERE id = ?");
+            $stmt->execute([$invoice['id'], $payment['id']]);
+        }
+        $this->updateInvoiceStatusAfterPayment($invoice['id']);
+        return $this->getPayment($payment['id']);
     }
 
     public function findLeaseByAccountNumber($accountNumber) {
@@ -2164,8 +2250,12 @@ class Storage {
         if (!empty($data['invoiceId']) && $status === 'verified' && $allocationStatus === 'allocated') {
             $this->updateInvoiceStatusAfterPayment($data['invoiceId']);
         }
-        
-        return $this->getPayment($id);
+
+        $payment = $this->getPayment($id);
+        if ($payment) {
+            $payment = $this->autoAllocatePaymentToOldestInvoice($payment);
+        }
+        return $payment;
     }
 
     public function updatePayment($id, $data) {
@@ -2205,14 +2295,18 @@ class Storage {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
 
-        if (isset($data['invoiceId']) || isset($data['status']) || isset($data['allocationStatus'])) {
-            $payment = $this->getPayment($id);
+        $payment = $this->getPayment($id);
+        if ($payment) {
+            $payment = $this->autoAllocatePaymentToOldestInvoice($payment);
+        }
+
+        if ($payment && (isset($data['invoiceId']) || isset($data['status']) || isset($data['allocationStatus']))) {
             if (!empty($payment['invoice_id'])) {
                 $this->updateInvoiceStatusAfterPayment($payment['invoice_id']);
             }
         }
         
-        return $this->getPayment($id);
+        return $payment;
     }
 
     public function allocatePayment($paymentId, $leaseId, $invoiceId = null) {
