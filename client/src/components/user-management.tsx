@@ -144,11 +144,11 @@ export function UserManagement() {
       const response = await apiRequest("POST", `/api/users/${userId}/otp`, { enabled })
       return await response.json()
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] })
       toast({
         title: "OTP updated",
-        description: "OTP preference saved.",
+        description: variables.enabled ? "OTP enabled." : "OTP disabled.",
       })
     },
     onError: (error: any) => {

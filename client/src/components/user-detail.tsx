@@ -395,8 +395,12 @@ export function UserDetail() {
       const response = await apiRequest("POST", `/api/users/${userId}/otp`, { enabled })
       return await response.json()
     },
-    onSuccess: () => {
+    onSuccess: (_data, enabled) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users", userId] })
+      toast({
+        title: "OTP updated",
+        description: enabled ? "OTP enabled." : "OTP disabled.",
+      })
     },
     onError: (error: any) => {
       toast({
