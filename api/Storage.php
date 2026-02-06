@@ -1638,6 +1638,16 @@ class Storage {
         if (($data['status'] ?? 'active') === 'active') {
             $this->updateUnitStatusFromLeases($data['unitId']);
         }
+
+        $hasLeaseSeq = $this->columnExists('leases', 'lease_seq');
+        $hasLeaseNumber = $this->columnExists('leases', 'lease_number');
+        if ($hasLeaseSeq && $hasLeaseNumber) {
+            $lease = $this->getLease($id);
+            if ($lease && empty($lease['lease_number']) && isset($lease['lease_seq'])) {
+                $leaseNumber = "LSE-" . str_pad($lease['lease_seq'], 6, '0', STR_PAD_LEFT);
+                $this->updateLease($id, ['leaseNumber' => $leaseNumber]);
+            }
+        }
         
         return $this->getLease($id);
     }
@@ -1659,6 +1669,9 @@ class Storage {
             'waterRatePerUnit' => 'water_rate_per_unit',
             'status' => 'status'
         ];
+        if ($this->columnExists('leases', 'lease_number')) {
+            $mapping['leaseNumber'] = 'lease_number';
+        }
         
         foreach ($mapping as $key => $field) {
             if (isset($data[$key])) {

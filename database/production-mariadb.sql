@@ -164,6 +164,8 @@ CREATE TABLE units (
 -- Create leases table
 CREATE TABLE leases (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    lease_seq BIGINT UNSIGNED AUTO_INCREMENT UNIQUE,
+    lease_number VARCHAR(50) UNIQUE,
     unit_id VARCHAR(36) NOT NULL,
     tenant_id INT NOT NULL,
     start_date DATE NOT NULL,
