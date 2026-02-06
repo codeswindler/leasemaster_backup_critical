@@ -104,7 +104,7 @@ export function UserManagement() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
-    enabled: isAdmin || landlordSelected || propertySelected,
+    enabled: isAdmin || isLandlord || landlordSelected || propertySelected,
   })
 
   const { data: availableProperties = [] } = useQuery({
