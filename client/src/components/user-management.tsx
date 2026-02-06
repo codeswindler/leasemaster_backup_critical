@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { 
   Dialog,
   DialogContent,
@@ -78,6 +77,7 @@ export function UserManagement() {
   const currentUserId = authData?.user?.id ? String(authData.user.id) : null
   const landlordIdToUse =
     landlordSelected ? String(selectedLandlordId) : (isLandlord ? currentUserId : null)
+  const showLandlordsOnly = isAdmin && !landlordSelected && !propertySelected
 
   // Fetch real user data from API
   const { data: apiUsers = [], isLoading: usersLoading } = useQuery({
@@ -142,31 +142,12 @@ export function UserManagement() {
       otpEnabled
     }
   })
-
-  const otpToggleMutation = useMutation({
-    mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
-      const response = await apiRequest("POST", `/api/users/${userId}/otp`, { enabled })
-      return await response.json()
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] })
-      toast({
-        title: "OTP updated",
-        description: variables.enabled ? "OTP enabled." : "OTP disabled.",
+  const visibleUsers = showLandlordsOnly
+    ? users.filter((user: any) => {
+        const role = String(user.role || "").toLowerCase()
+        return role === "landlord" || role === "client"
       })
-    },
-    onError: (error: any) => {
-      toast({
-        title: "OTP update failed",
-        description: error?.message || "Unable to update OTP settings.",
-        variant: "destructive",
-      })
-    },
-  })
-
-  const handleOtpToggle = (userId: string, enabled: boolean) => {
-    otpToggleMutation.mutate({ userId, enabled })
-  }
+    : users
 
   const permissionCategories = [
     {
@@ -544,13 +525,16 @@ export function UserManagement() {
         <div>
           <h1 className="text-3xl font-bold" data-testid="user-management-title">User Management</h1>
           <p className="text-muted-foreground">Manage system users and their permissions</p>
-          {!propertySelected && (
-            <p className="text-xs text-amber-600 mt-1">Select a property to add users.</p>
+          {isAdmin && !landlordSelected && (
+            <p className="text-xs text-amber-600 mt-1">Select a landlord to manage staff users.</p>
           )}
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-add-user" disabled={actionsDisabled}>
+            <Button
+              data-testid="button-add-user"
+              disabled={isAdmin && !landlordSelected}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
@@ -759,7 +743,11 @@ export function UserManagement() {
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddUser} data-testid="button-submit-user" disabled={addUserMutation.isPending}>
+              <Button
+                onClick={handleAddUser}
+                data-testid="button-submit-user"
+                disabled={addUserMutation.isPending || actionsDisabled}
+              >
                 Add User
               </Button>
             </div>
@@ -795,24 +783,25 @@ export function UserManagement() {
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
                 <TableHead>Permissions</TableHead>
-                <TableHead>OTP</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {usersLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
                     Loading users...
                   </TableCell>
                 </TableRow>
-              ) : users.length === 0 ? (
+              ) : visibleUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
-                    No users found for the selected property.
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                    {showLandlordsOnly
+                      ? "No landlords found."
+                      : "No users found for the selected property."}
                   </TableCell>
                 </TableRow>
-              ) : users.map((user: any) => (
+              ) : visibleUsers.map((user: any) => (
                 <TableRow key={user.id} className="hover-elevate">
                   <TableCell>
                     <div>
@@ -875,13 +864,6 @@ export function UserManagement() {
                         </Badge>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={!!user.otpEnabled}
-                      onCheckedChange={(checked) => handleOtpToggle(String(user.id), checked)}
-                      disabled={otpToggleMutation.isPending}
-                    />
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
