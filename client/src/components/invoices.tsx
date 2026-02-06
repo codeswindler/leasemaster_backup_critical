@@ -75,7 +75,8 @@ export function Invoices() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
-  const actionsDisabled = !selectedPropertyId
+  const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
+  const actionsDisabled = !selectedPropertyId || !isLandlordSelected
   const pendingDeleteRef = useRef<Record<string, NodeJS.Timeout>>({})
   const latestPaymentActivityRef = useRef<string | null>(null)
 
@@ -104,7 +105,7 @@ export function Invoices() {
   const editInvoiceMutation = useMutation({
     mutationFn: async ({ invoiceId, data }: { invoiceId: string, data: any }) => {
       if (actionsDisabled) {
-        throw new Error("Select a property in the header to edit invoices.")
+        throw new Error("Select a client and property in the header to edit invoices.")
       }
       return await apiRequest('PUT', `/api/invoices/${invoiceId}`, data)
     },
@@ -130,7 +131,7 @@ export function Invoices() {
   const sendEmailMutation = useMutation({
     mutationFn: async (invoiceId: string) => {
       if (actionsDisabled) {
-        throw new Error("Select a property in the header to send invoices.")
+        throw new Error("Select a client and property in the header to send invoices.")
       }
       return await apiRequest('POST', `/api/invoices/${invoiceId}/send-email`)
     },
@@ -159,7 +160,7 @@ export function Invoices() {
   const sendSMSMutation = useMutation({
     mutationFn: async (invoiceId: string) => {
       if (actionsDisabled) {
-        throw new Error("Select a property in the header to send invoices.")
+        throw new Error("Select a client and property in the header to send invoices.")
       }
       return await apiRequest('POST', `/api/invoices/${invoiceId}/send-sms`)
     },
@@ -196,6 +197,7 @@ export function Invoices() {
       const data = await response.json()
       return Array.isArray(data) ? data : []
     },
+    enabled: isLandlordSelected,
   })
   const invoiceItemsQuery = useQuery<any[]>({
     queryKey: ['/api/invoice-items', selectedPropertyId, selectedLandlordId],
@@ -208,6 +210,7 @@ export function Invoices() {
       const data = await response.json()
       return Array.isArray(data) ? data : []
     },
+    enabled: isLandlordSelected,
   })
   const tenantsQuery = useQuery<any[]>({ 
     queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
@@ -220,6 +223,7 @@ export function Invoices() {
       const data = await response.json()
       return Array.isArray(data) ? data : []
     },
+    enabled: isLandlordSelected,
   })
   const unitsQuery = useQuery<any[]>({ 
     queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
@@ -232,6 +236,7 @@ export function Invoices() {
       const data = await response.json()
       return Array.isArray(data) ? data : []
     },
+    enabled: isLandlordSelected,
   })
   const propertiesQuery = useQuery({ 
     queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
@@ -243,6 +248,7 @@ export function Invoices() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
 
   const invoiceSettingsQuery = useQuery({
@@ -856,6 +862,9 @@ export function Invoices() {
         <div>
           <h1 className="text-3xl font-bold" data-testid="invoices-title">Invoices</h1>
           <p className="text-muted-foreground">Review, approve and send invoices to tenants</p>
+          {!isLandlordSelected && (
+            <p className="text-xs text-amber-600 mt-1">Select a client to manage invoices.</p>
+          )}
         </div>
         {selectedInvoices.length > 0 && (
           <div className="flex gap-2">
