@@ -145,7 +145,10 @@ export function UserManagement() {
   const visibleUsers = showLandlordsOnly
     ? users.filter((user: any) => {
         const role = String(user.role || "").toLowerCase()
-        return role === "landlord" || role === "client"
+        if (role !== "landlord" && role !== "client") return false
+        const landlordId = user.landlord_id ?? user.landlordId
+        if (landlordId === null || landlordId === undefined) return false
+        return String(landlordId) === String(user.id)
       })
     : users
 

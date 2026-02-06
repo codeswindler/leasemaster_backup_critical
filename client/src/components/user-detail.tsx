@@ -311,10 +311,13 @@ export function UserDetail() {
       }
     })
     setSelectedPermissions(Array.from(expandedPermissions))
-    if (typeof user.otp_enabled === "number") {
-      setOtpEnabled(user.otp_enabled === 1)
-    } else if (typeof user.otpEnabled === "boolean") {
-      setOtpEnabled(user.otpEnabled)
+    const otpRaw = user.otp_enabled ?? user.otpEnabled
+    if (typeof otpRaw === "number") {
+      setOtpEnabled(otpRaw === 1)
+    } else if (typeof otpRaw === "string") {
+      setOtpEnabled(Number(otpRaw) === 1)
+    } else if (typeof otpRaw === "boolean") {
+      setOtpEnabled(otpRaw)
     }
     if (typeof user.alerts_enabled === "number") {
       setAlertsEnabled(user.alerts_enabled === 1)
