@@ -1,22 +1,58 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Preserve existing UUIDs
+-- Preserve existing UUIDs if an id column exists
 ALTER TABLE leases ADD COLUMN IF NOT EXISTS lease_uuid VARCHAR(36);
-UPDATE leases SET lease_uuid = id WHERE lease_uuid IS NULL;
+SET @leases_has_id := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'leases'
+    AND COLUMN_NAME = 'id'
+);
+SET @sql := IF(@leases_has_id = 1, 'UPDATE leases SET lease_uuid = id WHERE lease_uuid IS NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS invoice_uuid VARCHAR(36);
-UPDATE invoices SET invoice_uuid = id WHERE invoice_uuid IS NULL;
+SET @invoices_has_id := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoices'
+    AND COLUMN_NAME = 'id'
+);
+SET @sql := IF(@invoices_has_id = 1, 'UPDATE invoices SET invoice_uuid = id WHERE invoice_uuid IS NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Temporary int IDs
 ALTER TABLE leases ADD COLUMN IF NOT EXISTS id_int BIGINT UNSIGNED;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS id_int BIGINT UNSIGNED;
 
--- Backfill int IDs deterministically
-SET @row := 0;
-UPDATE leases SET id_int = (@row := @row + 1) ORDER BY created_at, id;
+-- Backfill int IDs deterministically (prefer existing seq columns when present)
+SET @leases_has_seq := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'leases'
+    AND COLUMN_NAME = 'lease_seq'
+);
+SET @sql := IF(@leases_has_seq = 1, 'UPDATE leases SET id_int = lease_seq WHERE id_int IS NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-SET @row := 0;
-UPDATE invoices SET id_int = (@row := @row + 1) ORDER BY created_at, id;
+SET @invoices_has_seq := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoices'
+    AND COLUMN_NAME = 'invoice_seq'
+);
+SET @sql := IF(@invoices_has_seq = 1, 'UPDATE invoices SET id_int = invoice_seq WHERE id_int IS NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@leases_has_seq = 0, 'SET @row := 0', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := IF(@leases_has_seq = 0, 'UPDATE leases SET id_int = (@row := @row + 1) WHERE id_int IS NULL ORDER BY created_at, id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@invoices_has_seq = 0, 'SET @row := 0', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := IF(@invoices_has_seq = 0, 'UPDATE invoices SET id_int = (@row := @row + 1) WHERE id_int IS NULL ORDER BY created_at, id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Drop foreign keys dynamically
 SET @fk_invoices_lease := (
@@ -67,22 +103,30 @@ SET @fk_invoice_items_invoice := (
 SET @sql := IF(@fk_invoice_items_invoice IS NULL, 'SELECT 1', CONCAT('ALTER TABLE invoice_items DROP FOREIGN KEY ', @fk_invoice_items_invoice));
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- Update child table references to new int IDs
-UPDATE invoices i
-JOIN leases l ON i.lease_id = l.lease_uuid
-SET i.lease_id = l.id_int;
+-- Update child table references to new int IDs (only when UUIDs exist)
+SET @leases_has_uuid := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'leases'
+    AND COLUMN_NAME = 'lease_uuid'
+);
+SET @sql := IF(@leases_has_uuid = 1, 'UPDATE invoices i JOIN leases l ON i.lease_id = l.lease_uuid SET i.lease_id = l.id_int', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-UPDATE payments p
-JOIN leases l ON p.lease_id = l.lease_uuid
-SET p.lease_id = l.id_int;
+SET @sql := IF(@leases_has_uuid = 1, 'UPDATE payments p JOIN leases l ON p.lease_id = l.lease_uuid SET p.lease_id = l.id_int', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-UPDATE payments p
-JOIN invoices i ON p.invoice_id = i.invoice_uuid
-SET p.invoice_id = i.id_int;
+SET @invoices_has_uuid := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoices'
+    AND COLUMN_NAME = 'invoice_uuid'
+);
+SET @sql := IF(@invoices_has_uuid = 1, 'UPDATE payments p JOIN invoices i ON p.invoice_id = i.invoice_uuid SET p.invoice_id = i.id_int', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-UPDATE invoice_items ii
-JOIN invoices i ON ii.invoice_id = i.invoice_uuid
-SET ii.invoice_id = i.id_int;
+SET @sql := IF(@invoices_has_uuid = 1, 'UPDATE invoice_items ii JOIN invoices i ON ii.invoice_id = i.invoice_uuid SET ii.invoice_id = i.id_int', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Change FK column types
 ALTER TABLE invoices MODIFY lease_id BIGINT UNSIGNED NOT NULL;
@@ -125,8 +169,23 @@ SET @invoice_has_pk := (
 SET @sql := IF(@invoice_has_id_int = 1 AND @invoice_has_pk = 0, 'ALTER TABLE invoices ADD PRIMARY KEY (id_int)', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-ALTER TABLE leases DROP COLUMN id;
-ALTER TABLE invoices DROP COLUMN id;
+SET @leases_has_id := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'leases'
+    AND COLUMN_NAME = 'id'
+);
+SET @sql := IF(@leases_has_id = 1, 'ALTER TABLE leases DROP COLUMN id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @invoices_has_id := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoices'
+    AND COLUMN_NAME = 'id'
+);
+SET @sql := IF(@invoices_has_id = 1, 'ALTER TABLE invoices DROP COLUMN id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 ALTER TABLE leases CHANGE COLUMN id_int id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT;
 ALTER TABLE invoices CHANGE COLUMN id_int id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT;
