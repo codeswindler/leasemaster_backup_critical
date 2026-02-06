@@ -370,7 +370,9 @@ export function ReceivePayments() {
               Record Payment
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent
+            className={`sm:max-w-[500px] vibrant-card ${paymentsCardVariants[(paymentsCardSeed + 1) % paymentsCardVariants.length]}`}
+          >
             <DialogHeader>
               <DialogTitle>Record New Payment</DialogTitle>
               <DialogDescription>
@@ -487,7 +489,7 @@ export function ReceivePayments() {
               </Button>
               <Button
                 onClick={handleRecordPayment}
-                disabled={actionsDisabled || recordPaymentMutation.isPending || !selectedInvoiceId}
+                disabled={actionsDisabled || recordPaymentMutation.isPending || !selectedLeaseId}
                 data-testid="button-submit-payment"
               >
                 Record Payment
