@@ -52,13 +52,33 @@ export function AppSidebar() {
   const [messagingOpen, setMessagingOpen] = useState(false);
   const [tenantsOpen, setTenantsOpen] = useState(false);
 
-  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value));
+  const normalizeId = (value: any) =>
+    value === null || value === undefined ? null : String(value);
   const normalizedLandlordId = normalizeId(selectedLandlordId);
   const normalizedPropertyId = normalizeId(selectedPropertyId);
   const getPropertyId = (item: any) => normalizeId(item?.propertyId ?? item?.property_id);
   const getLandlordId = (item: any) => normalizeId(item?.landlordId ?? item?.landlord_id);
   const queryLandlordId = normalizedLandlordId && normalizedLandlordId !== "all" ? normalizedLandlordId : null;
   const queryPropertyId = normalizedPropertyId && normalizedPropertyId !== "all" ? normalizedPropertyId : null;
+
+  const { data: landlordProperties = [] } = useQuery({
+    queryKey: ["/api/properties", "landlordOnly", queryLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (queryLandlordId) params.append("landlordId", queryLandlordId)
+      const url = `/api/properties${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: !!queryLandlordId,
+  })
+
+  const propertyBelongsToLandlord =
+    queryPropertyId && queryLandlordId
+      ? Array.isArray(landlordProperties) &&
+        landlordProperties.some((property: any) => getPropertyId(property) === queryPropertyId)
+      : true;
+  const effectivePropertyId = propertyBelongsToLandlord ? queryPropertyId : null;
 
   const { data: authData } = useQuery({
     queryKey: ["/api/auth/check"],
@@ -115,11 +135,11 @@ export function AppSidebar() {
 
   // Fetch data for badges
   const { data: allProperties = [] } = useQuery({
-    queryKey: ["/api/properties", queryLandlordId, queryPropertyId],
+    queryKey: ["/api/properties", queryLandlordId, effectivePropertyId],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
-      if (queryPropertyId) params.append("propertyId", queryPropertyId)
+      if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json();
@@ -127,10 +147,10 @@ export function AppSidebar() {
   })
 
   const { data: allTenants = [] } = useQuery({
-    queryKey: ["/api/tenants", queryPropertyId, queryLandlordId],
+    queryKey: ["/api/tenants", effectivePropertyId, queryLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (queryPropertyId) params.append("propertyId", queryPropertyId)
+      if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -139,10 +159,10 @@ export function AppSidebar() {
   })
 
   const { data: allInvoices = [] } = useQuery({
-    queryKey: ["/api/invoices", queryPropertyId, queryLandlordId],
+    queryKey: ["/api/invoices", effectivePropertyId, queryLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (queryPropertyId) params.append("propertyId", queryPropertyId)
+      if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -151,10 +171,10 @@ export function AppSidebar() {
   })
 
   const { data: allHouseTypes = [] } = useQuery({
-    queryKey: ["/api/house-types", queryPropertyId, queryLandlordId],
+    queryKey: ["/api/house-types", effectivePropertyId, queryLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (queryPropertyId) params.append("propertyId", queryPropertyId)
+      if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -163,10 +183,10 @@ export function AppSidebar() {
   })
 
   const { data: allBulkMessages = [] } = useQuery({
-    queryKey: ["/api/bulk-messages", queryPropertyId, queryLandlordId],
+    queryKey: ["/api/bulk-messages", effectivePropertyId, queryLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (queryPropertyId) params.append("propertyId", queryPropertyId)
+      if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/bulk-messages${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -175,10 +195,10 @@ export function AppSidebar() {
   })
 
   const { data: allUnits = [] } = useQuery({
-    queryKey: ["/api/units", queryPropertyId, queryLandlordId],
+    queryKey: ["/api/units", effectivePropertyId, queryLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (queryPropertyId) params.append("propertyId", queryPropertyId)
+      if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)

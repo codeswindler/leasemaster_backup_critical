@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { 
   Dialog,
   DialogContent,
@@ -120,16 +121,48 @@ export function UserManagement() {
       }
     }
     const lastLogin = user.last_login || user.lastLogin
+    const otpEnabled =
+      typeof user.otp_enabled === "number"
+        ? user.otp_enabled === 1
+        : typeof user.otpEnabled === "boolean"
+          ? user.otpEnabled
+          : true
     return {
-    id: user.id,
+      id: user.id,
       name: user.full_name || user.fullName || user.username,
       email: user.email || user.username,
       role: user.role || "Administrator",
       status: user.status === 0 || user.status === "inactive" ? "inactive" : "active",
       lastLogin: lastLogin ? new Date(lastLogin).toLocaleString() : "—",
-      permissions
+      permissions,
+      otpEnabled
     }
   })
+
+  const otpToggleMutation = useMutation({
+    mutationFn: async ({ userId, enabled }: { userId: string; enabled: boolean }) => {
+      const response = await apiRequest("POST", `/api/users/${userId}/otp`, { enabled })
+      return await response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] })
+      toast({
+        title: "OTP updated",
+        description: "OTP preference saved.",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "OTP update failed",
+        description: error?.message || "Unable to update OTP settings.",
+        variant: "destructive",
+      })
+    },
+  })
+
+  const handleOtpToggle = (userId: string, enabled: boolean) => {
+    otpToggleMutation.mutate({ userId, enabled })
+  }
 
   const permissionCategories = [
     {
@@ -754,19 +787,20 @@ export function UserManagement() {
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
                 <TableHead>Permissions</TableHead>
+                <TableHead>OTP</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {usersLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
                     Loading users...
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
                     No users found for the selected property.
                   </TableCell>
                 </TableRow>
@@ -833,6 +867,13 @@ export function UserManagement() {
                         </Badge>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={!!user.otpEnabled}
+                      onCheckedChange={(checked) => handleOtpToggle(String(user.id), checked)}
+                      disabled={otpToggleMutation.isPending}
+                    />
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">

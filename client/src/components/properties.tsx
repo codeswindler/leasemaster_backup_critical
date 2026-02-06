@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -57,6 +57,10 @@ export function Properties() {
   const [, setLocation] = useLocation()
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId, clearFilters, setSelectedPropertyId, setSelectedLandlordId } = useFilter()
+  const normalizeFilterValue = (value: string | null) =>
+    value && value !== "all" ? String(value) : null
+  const normalizedLandlordId = normalizeFilterValue(selectedLandlordId)
+  const normalizedPropertyId = normalizeFilterValue(selectedPropertyId)
   
   // Get current user for access control
   const { data: authData } = useQuery({
@@ -310,13 +314,13 @@ export function Properties() {
 
   // Fetch properties from API with filters
   const { data: properties = [], isLoading: propertiesLoading, error: propertiesError } = useQuery({
-    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
+    queryKey: ["/api/properties", normalizedLandlordId, normalizedPropertyId],
     queryFn: async () => {
       try {
         let url = "/api/properties";
         const params = new URLSearchParams();
-        if (selectedLandlordId) params.append("landlordId", selectedLandlordId);
-        if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
+        if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId);
+        if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId);
         if (params.toString()) url += `?${params.toString()}`;
         
         const response = await apiRequest("GET", url)
@@ -367,17 +371,46 @@ export function Properties() {
 
   // Fetch units for occupancy data
   const { data: units = [] } = useQuery({
-    queryKey: ["/api/units", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/units", normalizedPropertyId, normalizedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
     },
     staleTime: 0, // Always refetch when invalidated
   })
+
+  const { data: houseTypes = [] } = useQuery({
+    queryKey: ["/api/house-types", normalizedPropertyId, normalizedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
+      if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
+      const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+  })
+
+  const houseTypeNameById = useMemo(() => {
+    if (!Array.isArray(houseTypes)) return new Map<string, string>()
+    return new Map(
+      houseTypes
+        .filter((houseType: any) => houseType?.id)
+        .map((houseType: any) => [String(houseType.id), houseType.name || "Unknown Type"])
+    )
+  }, [houseTypes])
+
+  const getUnitTypeLabel = (unit: any) => {
+    const explicitType = unit?.type || unit?.houseType || unit?.house_type
+    if (explicitType) return explicitType
+    const houseTypeId = unit?.houseTypeId ?? unit?.house_type_id
+    if (!houseTypeId) return "Unknown"
+    return houseTypeNameById.get(String(houseTypeId)) || "Unknown"
+  }
 
   // Fetch landlords for selector
   const { data: landlords = [], refetch: refetchLandlords } = useQuery({
@@ -527,7 +560,7 @@ export function Properties() {
     
     // Group units by type with safe parsing
     const unitTypes = propertyUnits.reduce((acc: any, unit: any) => {
-      const unitType = unit.type || 'Unknown'
+      const unitType = getUnitTypeLabel(unit)
       if (!acc[unitType]) {
         acc[unitType] = { type: unitType, count: 0, prices: [] }
       }
