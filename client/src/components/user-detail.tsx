@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRoute, useLocation } from "wouter"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { ArrowLeft, KeyRound, Mail, Shield } from "lucide-react"
+import { ArrowLeft, KeyRound, Mail, Shield, Minus } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -221,6 +221,7 @@ export function UserDetail() {
   const { toast } = useToast()
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const [assignedPropertyIds, setAssignedPropertyIds] = useState<string[]>([])
+  const [isAssignPropertyOpen, setIsAssignPropertyOpen] = useState(false)
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(
     Object.fromEntries(permissionCategories.map((category) => [category.id, true]))
   )
@@ -392,9 +393,9 @@ export function UserDetail() {
   })
 
   const updateAssignedPropertiesMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (propertyIds: string[]) => {
       const response = await apiRequest("PUT", `/api/users/${userId}`, {
-        propertyIds: assignedPropertyIds,
+        propertyIds,
       })
       return await response.json()
     },
@@ -519,6 +520,23 @@ export function UserDetail() {
     setAssignedPropertyIds((prev) =>
       prev.includes(propertyId) ? prev.filter((id) => id !== propertyId) : [...prev, propertyId]
     )
+  }
+
+  const updateAssignedPropertyIds = (nextPropertyIds: string[]) => {
+    setAssignedPropertyIds(nextPropertyIds)
+    updateAssignedPropertiesMutation.mutate(nextPropertyIds)
+  }
+
+  const handleRemoveAssignedProperty = (propertyId: string) => {
+    const next = assignedPropertyIds.filter((id) => id !== propertyId)
+    updateAssignedPropertyIds(next)
+  }
+
+  const handleAssignProperty = (propertyId: string) => {
+    if (assignedPropertyIds.includes(propertyId)) return
+    const next = [...assignedPropertyIds, propertyId]
+    updateAssignedPropertyIds(next)
+    setIsAssignPropertyOpen(false)
   }
 
   const selectAllPermissions = () => {
@@ -712,31 +730,84 @@ export function UserDetail() {
           {properties.length === 0 ? (
             <div className="text-sm text-muted-foreground">No properties available.</div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-              {(properties as any[]).map((property: any) => (
-                <div key={property.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`user-property-${property.id}`}
-                    checked={assignedPropertyIds.includes(String(property.id))}
-                    onCheckedChange={() => toggleAssignedProperty(String(property.id))}
-                  />
-                  <Label htmlFor={`user-property-${property.id}`} className="text-sm">
-                    {property.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
+            <>
+              {(() => {
+                const role = String(user?.role || "").toLowerCase()
+                const isLandlord = role === "landlord" || role === "client"
+                const assignedSet = new Set(assignedPropertyIds)
+                const assigned = (properties as any[]).filter((property: any) =>
+                  assignedSet.has(String(property.id))
+                )
+                const available = (properties as any[]).filter((property: any) =>
+                  !assignedSet.has(String(property.id))
+                )
+
+                if (isLandlord) {
+                  return (
+                    <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+                      {assigned.map((property: any) => (
+                        <div key={property.id} className="text-sm">
+                          {property.name}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {assigned.map((property: any) => (
+                        <Badge key={property.id} variant="outline" className="flex items-center gap-2">
+                          {property.name}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAssignedProperty(String(property.id))}
+                            disabled={updateAssignedPropertiesMutation.isPending}
+                            className="rounded-full p-1 hover:bg-muted"
+                            aria-label={`Remove ${property.name}`}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <Dialog open={isAssignPropertyOpen} onOpenChange={setIsAssignPropertyOpen}>
+                      <DialogTrigger asChild>
+                        <Badge variant="secondary" className="cursor-pointer w-fit">
+                          Assign new property
+                        </Badge>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[420px]">
+                        <DialogHeader>
+                          <DialogTitle>Assign Property</DialogTitle>
+                          <DialogDescription>Select a property to assign to this user.</DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {available.length === 0 ? (
+                            <div className="text-sm text-muted-foreground">No more properties to assign.</div>
+                          ) : (
+                            available.map((property: any) => (
+                              <Button
+                                key={property.id}
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-start"
+                                onClick={() => handleAssignProperty(String(property.id))}
+                                disabled={updateAssignedPropertiesMutation.isPending}
+                              >
+                                {property.name}
+                              </Button>
+                            ))
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                )
+              })()}
+            </>
           )}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => updateAssignedPropertiesMutation.mutate()}
-              disabled={updateAssignedPropertiesMutation.isPending}
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Save Assigned Properties
-            </Button>
-          </div>
         </CardContent>
       </Card>
 
