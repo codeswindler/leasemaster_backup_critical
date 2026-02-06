@@ -47,6 +47,7 @@ export function ReceivePayments() {
     []
   )
   const [selectedLeaseId, setSelectedLeaseId] = useState("")
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("")
   const [amount, setAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
   const [reference, setReference] = useState("")
@@ -292,6 +293,9 @@ export function ReceivePayments() {
       }
 
       payload.leaseId = selectedLeaseId
+      if (selectedInvoiceId) {
+        payload.invoiceId = selectedInvoiceId
+      }
 
       return await apiRequest("POST", "/api/payments", payload)
     },
@@ -367,7 +371,13 @@ export function ReceivePayments() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="button-record-payment">
+            <Button
+              data-testid="button-record-payment"
+              onClick={() => {
+                setSelectedInvoiceId("")
+                setAmount("")
+              }}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Record Payment
             </Button>
@@ -531,6 +541,7 @@ export function ReceivePayments() {
                         setSelectedLeaseId(String(invoice.leaseId))
                         setPaymentSearch(`${invoice.tenantName} • ${invoice.unitLabel}`)
                       }
+                      setSelectedInvoiceId(String(invoice.id))
                       setAmount(invoice.balance.toString())
                       setIsDialogOpen(true)
                     }}
