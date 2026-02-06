@@ -395,7 +395,9 @@ export function Invoices() {
         </div>
         <Card>
           <CardContent className="p-6">
-            <div className="rounded-xl border border-white/5 bg-slate-900/30 px-6 py-8">
+            <div
+              className={`rounded-xl border px-6 py-8 ${invoicesListVariants[(invoicesListSeed.current + 2) % invoicesListVariants.length]}`}
+            >
               <div className="mx-auto max-w-xl text-center space-y-2">
                 <div className="flex items-center justify-center">
                   <span
