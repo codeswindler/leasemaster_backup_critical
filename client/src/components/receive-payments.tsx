@@ -46,13 +46,11 @@ export function ReceivePayments() {
     () => Math.floor(Math.random() * paymentsCardVariants.length),
     []
   )
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState("")
   const [selectedLeaseId, setSelectedLeaseId] = useState("")
   const [amount, setAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("")
   const [reference, setReference] = useState("")
   const [notes, setNotes] = useState("")
-  const [accountNumber, setAccountNumber] = useState("")
   const [paymentSearch, setPaymentSearch] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -219,15 +217,6 @@ export function ReceivePayments() {
     })
     .filter((invoice: any) => invoice.balance > 0 && invoice.status !== "paid")
 
-  const filteredOutstandingInvoices = outstandingInvoices.filter((invoice: any) => {
-    if (!paymentSearch.trim()) return true
-    const term = paymentSearch.toLowerCase()
-    return (
-      invoice.tenantName.toLowerCase().includes(term) ||
-      invoice.unitLabel.toLowerCase().includes(term)
-    )
-  })
-
   const leaseOptions = normalizedLeases.map((lease: any) => {
     const tenant = normalizedTenants.find((t: any) => t.id === lease.tenantId)
     const unit = normalizedUnits.find((u: any) => u.id === lease.unitId)
@@ -236,13 +225,11 @@ export function ReceivePayments() {
       leaseId: lease.id,
       tenantName: tenantName || "Unknown tenant",
       unitLabel: unit?.unitNumber || unit?.number || "Unknown unit",
+      phone: tenant?.phone || "",
       propertyId: unit?.propertyId ?? null,
     }
   })
 
-  const selectedInvoiceData = outstandingInvoices.find(
-    (invoice: any) => String(invoice.id) === selectedInvoiceId
-  )
   const selectedLeaseOption = leaseOptions.find((option) => String(option.leaseId) === selectedLeaseId)
   const selectedLeaseProperty = selectedLeaseOption
     ? normalizedProperties.find((property: any) => property.id === selectedLeaseOption.propertyId)
@@ -250,6 +237,15 @@ export function ReceivePayments() {
   const computedAccountNumber = selectedLeaseProperty?.accountPrefix && selectedLeaseOption?.unitLabel
     ? `${selectedLeaseProperty.accountPrefix}${selectedLeaseOption.unitLabel}`
     : ""
+  const filteredLeaseOptions = leaseOptions.filter((option) => {
+    if (!paymentSearch.trim()) return true
+    const term = paymentSearch.toLowerCase()
+    return (
+      option.tenantName.toLowerCase().includes(term) ||
+      option.unitLabel.toLowerCase().includes(term) ||
+      option.phone.toLowerCase().includes(term)
+    )
+  })
 
   const recentPaymentRows = normalizedPayments.slice(0, 8).map((payment: any) => {
     const lease = normalizedLeases.find((l: any) => l.id === payment.leaseId)
@@ -273,11 +269,14 @@ export function ReceivePayments() {
       if (actionsDisabled) {
         throw new Error("Select a client and property in the header before recording payments.")
       }
-      if (!selectedInvoiceData && !selectedLeaseId && !accountNumber) {
-        throw new Error("Select an invoice or tenant/unit, or enter an account number.")
+      if (!selectedLeaseId) {
+        throw new Error("Select a tenant or unit before recording payments.")
       }
       if (!amount || !paymentMethod) {
         throw new Error("Please fill in all required fields.")
+      }
+      if (!computedAccountNumber) {
+        throw new Error("Unable to compute account number for this tenant/unit.")
       }
 
       const payload: any = {
@@ -287,15 +286,10 @@ export function ReceivePayments() {
         reference: reference || null,
         notes: notes || null,
         status: "draft",
-        accountNumber: accountNumber || computedAccountNumber || null,
+        accountNumber: computedAccountNumber || null,
       }
 
-      if (selectedInvoiceData) {
-        payload.leaseId = selectedInvoiceData.leaseId
-        payload.invoiceId = selectedInvoiceData.id
-      } else if (selectedLeaseId) {
-        payload.leaseId = selectedLeaseId
-      }
+      payload.leaseId = selectedLeaseId
 
       return await apiRequest("POST", "/api/payments", payload)
     },
@@ -306,11 +300,11 @@ export function ReceivePayments() {
         title: "Payment Drafted",
         description: "Payment saved as draft in receipts for confirmation.",
       })
-      setSelectedInvoiceId("")
       setAmount("")
       setPaymentMethod("")
       setReference("")
       setNotes("")
+      setPaymentSearch("")
       setIsDialogOpen(false)
     },
     onError: (error: any) => {
@@ -385,93 +379,52 @@ export function ReceivePayments() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="search-tenant">Search tenant/unit</Label>
+                <Label htmlFor="search-tenant">Search tenant/unit/mobile</Label>
                 <Input
                   id="search-tenant"
-                  placeholder="Search by tenant name or unit"
+                  placeholder="Type tenant name, unit, or mobile number"
                   value={paymentSearch}
-                  onChange={(e) => setPaymentSearch(e.target.value)}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="invoice">Outstanding Invoice</Label>
-                <Select
-                  value={selectedInvoiceId}
-                  onValueChange={(value) => {
-                    setSelectedInvoiceId(value)
+                  onChange={(e) => {
+                    setPaymentSearch(e.target.value)
                     setSelectedLeaseId("")
-                    const invoice = outstandingInvoices.find((item: any) => String(item.id) === value)
-                    if (invoice) {
-                      setAmount(invoice.balance.toString())
-                    }
                   }}
-                >
-                  <SelectTrigger data-testid="select-invoice">
-                    <SelectValue placeholder="Select invoice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredOutstandingInvoices.length === 0 && (
-                      <SelectItem value="none" disabled>
-                        No matching invoices
-                      </SelectItem>
-                    )}
-                    {filteredOutstandingInvoices.map((invoice: any) => (
-                      <SelectItem key={invoice.id} value={String(invoice.id)}>
-                        {invoice.invoiceNumber || invoice.id} - {invoice.tenantName} ({invoice.unitLabel}) • KSh {invoice.balance.toLocaleString()}
-                      </SelectItem>
+                />
+                {paymentSearch.trim() && (
+                  <div className="max-h-52 overflow-auto rounded-md border border-muted p-2 space-y-1">
+                    {filteredLeaseOptions.map((option) => (
+                      <button
+                        key={option.leaseId}
+                        className={`w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted ${
+                          selectedLeaseId === String(option.leaseId) ? "bg-muted" : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedLeaseId(String(option.leaseId))
+                          setPaymentSearch(`${option.tenantName} • ${option.unitLabel}`)
+                        }}
+                      >
+                        {option.tenantName} • {option.unitLabel}
+                        {option.phone ? ` • ${option.phone}` : ""}
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
+                    {filteredLeaseOptions.length === 0 && (
+                      <div className="text-sm text-muted-foreground px-2 py-3">
+                        No matches found.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="lease">Tenant/Unit (postdated)</Label>
-                <Select
-                  value={selectedLeaseId}
-                  onValueChange={(value) => {
-                    setSelectedLeaseId(value)
-                    setSelectedInvoiceId("")
-                  }}
-                >
-                  <SelectTrigger data-testid="select-tenant-unit">
-                    <SelectValue placeholder="Select tenant or unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leaseOptions
-                      .filter((option) => {
-                        if (!paymentSearch.trim()) return true
-                        const term = paymentSearch.toLowerCase()
-                        return (
-                          option.tenantName.toLowerCase().includes(term) ||
-                          option.unitLabel.toLowerCase().includes(term)
-                        )
-                      })
-                      .map((option) => (
-                        <SelectItem key={option.leaseId} value={String(option.leaseId)}>
-                          {option.tenantName} • {option.unitLabel}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {(selectedInvoiceData || selectedLeaseOption) && (
+              {selectedLeaseOption && (
                 <div className="p-3 bg-muted/50 rounded-lg">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <p className="font-medium">Invoice/Tenant</p>
-                      <p className="font-mono">
-                        {selectedInvoiceData
-                          ? (selectedInvoiceData.invoiceNumber || selectedInvoiceData.id)
-                          : `${selectedLeaseOption?.tenantName} • ${selectedLeaseOption?.unitLabel}`}
-                      </p>
+                      <p className="font-medium">Tenant/Unit</p>
+                      <p className="font-mono">{selectedLeaseOption?.tenantName} • {selectedLeaseOption?.unitLabel}</p>
                     </div>
                     <div>
-                      <p className="font-medium">Outstanding Balance</p>
-                      <p className="font-mono text-red-600">
-                        KSh {selectedInvoiceData ? selectedInvoiceData.balance.toLocaleString() : "—"}
-                      </p>
+                      <p className="font-medium">Account Number</p>
+                      <p className="font-mono">{computedAccountNumber || "—"}</p>
                     </div>
                   </div>
                 </div>
@@ -515,16 +468,6 @@ export function ReceivePayments() {
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="account-number">Account Number</Label>
-                <Input
-                  id="account-number"
-                  placeholder="Property prefix + unit number"
-                  value={accountNumber || computedAccountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  data-testid="input-account-number"
-                />
-              </div>
 
               <div className="grid gap-2">
                 <Label htmlFor="notes">Notes</Label>
