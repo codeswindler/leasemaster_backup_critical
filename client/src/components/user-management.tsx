@@ -149,7 +149,8 @@ export function UserManagement() {
       status: user.status === 0 || user.status === "inactive" ? "inactive" : "active",
       lastLogin: lastLogin ? new Date(lastLogin).toLocaleString() : "—",
       permissions,
-      otpEnabled
+      otpEnabled,
+      landlordId: user.landlord_id ?? user.landlordId
     }
   })
   const ensureUserIncluded = (list: any[], user: any | null) => {
