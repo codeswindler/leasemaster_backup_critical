@@ -333,6 +333,11 @@ function AppContent() {
     return [];
   };
 
+  const isLandlordRole = (role?: string) => {
+    const normalized = (role || "").toLowerCase();
+    return normalized === "landlord" || normalized === "client";
+  };
+
   const hasPermissionCategory = (category: string, permissions: string[]) => {
     if (!permissions.length) return false;
     if (permissions.includes(category)) return true;
@@ -372,7 +377,7 @@ function AppContent() {
             const data = await response.json();
             setIsAuthenticated(true);
             if (data.user) {
-              const userRole = data.user.role || 'client';
+              const userRole = data.user.role || 'landlord';
               // Development mode: log role for debugging (remove in production)
               if (process.env.NODE_ENV === 'development' && !userRole) {
                 console.warn('[Auth] User role missing from API response:', data.user);
@@ -425,7 +430,7 @@ function AppContent() {
 
   useEffect(() => {
     if (!currentUser) return;
-    if (currentUser.role !== "client") {
+    if (!isLandlordRole(currentUser.role)) {
       return;
     }
     const userLandlordId = String(currentUser.id);
@@ -463,7 +468,7 @@ function AppContent() {
               setCurrentUser({ 
                 id: data.user.id, 
                 username: data.user.username, 
-                role: data.user.role || 'client',
+                role: data.user.role || 'landlord',
                 propertyId: data.user.propertyId ?? null,
                 permissions: data.user.permissions ?? null,
                 propertyLimit: data.user.propertyLimit ?? null

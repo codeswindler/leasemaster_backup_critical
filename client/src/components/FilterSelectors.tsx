@@ -67,7 +67,8 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
   }, [normalizedLandlordId, normalizedPropertyId, properties, setSelectedPropertyId]);
 
   useEffect(() => {
-    if (currentUser?.role !== "client") return;
+    const role = (currentUser?.role || "").toLowerCase();
+    if (role !== "client" && role !== "landlord") return;
     if (normalizedPropertyId) return;
     const firstProperty = (properties as any[])[0];
     const firstPropertyId = normalizeId(firstProperty?.id);

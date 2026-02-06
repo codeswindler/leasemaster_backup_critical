@@ -240,8 +240,30 @@ export function UserDetail() {
     enabled: !!userId,
   })
 
+  const landlordScopeId = useMemo(() => {
+    if (!user) return null
+    const role = String(user.role || "").toLowerCase()
+    if (role === "landlord" || role === "client") {
+      return String(user.id)
+    }
+    if (user.landlord_id) {
+      return String(user.landlord_id)
+    }
+    return null
+  }, [user])
+
   const { data: properties = [] } = useQuery({
-    queryKey: ["/api/properties"],
+    queryKey: ["/api/properties", landlordScopeId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (landlordScopeId) {
+        params.append("landlordId", landlordScopeId)
+      }
+      const url = `/api/properties${params.toString() ? `?${params}` : ""}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: !!user,
   })
 
   const propertyName = useMemo(() => {
@@ -249,6 +271,14 @@ export function UserDetail() {
     const matchProperty = (properties as any[]).find((p: any) => p.id === propertyId)
     return matchProperty?.name || "—"
   }, [properties, user])
+
+  const displayRole = useMemo(() => {
+    const role = String(user?.role || "").toLowerCase()
+    if (role === "landlord" || role === "client") {
+      return "Landlord"
+    }
+    return user?.role || "Administrator"
+  }, [user])
 
   useEffect(() => {
     if (!user) return
@@ -528,7 +558,7 @@ export function UserDetail() {
                 <div className="text-sm text-muted-foreground">Username / Email</div>
                 <div>{user.username}</div>
                 <div className="text-sm text-muted-foreground">Role</div>
-                <Badge variant="outline">{user.role || "Administrator"}</Badge>
+                <Badge variant="outline">{displayRole}</Badge>
               </div>
               <div className="space-y-2">
                 <div className="text-sm text-muted-foreground">Property</div>

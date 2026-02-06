@@ -74,6 +74,10 @@ export function UserManagement() {
   })
   const currentRole = (authData?.user?.role || "").toLowerCase()
   const isAdmin = currentRole === "admin" || currentRole === "super_admin" || currentRole === "administrator"
+  const isLandlord = currentRole === "landlord" || currentRole === "client"
+  const currentUserId = authData?.user?.id ? String(authData.user.id) : null
+  const landlordIdToUse =
+    landlordSelected ? String(selectedLandlordId) : (isLandlord ? currentUserId : null)
 
   // Fetch real user data from API
   const { data: apiUsers = [], isLoading: usersLoading } = useQuery({
@@ -403,6 +407,7 @@ export function UserManagement() {
         password: newUser.password,
         permissions: newUser.permissions,
         propertyIds: newUser.propertyIds,
+        landlordId: landlordIdToUse,
         region: newUser.region,
         timezone: newUser.timezone,
       })
@@ -493,6 +498,9 @@ export function UserManagement() {
 
   const getRoleBadge = (role: string) => {
     switch (role) {
+      case "landlord":
+      case "client":
+        return <Badge variant="default" className="bg-purple-100 text-purple-800">Landlord</Badge>
       case "Administrator":
         return <Badge variant="default" className="bg-red-100 text-red-800">Administrator</Badge>
       case "Manager":

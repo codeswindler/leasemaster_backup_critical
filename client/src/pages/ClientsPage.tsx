@@ -89,7 +89,7 @@ export function ClientsPage() {
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
   const { scheduleDelete } = useUndoDelete();
 
-  // Fetch all landlords (users with role 'client')
+  // Fetch all landlords (users with role 'landlord')
   const { data: landlords = [], isLoading } = useQuery({
     queryKey: ["/api/landlords"],
     queryFn: async () => {

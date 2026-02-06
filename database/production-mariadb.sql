@@ -32,7 +32,7 @@ CREATE TABLE users (
     id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    role VARCHAR(50) DEFAULT 'admin' NOT NULL,
+    role VARCHAR(50) DEFAULT 'landlord' NOT NULL,
     full_name VARCHAR(255),
     phone VARCHAR(50),
     status INT DEFAULT 1,
@@ -42,11 +42,13 @@ CREATE TABLE users (
     blocked_until TIMESTAMP NULL,
     must_change_password TINYINT(1) DEFAULT 0,
     property_id INT,
+    landlord_id INT DEFAULT NULL,
     property_limit INT DEFAULT NULL,
     permissions TEXT,
     otp_enabled TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_users_property (property_id)
+    INDEX idx_users_property (property_id),
+    INDEX idx_users_landlord (landlord_id)
 );
 
 CREATE TABLE user_properties (

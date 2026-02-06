@@ -186,7 +186,8 @@ class Storage {
 
     public function getUsers($filters = []) {
         $hasPropertyId = $this->columnExists('users', 'property_id');
-        $hasLandlordId = $this->columnExists('properties', 'landlord_id');
+        $hasLandlordIdColumn = $this->columnExists('users', 'landlord_id');
+        $hasPropertiesLandlordId = $this->columnExists('properties', 'landlord_id');
         $hasRole = $this->columnExists('users', 'role');
         $hasUserProperties = $this->tableExists('user_properties');
 
@@ -194,39 +195,49 @@ class Storage {
         $params = [];
         $joins = [];
 
-        if (!empty($filters['propertyId']) && $hasPropertyId) {
+        if (!empty($filters['propertyId'])) {
             if ($hasUserProperties) {
                 $joins[] = "LEFT JOIN user_properties up ON up.user_id = u.id";
-                $where[] = "up.property_id = ?";
-                $params[] = $filters['propertyId'];
-            } else {
-                if (!empty($filters['landlordId'])) {
-                    $where[] = "(u.property_id = ? OR u.id = ?)";
+                if ($hasPropertyId) {
+                    $where[] = "(up.property_id = ? OR u.property_id = ?)";
                     $params[] = $filters['propertyId'];
-                    $params[] = $filters['landlordId'];
+                    $params[] = $filters['propertyId'];
                 } else {
-                    $where[] = "u.property_id = ?";
+                    $where[] = "up.property_id = ?";
                     $params[] = $filters['propertyId'];
                 }
+            } elseif ($hasPropertyId) {
+                $where[] = "u.property_id = ?";
+                $params[] = $filters['propertyId'];
             }
-        } elseif (!empty($filters['landlordId']) && $hasLandlordId && $hasPropertyId) {
-            $where[] = "(p.landlord_id = ? OR u.id = ?)";
-            $params[] = $filters['landlordId'];
-            $params[] = $filters['landlordId'];
         }
-        if (!empty($filters['landlordId']) && $hasRole) {
-            $where[] = "(u.role IS NULL OR u.role <> 'admin' OR u.id = ?)";
-            $params[] = $filters['landlordId'];
-            $where[] = "(u.role IS NULL OR u.role <> 'client' OR u.id = ?)";
+
+        if (!empty($filters['landlordId'])) {
+            if ($hasLandlordIdColumn) {
+                $where[] = "(u.landlord_id = ? OR u.id = ?)";
+                $params[] = $filters['landlordId'];
+                $params[] = $filters['landlordId'];
+            } elseif ($hasPropertiesLandlordId && $hasPropertyId) {
+                $joins[] = "LEFT JOIN properties p ON u.property_id = p.id";
+                $where[] = "(p.landlord_id = ? OR u.id = ?)";
+                $params[] = $filters['landlordId'];
+                $params[] = $filters['landlordId'];
+            }
+        }
+
+        if (!empty($filters['landlordId']) && !empty($filters['propertyId']) && $hasPropertiesLandlordId) {
+            $where[] = "EXISTS (SELECT 1 FROM properties p_scope WHERE p_scope.id = ? AND p_scope.landlord_id = ?)";
+            $params[] = $filters['propertyId'];
             $params[] = $filters['landlordId'];
         }
 
-        $sql = "SELECT u.* FROM users u";
-        if (!empty($filters['landlordId']) && $hasLandlordId && $hasPropertyId) {
-            $sql .= " LEFT JOIN properties p ON u.property_id = p.id";
+        if (!empty($filters['landlordId']) && $hasRole) {
+            $where[] = "(u.role IS NULL OR u.role NOT IN ('admin', 'super_admin'))";
         }
+
+        $sql = "SELECT u.* FROM users u";
         if (!empty($joins)) {
-            $sql .= " " . implode(" ", $joins);
+            $sql .= " " . implode(" ", array_unique($joins));
         }
         if (!empty($where)) {
             $sql .= " WHERE " . implode(" AND ", $where);
@@ -267,7 +278,7 @@ class Storage {
     }
 
     public function createUser($data) {
-        $role = $data['role'] ?? 'client';  // Default role is 'client'
+        $role = $data['role'] ?? 'landlord';  // Default role is 'landlord'
         $status = 4;  // Initial status (user hasn't logged in yet)
         $password = $data['password'] ?? '';
         if ($password && strpos($password, '$2') !== 0) {
@@ -281,6 +292,7 @@ class Storage {
         $hasPhone = $this->columnExists('users', 'phone');
         $hasIdNumber = $this->columnExists('users', 'id_number');
         $hasPropertyId = $this->columnExists('users', 'property_id');
+        $hasLandlordId = $this->columnExists('users', 'landlord_id');
         $hasPermissions = $this->columnExists('users', 'permissions');
         $hasOtpEnabled = $this->columnExists('users', 'otp_enabled');
         $hasPropertyLimit = $this->columnExists('users', 'property_limit');
@@ -312,6 +324,10 @@ class Storage {
         if ($hasPropertyId && isset($data['propertyId'])) {
             $columns[] = 'property_id';
             $values[] = $data['propertyId'];
+        }
+        if ($hasLandlordId && array_key_exists('landlordId', $data)) {
+            $columns[] = 'landlord_id';
+            $values[] = $data['landlordId'];
         }
         if ($hasPermissions && isset($data['permissions'])) {
             $columns[] = 'permissions';
@@ -385,6 +401,10 @@ class Storage {
         if (isset($data['propertyId']) && $this->columnExists('users', 'property_id')) {
             $fields[] = "property_id = ?";
             $values[] = $data['propertyId'];
+        }
+        if (array_key_exists('landlordId', $data) && $this->columnExists('users', 'landlord_id')) {
+            $fields[] = "landlord_id = ?";
+            $values[] = $data['landlordId'];
         }
         if (isset($data['permissions']) && $this->columnExists('users', 'permissions')) {
             $fields[] = "permissions = ?";
@@ -508,12 +528,12 @@ class Storage {
 
     // ========== LANDLORDS ==========
     public function getLandlords() {
-        $stmt = $this->pdo->query("SELECT * FROM users WHERE role = 'client' ORDER BY created_at DESC");
+        $stmt = $this->pdo->query("SELECT * FROM users WHERE role IN ('landlord', 'client') ORDER BY created_at DESC");
         return $stmt->fetchAll();
     }
 
     public function getLandlord($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = ? AND role = 'client'");
+        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = ? AND role IN ('landlord', 'client')");
         $stmt->execute([$id]);
         return $stmt->fetch();
     }
@@ -536,11 +556,11 @@ class Storage {
         // Hash password
         $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
         
-        // Create user with role = 'client'
+        // Create user with role = 'landlord'
         $userData = [
             'username' => $data['username'],
             'password' => $hashedPassword,
-            'role' => 'client',
+            'role' => 'landlord',
             'fullName' => $data['fullName'] ?? null,
             'phone' => $data['phone'] ?? null,
             'idNumber' => $data['idNumber'] ?? null,
@@ -554,6 +574,10 @@ class Storage {
         // Verify user was created successfully
         if (!$user || empty($user['id'])) {
             throw new Exception('Failed to create landlord - user creation returned invalid data');
+        }
+
+        if ($this->columnExists('users', 'landlord_id')) {
+            $user = $this->updateUser($user['id'], ['landlordId' => $user['id']]) ?? $user;
         }
         
         // Double-check by fetching from database
@@ -607,7 +631,7 @@ class Storage {
         }
         
         $values[] = $id;
-        $sql = "UPDATE users SET " . implode(', ', $fields) . " WHERE id = ? AND role = 'client'";
+        $sql = "UPDATE users SET " . implode(', ', $fields) . " WHERE id = ? AND role IN ('landlord', 'client')";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
         
@@ -627,7 +651,7 @@ class Storage {
         }
         
         // Delete user (landlord)
-        $stmt = $this->pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'client'");
+        $stmt = $this->pdo->prepare("DELETE FROM users WHERE id = ? AND role IN ('landlord', 'client')");
         $stmt->execute([$id]);
         return $stmt->rowCount() > 0;
     }
@@ -864,6 +888,27 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    public function getHouseTypesByProperty($propertyId) {
+        $stmt = $this->pdo->prepare("SELECT * FROM house_types WHERE property_id = ? ORDER BY created_at DESC");
+        $stmt->execute([$propertyId]);
+        return $stmt->fetchAll();
+    }
+
+    public function getHouseTypesByLandlord($landlordId) {
+        if (!$this->columnExists('properties', 'landlord_id')) {
+            return $this->getAllHouseTypes();
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT ht.*
+            FROM house_types ht
+            INNER JOIN properties p ON p.id = ht.property_id
+            WHERE p.landlord_id = ?
+            ORDER BY ht.created_at DESC
+        ");
+        $stmt->execute([$landlordId]);
+        return $stmt->fetchAll();
+    }
+
     public function getHouseType($id) {
         $stmt = $this->pdo->prepare("SELECT * FROM house_types WHERE id = ?");
         $stmt->execute([$id]);
@@ -965,6 +1010,36 @@ class Storage {
     public function getUnitsByProperty($propertyId) {
         $stmt = $this->pdo->prepare("SELECT * FROM units WHERE property_id = ? ORDER BY unit_number");
         $stmt->execute([$propertyId]);
+        return $stmt->fetchAll();
+    }
+
+    public function getUnitsByLandlord($landlordId) {
+        if (!$this->columnExists('properties', 'landlord_id')) {
+            return $this->getAllUnits();
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT u.*
+            FROM units u
+            INNER JOIN properties p ON p.id = u.property_id
+            WHERE p.landlord_id = ?
+            ORDER BY u.unit_number
+        ");
+        $stmt->execute([$landlordId]);
+        return $stmt->fetchAll();
+    }
+
+    public function getUnitsByLandlordAndProperty($landlordId, $propertyId) {
+        if (!$this->columnExists('properties', 'landlord_id')) {
+            return $this->getUnitsByProperty($propertyId);
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT u.*
+            FROM units u
+            INNER JOIN properties p ON p.id = u.property_id
+            WHERE p.landlord_id = ? AND u.property_id = ?
+            ORDER BY u.unit_number
+        ");
+        $stmt->execute([$landlordId, $propertyId]);
         return $stmt->fetchAll();
     }
 

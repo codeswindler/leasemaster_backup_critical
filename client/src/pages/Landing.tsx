@@ -63,7 +63,7 @@ export function Landing() {
   const isAuthenticated = authData?.authenticated || false;
   const currentUser = authData?.user || null;
   const isAdminUser = currentUser && (currentUser.role === 'admin' || currentUser.role === 'super_admin');
-  const isClientUser = currentUser && currentUser.role === 'client';
+  const isClientUser = currentUser && (currentUser.role === 'landlord' || currentUser.role === 'client');
   const [enquiryForm, setEnquiryForm] = useState({
     name: "",
     email: "",
