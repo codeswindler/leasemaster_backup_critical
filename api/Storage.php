@@ -187,6 +187,7 @@ class Storage {
     public function getUsers($filters = []) {
         $hasPropertyId = $this->columnExists('users', 'property_id');
         $hasLandlordIdColumn = $this->columnExists('users', 'landlord_id');
+        $hasAdminIdColumn = $this->columnExists('users', 'admin_id');
         $hasPropertiesLandlordId = $this->columnExists('properties', 'landlord_id');
         $hasRole = $this->columnExists('users', 'role');
         $hasUserProperties = $this->tableExists('user_properties');
@@ -229,6 +230,12 @@ class Storage {
             $where[] = "EXISTS (SELECT 1 FROM properties p_scope WHERE p_scope.id = ? AND p_scope.landlord_id = ?)";
             $params[] = $filters['propertyId'];
             $params[] = $filters['landlordId'];
+        }
+
+        if (!empty($filters['adminId']) && $hasAdminIdColumn) {
+            $where[] = "(u.admin_id = ? OR u.id = ?)";
+            $params[] = $filters['adminId'];
+            $params[] = $filters['adminId'];
         }
 
         if (!empty($filters['landlordId']) && $hasRole) {
@@ -293,6 +300,7 @@ class Storage {
         $hasIdNumber = $this->columnExists('users', 'id_number');
         $hasPropertyId = $this->columnExists('users', 'property_id');
         $hasLandlordId = $this->columnExists('users', 'landlord_id');
+        $hasAdminId = $this->columnExists('users', 'admin_id');
         $hasPermissions = $this->columnExists('users', 'permissions');
         $hasOtpEnabled = $this->columnExists('users', 'otp_enabled');
         $hasPropertyLimit = $this->columnExists('users', 'property_limit');
@@ -328,6 +336,10 @@ class Storage {
         if ($hasLandlordId && array_key_exists('landlordId', $data)) {
             $columns[] = 'landlord_id';
             $values[] = $data['landlordId'];
+        }
+        if ($hasAdminId && array_key_exists('adminId', $data)) {
+            $columns[] = 'admin_id';
+            $values[] = $data['adminId'];
         }
         if ($hasPermissions && isset($data['permissions'])) {
             $columns[] = 'permissions';
@@ -405,6 +417,10 @@ class Storage {
         if (array_key_exists('landlordId', $data) && $this->columnExists('users', 'landlord_id')) {
             $fields[] = "landlord_id = ?";
             $values[] = $data['landlordId'];
+        }
+        if (array_key_exists('adminId', $data) && $this->columnExists('users', 'admin_id')) {
+            $fields[] = "admin_id = ?";
+            $values[] = $data['adminId'];
         }
         if (isset($data['permissions']) && $this->columnExists('users', 'permissions')) {
             $fields[] = "permissions = ?";
@@ -527,8 +543,17 @@ class Storage {
     }
 
     // ========== LANDLORDS ==========
-    public function getLandlords() {
-        $stmt = $this->pdo->query("SELECT * FROM users WHERE role IN ('landlord', 'client') ORDER BY created_at DESC");
+    public function getLandlords($adminId = null) {
+        $hasAdminId = $this->columnExists('users', 'admin_id');
+        $sql = "SELECT * FROM users WHERE role IN ('landlord', 'client')";
+        $params = [];
+        if ($hasAdminId && $adminId) {
+            $sql .= " AND admin_id = ?";
+            $params[] = $adminId;
+        }
+        $sql .= " ORDER BY created_at DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
@@ -565,6 +590,9 @@ class Storage {
             'phone' => $data['phone'] ?? null,
             'idNumber' => $data['idNumber'] ?? null,
         ];
+        if (array_key_exists('adminId', $data)) {
+            $userData['adminId'] = $data['adminId'];
+        }
         if (array_key_exists('propertyLimit', $data)) {
             $userData['propertyLimit'] = $data['propertyLimit'];
         }

@@ -43,12 +43,14 @@ CREATE TABLE users (
     must_change_password TINYINT(1) DEFAULT 0,
     property_id INT,
     landlord_id INT DEFAULT NULL,
+    admin_id INT DEFAULT NULL,
     property_limit INT DEFAULT NULL,
     permissions TEXT,
     otp_enabled TINYINT(1) DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_users_property (property_id),
-    INDEX idx_users_landlord (landlord_id)
+    INDEX idx_users_landlord (landlord_id),
+    INDEX idx_users_admin (admin_id)
 );
 
 CREATE TABLE user_properties (

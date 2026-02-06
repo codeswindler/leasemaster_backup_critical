@@ -1347,7 +1347,13 @@ try {
         
         // Standard CRUD operations
         if ($method === 'GET' && !$id) {
-            sendJson($storage->getLandlords());
+            $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
+            $currentRole = $currentUser['role'] ?? 'landlord';
+            $adminId = null;
+            if ($currentRole === 'admin') {
+                $adminId = $currentUser['id'] ?? null;
+            }
+            sendJson($storage->getLandlords($adminId));
         }
         
         if ($method === 'GET' && $id && !$action) {
@@ -1372,6 +1378,7 @@ try {
                 sendJson(['error' => 'You do not have permission to create landlords.'], 403);
             }
             try {
+                $body['adminId'] = $userId;
                 $landlord = $storage->createLandlord($body);
                 // Verify landlord was actually created in database
                 $verifyLandlord = $storage->getLandlord($landlord['id']);
@@ -3038,6 +3045,9 @@ try {
             if ($landlordId) {
                 $filters['landlordId'] = $landlordId;
             }
+            if ($currentRole === 'admin') {
+                $filters['adminId'] = $currentUser['id'] ?? null;
+            }
             $users = $storage->getUsers($filters);
             foreach ($users as &$user) {
                 $user['propertyIds'] = $storage->getUserPropertyIds($user['id']);
@@ -3083,6 +3093,18 @@ try {
             } elseif (isLandlordRole($currentRole)) {
                 $landlordIdForUser = $currentUser['id'] ?? null;
             }
+            $adminIdForUser = null;
+            if ($isAdmin) {
+                $adminIdForUser = $currentUser['id'] ?? null;
+            } elseif (isLandlordRole($currentRole)) {
+                $adminIdForUser = $currentUser['admin_id'] ?? null;
+            }
+            if ($isAdmin && $landlordIdForUser) {
+                $landlordOwner = $storage->getUser($landlordIdForUser);
+                if (!empty($landlordOwner['admin_id'])) {
+                    $adminIdForUser = $landlordOwner['admin_id'];
+                }
+            }
             if (empty($body['username'])) {
                 sendJson(['error' => 'username is required'], 400);
             }
@@ -3101,6 +3123,7 @@ try {
                 'idNumber' => $body['idNumber'] ?? null,
                 'propertyId' => $primaryPropertyId,
                 'landlordId' => $landlordIdForUser,
+                'adminId' => $adminIdForUser,
                 'permissions' => $body['permissions'] ?? [],
                 'otpEnabled' => $body['otpEnabled'] ?? null
             ]);
