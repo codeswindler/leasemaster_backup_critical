@@ -59,6 +59,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
+const houseTypeCardVariants = [
+  "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+  "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+  "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+  "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+  "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+  "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+]
+
 export function Houses() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddHouseTypeDialogOpen, setIsAddHouseTypeDialogOpen] = useState(false)
@@ -95,6 +104,10 @@ export function Houses() {
   
   // Multi-select house type filter
   const [selectedHouseTypeFilters, setSelectedHouseTypeFilters] = useState<string[]>([])
+  const houseTypeCardSeed = useMemo(
+    () => Math.floor(Math.random() * houseTypeCardVariants.length),
+    []
+  )
   
   const [, setLocation] = useLocation()
   const { toast } = useToast()
@@ -1953,14 +1966,14 @@ export function Houses() {
             )}
           </div>
         ) : (
-          filteredHouseTypes.map((houseType: any) => {
+          filteredHouseTypes.map((houseType: any, index: number) => {
             const property = properties.find((p: any) => p.id === houseType.propertyId)
             const isFiltered = selectedHouseTypeFilters.includes(houseType.id)
             
             return (
           <Card 
             key={houseType.id} 
-            className={`vibrant-card hover:shadow-md transition-all cursor-pointer ${
+            className={`vibrant-card hover:shadow-md transition-all cursor-pointer ${houseTypeCardVariants[(houseTypeCardSeed + index) % houseTypeCardVariants.length]} ${
               isFiltered ? 'ring-2 ring-primary shadow-lg' : ''
             }`}
             onClick={() => toggleHouseTypeFilter(houseType.id)}
