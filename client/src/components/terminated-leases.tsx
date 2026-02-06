@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query"
+import { useRef } from "react"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
@@ -8,6 +9,15 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export function TerminatedLeases() {
+  const terminatedLeaseVariants = [
+    "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+    "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+    "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+    "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+    "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+    "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+  ]
+  const terminatedLeaseSeed = useRef(Math.floor(Math.random() * terminatedLeaseVariants.length))
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
   const actionsDisabled = !selectedPropertyId
@@ -129,7 +139,7 @@ export function TerminatedLeases() {
         <p className="text-muted-foreground">Review terminated leases and reactivate when needed</p>
       </div>
 
-      <Card>
+      <Card className={`vibrant-card ${terminatedLeaseVariants[terminatedLeaseSeed.current % terminatedLeaseVariants.length]}`}>
         <CardHeader>
           <CardTitle>Terminated Leases</CardTitle>
         </CardHeader>

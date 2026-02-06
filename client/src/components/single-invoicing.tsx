@@ -24,6 +24,15 @@ type PropertySummary = {
   landlordId?: string | null
 }
 
+const singleInvoiceVariants = [
+  "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+  "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+  "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+  "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+  "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+  "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+]
+
 export function SingleInvoicing() {
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
@@ -34,6 +43,10 @@ export function SingleInvoicing() {
   const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
   const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const { toast } = useToast()
+  const singleInvoiceSeed = useMemo(
+    () => Math.floor(Math.random() * singleInvoiceVariants.length),
+    []
+  )
 
   useEffect(() => {
     if (selectedPropertyId) {
@@ -413,7 +426,7 @@ export function SingleInvoicing() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Invoice Configuration */}
-        <Card className="vibrant-panel lg:col-span-1">
+        <Card className={`vibrant-panel lg:col-span-1 ${singleInvoiceVariants[singleInvoiceSeed % singleInvoiceVariants.length]}`}>
           <CardHeader>
             <CardTitle>Invoice Configuration</CardTitle>
             <CardDescription>Select property, charges, and date</CardDescription>
@@ -496,7 +509,7 @@ export function SingleInvoicing() {
         </Card>
 
         {/* Unit Selection */}
-        <Card className="vibrant-card">
+        <Card className={`vibrant-card ${singleInvoiceVariants[(singleInvoiceSeed + 1) % singleInvoiceVariants.length]}`}>
           <CardHeader>
             <CardTitle>Select Unit</CardTitle>
             <CardDescription>Search and select the tenant unit</CardDescription>
@@ -546,7 +559,7 @@ export function SingleInvoicing() {
         </Card>
 
         {/* Invoice Details */}
-        <Card className="vibrant-card">
+        <Card className={`vibrant-card ${singleInvoiceVariants[(singleInvoiceSeed + 2) % singleInvoiceVariants.length]}`}>
           <CardHeader>
             <CardTitle>Invoice Details</CardTitle>
             <CardDescription>Review and customize the invoice</CardDescription>

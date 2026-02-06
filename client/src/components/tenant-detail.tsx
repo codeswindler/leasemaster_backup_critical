@@ -48,6 +48,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+const tenantDetailVariants = [
+  "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+  "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+  "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+  "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+  "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+  "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+]
+
 const TypewriterText = ({
   text,
   className,
@@ -107,6 +116,7 @@ export function TenantDetail() {
     secondaryContactEmail: "",
     notifySecondary: "false",
   })
+  const tenantDetailSeed = useRef(Math.floor(Math.random() * tenantDetailVariants.length))
 
   const parseAmount = (value: any) => {
     const parsed = Number(value)
@@ -598,7 +608,7 @@ export function TenantDetail() {
 
           <TabsContent value="details" className="space-y-4">
             <div className="grid grid-cols-1 gap-6">
-              <Card className="min-h-[240px]">
+              <Card className={`min-h-[240px] vibrant-card ${tenantDetailVariants[tenantDetailSeed.current % tenantDetailVariants.length]}`}>
                 <CardHeader className="flex flex-row items-center justify-between gap-2">
                   <CardTitle className="flex items-center gap-2">
                     <User className="h-5 w-5" />
@@ -761,7 +771,7 @@ export function TenantDetail() {
                   )}
                 </CardContent>
               </Card>
-              <Card className="min-h-[220px]">
+              <Card className={`min-h-[220px] vibrant-card ${tenantDetailVariants[(tenantDetailSeed.current + 1) % tenantDetailVariants.length]}`}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5" />

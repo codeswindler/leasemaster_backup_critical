@@ -35,9 +35,22 @@ type PropertySummary = {
   name: string
 }
 
+const bulkInvoiceVariants = [
+  "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+  "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+  "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+  "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+  "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+  "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+]
+
 export function BulkInvoicing() {
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
+  const bulkInvoiceSeed = useMemo(
+    () => Math.floor(Math.random() * bulkInvoiceVariants.length),
+    []
+  )
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState("")
   const [tenantAccounts, setTenantAccounts] = useState<TenantAccount[]>([])
@@ -520,7 +533,7 @@ export function BulkInvoicing() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Invoice Configuration */}
-        <Card className="vibrant-panel lg:col-span-1">
+        <Card className={`vibrant-panel lg:col-span-1 ${bulkInvoiceVariants[bulkInvoiceSeed % bulkInvoiceVariants.length]}`}>
           <CardHeader>
             <CardTitle>Invoice Configuration</CardTitle>
             <CardDescription>Select property, charges, and date</CardDescription>
@@ -703,7 +716,7 @@ export function BulkInvoicing() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="vibrant-card h-full flex items-center justify-center">
+            <Card className={`vibrant-card h-full flex items-center justify-center ${bulkInvoiceVariants[(bulkInvoiceSeed + 1) % bulkInvoiceVariants.length]}`}>
               <CardContent className="text-center">
                 <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">Configure Invoice Settings</h3>

@@ -62,6 +62,15 @@ import {
 import ExcelJS from "exceljs"
 
 export function Tenants() {
+  const tenantsListVariants = [
+    "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+    "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+    "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+    "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+    "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+    "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+  ]
+  const tenantsListSeed = useRef(Math.floor(Math.random() * tenantsListVariants.length))
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [formStep, setFormStep] = useState(1)
@@ -1658,7 +1667,7 @@ export function Tenants() {
 
       {/* Tenants List */}
       {!tenantsLoading && !tenantsError && (
-        <Card>
+        <Card className={`vibrant-card ${tenantsListVariants[tenantsListSeed.current % tenantsListVariants.length]}`}>
           <CardContent className="p-0">
             <Table className="table-fixed w-full">
               <TableHeader>

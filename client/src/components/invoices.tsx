@@ -55,7 +55,17 @@ import autoTable from 'jspdf-autotable'
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
+const invoicesListVariants = [
+  "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+  "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+  "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+  "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+  "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+  "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+]
+
 export function Invoices() {
+  const invoicesListSeed = useRef(Math.floor(Math.random() * invoicesListVariants.length))
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([])
@@ -935,7 +945,7 @@ export function Invoices() {
       </div>
 
       {/* Invoices Table */}
-      <Card>
+      <Card className={`vibrant-card ${invoicesListVariants[invoicesListSeed.current % invoicesListVariants.length]}`}>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             Invoices List
