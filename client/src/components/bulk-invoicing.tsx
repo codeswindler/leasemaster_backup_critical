@@ -417,9 +417,6 @@ export function BulkInvoicing() {
       for (const account of tenantAccounts) {
         if (!account.lease) continue
 
-        // Generate unique invoice number
-        const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now()}-${account.id.slice(0, 8)}`
-        
         // Calculate total amount
         const charges = account.charges || {}
         const totalAmount = Object.values(charges).reduce((sum, amount) => sum + amount, 0)
@@ -427,7 +424,6 @@ export function BulkInvoicing() {
         // Create invoice
         const invoiceResponse = await apiRequest("POST", "/api/invoices", {
           leaseId: account.lease.id,
-          invoiceNumber,
           description: `Monthly charges for ${account.unit}`,
           amount: totalAmount.toString(),
           dueDate: invoiceData.dueDate,

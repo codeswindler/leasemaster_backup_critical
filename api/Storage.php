@@ -1737,16 +1737,22 @@ class Storage {
             throw new Exception("Lease not found");
         }
         
-        // Check for unique invoice number
-        $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM invoices WHERE invoice_number = ?");
-        $stmt->execute([$data['invoiceNumber']]);
-        $result = $stmt->fetch();
+        $id = $this->generateUUID();
+        $invoiceNumber = $data['invoiceNumber'] ?? null;
         
-        if ($result['count'] > 0) {
-            throw new Exception("Invoice with number {$data['invoiceNumber']} already exists");
+        if (!empty($invoiceNumber)) {
+            // Check for unique invoice number
+            $stmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM invoices WHERE invoice_number = ?");
+            $stmt->execute([$invoiceNumber]);
+            $result = $stmt->fetch();
+            
+            if ($result['count'] > 0) {
+                throw new Exception("Invoice with number {$invoiceNumber} already exists");
+            }
+        } else {
+            $invoiceNumber = "INV-TEMP-$id";
         }
         
-        $id = $this->generateUUID();
         $stmt = $this->pdo->prepare("
             INSERT INTO invoices (id, lease_id, invoice_number, description, amount, due_date, issue_date, status) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -1754,13 +1760,26 @@ class Storage {
         $stmt->execute([
             $id,
             $data['leaseId'],
-            $data['invoiceNumber'],
+            $invoiceNumber,
             $data['description'],
             $data['amount'],
             $data['dueDate'],
             $data['issueDate'],
             $data['status'] ?? 'pending'
         ]);
+        
+        if (empty($data['invoiceNumber'])) {
+            $hasInvoiceSeq = $this->columnExists('invoices', 'invoice_seq');
+            $invoice = $this->getInvoice($id);
+            if ($hasInvoiceSeq && $invoice && isset($invoice['invoice_seq'])) {
+                $finalNumber = "INV-" . str_pad($invoice['invoice_seq'], 6, '0', STR_PAD_LEFT);
+                $this->updateInvoice($id, ['invoiceNumber' => $finalNumber]);
+            } else {
+                $finalNumber = "INV-" . strtoupper(substr($id, -6));
+                $this->updateInvoice($id, ['invoiceNumber' => $finalNumber]);
+            }
+        }
+        
         return $this->getInvoice($id);
     }
 
@@ -2714,11 +2733,13 @@ class Storage {
         $generatedInvoices = [];
         
         foreach ($leases as $lease) {
-            $invoiceNumber = "INV-$year-" . str_pad($month, 2, '0', STR_PAD_LEFT) . "-" . substr($lease['id'], -6);
-            
-            // Check if invoice already exists
-            $checkStmt = $this->pdo->prepare("SELECT COUNT(*) as count FROM invoices WHERE invoice_number = ?");
-            $checkStmt->execute([$invoiceNumber]);
+            // Check if invoice already exists for this lease in the target month
+            $checkStmt = $this->pdo->prepare("
+                SELECT COUNT(*) as count 
+                FROM invoices 
+                WHERE lease_id = ? AND issue_date = ?
+            ");
+            $checkStmt->execute([$lease['id'], $targetDate]);
             $exists = $checkStmt->fetch();
             
             if ($exists['count'] > 0) {
@@ -2731,7 +2752,6 @@ class Storage {
             try {
                 $invoice = $this->createInvoice([
                     'leaseId' => $lease['id'],
-                    'invoiceNumber' => $invoiceNumber,
                     'description' => "Monthly Rent - " . date('F Y', strtotime($targetDate)),
                     'amount' => $lease['rent_amount'],
                     'issueDate' => $issueDate,

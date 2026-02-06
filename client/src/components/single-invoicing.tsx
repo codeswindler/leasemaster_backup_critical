@@ -335,11 +335,9 @@ export function SingleInvoicing() {
       if (!selectedLease) {
         throw new Error("Selected unit has no active lease.")
       }
-      const invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now()}-${selectedLease.id.slice(0, 8)}`
       const totalAmount = calculateTotal()
       const invoiceResponse = await apiRequest("POST", "/api/invoices", {
         leaseId: selectedLease.id,
-        invoiceNumber,
         description: `Monthly charges for ${selectedUnitData?.unit}`,
         amount: totalAmount.toString(),
         dueDate,

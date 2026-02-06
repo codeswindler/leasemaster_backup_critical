@@ -180,6 +180,7 @@ CREATE TABLE leases (
 -- Create invoices table
 CREATE TABLE invoices (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    invoice_seq BIGINT UNSIGNED AUTO_INCREMENT UNIQUE,
     lease_id VARCHAR(36) NOT NULL,
     invoice_number VARCHAR(100) NOT NULL UNIQUE,
     description TEXT NOT NULL,
