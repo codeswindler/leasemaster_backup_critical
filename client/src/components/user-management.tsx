@@ -79,6 +79,16 @@ export function UserManagement() {
     landlordSelected ? String(selectedLandlordId) : (isLandlord ? currentUserId : null)
   const showLandlordsOnly = isAdmin && !landlordSelected && !propertySelected
 
+  const { data: landlordUser } = useQuery({
+    queryKey: ["/api/users", "landlord", landlordIdToUse],
+    queryFn: async () => {
+      if (!landlordIdToUse) return null
+      const response = await apiRequest("GET", `/api/users/${landlordIdToUse}`)
+      return await response.json()
+    },
+    enabled: !!landlordIdToUse,
+  })
+
   // Fetch real user data from API
   const { data: apiUsers = [], isLoading: usersLoading } = useQuery({
     queryKey: ["/api/users", selectedPropertyId, selectedLandlordId, currentRole],
@@ -142,15 +152,41 @@ export function UserManagement() {
       otpEnabled
     }
   })
-  const visibleUsers = showLandlordsOnly
-    ? users.filter((user: any) => {
-        const role = String(user.role || "").toLowerCase()
-        if (role !== "landlord" && role !== "client") return false
-        const landlordId = user.landlord_id ?? user.landlordId
-        if (landlordId === null || landlordId === undefined) return false
-        return String(landlordId) === String(user.id)
-      })
-    : users
+  const ensureUserIncluded = (list: any[], user: any | null) => {
+    if (!user) return list
+    const exists = list.some((item: any) => String(item.id) === String(user.id))
+    if (exists) return list
+    const mapped = {
+      id: user.id,
+      name: user.full_name || user.fullName || user.username,
+      email: user.email || user.username,
+      role: user.role || "Administrator",
+      status: user.status === 0 || user.status === "inactive" ? "inactive" : "active",
+      lastLogin: user.last_login ? new Date(user.last_login).toLocaleString() : "—",
+      permissions: Array.isArray(user.permissions) ? user.permissions : [],
+      otpEnabled: typeof user.otp_enabled === "number" ? user.otp_enabled === 1 : true
+    }
+    return [mapped, ...list]
+  }
+
+  const baseLandlordsOnly = users.filter((user: any) => {
+    const role = String(user.role || "").toLowerCase()
+    if (role !== "landlord" && role !== "client") return false
+    const landlordId = user.landlord_id ?? user.landlordId
+    if (landlordId === null || landlordId === undefined) return false
+    return String(landlordId) === String(user.id)
+  })
+
+  let visibleUsers = showLandlordsOnly ? baseLandlordsOnly : users
+
+  if (showLandlordsOnly && currentUserId) {
+    const currentAdmin = users.find((user: any) => String(user.id) === String(currentUserId)) || null
+    visibleUsers = ensureUserIncluded(visibleUsers, currentAdmin)
+  }
+
+  if (!showLandlordsOnly && landlordIdToUse) {
+    visibleUsers = ensureUserIncluded(visibleUsers, landlordUser || null)
+  }
 
   const permissionCategories = [
     {
