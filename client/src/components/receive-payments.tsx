@@ -41,7 +41,8 @@ export function ReceivePayments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { selectedPropertyId, selectedLandlordId } = useFilter()
 
-  const actionsDisabled = !selectedPropertyId
+  const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
+  const actionsDisabled = !selectedPropertyId || !isLandlordSelected
 
   // Fetch real tenant data
   const { data: tenants = [] } = useQuery({ 
@@ -54,6 +55,7 @@ export function ReceivePayments() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const { data: units = [] } = useQuery({ 
     queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
@@ -65,6 +67,7 @@ export function ReceivePayments() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const { data: properties = [] } = useQuery({ 
     queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
@@ -76,6 +79,7 @@ export function ReceivePayments() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const { data: leases = [] } = useQuery({ 
     queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
@@ -87,6 +91,7 @@ export function ReceivePayments() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
 
   // Enhanced tenants with unit and property information
@@ -101,7 +106,7 @@ export function ReceivePayments() {
       unit: tenantUnit?.unitNumber || 'No unit',
       property: tenantProperty?.name || 'No property',
       balance: 0, // TODO: Calculate real balance from invoices/payments API
-      accountNumber: `${tenantProperty?.name?.substring(0,2).toUpperCase() || 'XX'}${String(tenant.id.substring(0,3)).toUpperCase()}`
+      accountNumber: `${tenantProperty?.name?.substring(0,2).toUpperCase() || 'XX'}${String(tenant.id).substring(0,3).toUpperCase()}`
     }
   }).filter((tenant: any) => tenant.name) : [] // Only include tenants with valid data
 
@@ -109,7 +114,7 @@ export function ReceivePayments() {
 
   const handleRecordPayment = () => {
     if (actionsDisabled) {
-      alert("Select a property in the header before recording payments.")
+      alert("Select a client and property in the header before recording payments.")
       return
     }
     if (!selectedTenant || !amount || !paymentMethod) {
@@ -147,6 +152,7 @@ export function ReceivePayments() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
 
   return (
@@ -155,6 +161,9 @@ export function ReceivePayments() {
         <div>
           <h1 className="text-3xl font-bold" data-testid="receive-payments-title">Receive Payments</h1>
           <p className="text-muted-foreground">Record tenant payments and manage transactions</p>
+          {!isLandlordSelected && (
+            <p className="text-xs text-amber-600 mt-1">Select a client to manage payments.</p>
+          )}
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
