@@ -46,12 +46,12 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @sql := IF(@leases_has_seq = 0, 'SET @row := 0', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-SET @sql := IF(@leases_has_seq = 0, 'UPDATE leases SET id_int = (@row := @row + 1) WHERE id_int IS NULL ORDER BY created_at, id', 'SELECT 1');
+SET @sql := IF(@leases_has_seq = 0, 'UPDATE leases SET id_int = (@row := @row + 1) WHERE id_int IS NULL ORDER BY created_at', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @sql := IF(@invoices_has_seq = 0, 'SET @row := 0', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-SET @sql := IF(@invoices_has_seq = 0, 'UPDATE invoices SET id_int = (@row := @row + 1) WHERE id_int IS NULL ORDER BY created_at, id', 'SELECT 1');
+SET @sql := IF(@invoices_has_seq = 0, 'UPDATE invoices SET id_int = (@row := @row + 1) WHERE id_int IS NULL ORDER BY created_at', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Drop foreign keys dynamically
@@ -103,17 +103,31 @@ SET @fk_invoice_items_invoice := (
 SET @sql := IF(@fk_invoice_items_invoice IS NULL, 'SELECT 1', CONCAT('ALTER TABLE invoice_items DROP FOREIGN KEY ', @fk_invoice_items_invoice));
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- Update child table references to new int IDs (only when UUIDs exist)
+-- Update child table references to new int IDs (only when UUIDs exist and FK columns are char)
 SET @leases_has_uuid := (
   SELECT COUNT(*) FROM information_schema.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME = 'leases'
     AND COLUMN_NAME = 'lease_uuid'
 );
-SET @sql := IF(@leases_has_uuid = 1, 'UPDATE invoices i JOIN leases l ON i.lease_id = l.lease_uuid SET i.lease_id = l.id_int', 'SELECT 1');
+SET @invoices_lease_is_char := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoices'
+    AND COLUMN_NAME = 'lease_id'
+    AND DATA_TYPE IN ('varchar','char')
+);
+SET @sql := IF(@leases_has_uuid = 1 AND @invoices_lease_is_char = 1, 'UPDATE invoices i JOIN leases l ON i.lease_id = l.lease_uuid SET i.lease_id = l.id_int', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-SET @sql := IF(@leases_has_uuid = 1, 'UPDATE payments p JOIN leases l ON p.lease_id = l.lease_uuid SET p.lease_id = l.id_int', 'SELECT 1');
+SET @payments_lease_is_char := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'payments'
+    AND COLUMN_NAME = 'lease_id'
+    AND DATA_TYPE IN ('varchar','char')
+);
+SET @sql := IF(@leases_has_uuid = 1 AND @payments_lease_is_char = 1, 'UPDATE payments p JOIN leases l ON p.lease_id = l.lease_uuid SET p.lease_id = l.id_int', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @invoices_has_uuid := (
@@ -122,17 +136,35 @@ SET @invoices_has_uuid := (
     AND TABLE_NAME = 'invoices'
     AND COLUMN_NAME = 'invoice_uuid'
 );
-SET @sql := IF(@invoices_has_uuid = 1, 'UPDATE payments p JOIN invoices i ON p.invoice_id = i.invoice_uuid SET p.invoice_id = i.id_int', 'SELECT 1');
+SET @payments_invoice_is_char := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'payments'
+    AND COLUMN_NAME = 'invoice_id'
+    AND DATA_TYPE IN ('varchar','char')
+);
+SET @sql := IF(@invoices_has_uuid = 1 AND @payments_invoice_is_char = 1, 'UPDATE payments p JOIN invoices i ON p.invoice_id = i.invoice_uuid SET p.invoice_id = i.id_int', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-SET @sql := IF(@invoices_has_uuid = 1, 'UPDATE invoice_items ii JOIN invoices i ON ii.invoice_id = i.invoice_uuid SET ii.invoice_id = i.id_int', 'SELECT 1');
+SET @invoice_items_invoice_is_char := (
+  SELECT COUNT(*) FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoice_items'
+    AND COLUMN_NAME = 'invoice_id'
+    AND DATA_TYPE IN ('varchar','char')
+);
+SET @sql := IF(@invoices_has_uuid = 1 AND @invoice_items_invoice_is_char = 1, 'UPDATE invoice_items ii JOIN invoices i ON ii.invoice_id = i.invoice_uuid SET ii.invoice_id = i.id_int', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- Change FK column types
-ALTER TABLE invoices MODIFY lease_id BIGINT UNSIGNED NOT NULL;
-ALTER TABLE payments MODIFY lease_id BIGINT UNSIGNED NOT NULL;
-ALTER TABLE payments MODIFY invoice_id BIGINT UNSIGNED;
-ALTER TABLE invoice_items MODIFY invoice_id BIGINT UNSIGNED NOT NULL;
+-- Change FK column types only if still char
+SET @sql := IF(@invoices_lease_is_char = 1, 'ALTER TABLE invoices MODIFY lease_id BIGINT UNSIGNED NOT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := IF(@payments_lease_is_char = 1, 'ALTER TABLE payments MODIFY lease_id BIGINT UNSIGNED NOT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := IF(@payments_invoice_is_char = 1, 'ALTER TABLE payments MODIFY invoice_id BIGINT UNSIGNED', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @sql := IF(@invoice_items_invoice_is_char = 1, 'ALTER TABLE invoice_items MODIFY invoice_id BIGINT UNSIGNED NOT NULL', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Swap primary keys to int IDs
 ALTER TABLE leases DROP PRIMARY KEY;
