@@ -166,9 +166,24 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @sql := IF(@invoice_items_invoice_is_char = 1, 'ALTER TABLE invoice_items MODIFY invoice_id BIGINT UNSIGNED NOT NULL', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- Swap primary keys to int IDs
-ALTER TABLE leases DROP PRIMARY KEY;
-ALTER TABLE invoices DROP PRIMARY KEY;
+-- Swap primary keys to int IDs (only if PK exists)
+SET @lease_has_pk := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'leases'
+    AND CONSTRAINT_TYPE = 'PRIMARY KEY'
+);
+SET @sql := IF(@lease_has_pk = 1, 'ALTER TABLE leases DROP PRIMARY KEY', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @invoice_has_pk := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'invoices'
+    AND CONSTRAINT_TYPE = 'PRIMARY KEY'
+);
+SET @sql := IF(@invoice_has_pk = 1, 'ALTER TABLE invoices DROP PRIMARY KEY', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Ensure id_int is a primary key before adding AUTO_INCREMENT
 SET @lease_has_id_int := (
