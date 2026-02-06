@@ -187,7 +187,8 @@ export function ReceivePayments() {
 
   const paymentsByInvoiceId = normalizedPayments.reduce<Record<string, number>>((acc, payment) => {
     if (payment.invoiceId && payment.status === "verified") {
-      acc[payment.invoiceId] = (acc[payment.invoiceId] ?? 0) + Number(payment.amount ?? 0)
+      const key = String(payment.invoiceId)
+      acc[key] = (acc[key] ?? 0) + Number(payment.amount ?? 0)
     }
     return acc
   }, {})
@@ -200,7 +201,7 @@ export function ReceivePayments() {
       const unit = normalizedUnits.find((u: any) => u.id === (invoice.unitId ?? lease?.unitId))
       const property = normalizedProperties.find((p: any) => p.id === (invoice.propertyId ?? unit?.propertyId))
       const invoiceAmount = Number(invoice.amount ?? 0)
-      const amountPaid = paymentsByInvoiceId[invoice.id] ?? 0
+      const amountPaid = paymentsByInvoiceId[String(invoice.id)] ?? 0
       const balance = Math.max(0, invoiceAmount - amountPaid)
 
       return {
@@ -214,7 +215,9 @@ export function ReceivePayments() {
     })
     .filter((invoice: any) => invoice.balance > 0 && invoice.status !== "paid")
 
-  const selectedInvoiceData = outstandingInvoices.find((invoice: any) => invoice.id === selectedInvoiceId)
+  const selectedInvoiceData = outstandingInvoices.find(
+    (invoice: any) => String(invoice.id) === selectedInvoiceId
+  )
 
   const recentPaymentRows = normalizedPayments.slice(0, 8).map((payment: any) => {
     const lease = normalizedLeases.find((l: any) => l.id === payment.leaseId)
@@ -316,7 +319,7 @@ export function ReceivePayments() {
                   value={selectedInvoiceId}
                   onValueChange={(value) => {
                     setSelectedInvoiceId(value)
-                    const invoice = outstandingInvoices.find((item: any) => item.id === value)
+                    const invoice = outstandingInvoices.find((item: any) => String(item.id) === value)
                     if (invoice) {
                       setAmount(invoice.balance.toString())
                     }
@@ -332,7 +335,7 @@ export function ReceivePayments() {
                       </SelectItem>
                     )}
                     {outstandingInvoices.map((invoice: any) => (
-                      <SelectItem key={invoice.id} value={invoice.id}>
+                      <SelectItem key={invoice.id} value={String(invoice.id)}>
                         {invoice.invoiceNumber || invoice.id} - {invoice.tenantName} ({invoice.unitLabel}) • KSh {invoice.balance.toLocaleString()}
                       </SelectItem>
                     ))}
@@ -449,7 +452,7 @@ export function ReceivePayments() {
                     className="mt-1"
                     onClick={() => {
                       if (actionsDisabled) return
-                      setSelectedInvoiceId(invoice.id)
+                      setSelectedInvoiceId(String(invoice.id))
                       setAmount(invoice.balance.toString())
                       setIsDialogOpen(true)
                     }}

@@ -1851,15 +1851,50 @@ try {
     elseif ($endpoint === 'invoices') {
         if ($method === 'GET' && !$id) {
             $leaseId = getQuery('leaseId');
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
             $overdue = getQuery('overdue');
-            
-            if ($leaseId) {
-                sendJson($storage->getInvoicesByLease($leaseId));
-            } elseif ($overdue === 'true') {
-                sendJson($storage->getOverdueInvoices());
-            } else {
-                sendJson($storage->getAllInvoices());
+            $user = null;
+            $userRole = null;
+
+            if (isset($_SESSION['userId'])) {
+                $user = $storage->getUser($_SESSION['userId']);
+                $userRole = $user['role'] ?? 'landlord';
             }
+
+            if (!$user) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+
+            $isOverdue = ($overdue === 'true');
+
+            if ($userRole === 'admin' || $userRole === 'super_admin') {
+                $filters = [
+                    'adminId' => $user['id'] ?? null,
+                    'landlordId' => $landlordId,
+                    'propertyId' => $propertyId,
+                    'overdue' => $isOverdue
+                ];
+                $invoices = $storage->getInvoicesByScope($filters);
+            } elseif (isLandlordRole($userRole)) {
+                $filters = [
+                    'landlordId' => $user['id'] ?? null,
+                    'propertyId' => $propertyId,
+                    'overdue' => $isOverdue
+                ];
+                $invoices = $storage->getInvoicesByScope($filters);
+            } else {
+                $propertyIds = $storage->getUserPropertyIds($user['id']);
+                $invoices = $storage->getInvoicesByPropertyIds($propertyIds, $isOverdue);
+            }
+
+            if ($leaseId) {
+                $invoices = array_values(array_filter($invoices, function ($invoice) use ($leaseId) {
+                    return (string) ($invoice['lease_id'] ?? '') === (string) $leaseId;
+                }));
+            }
+
+            sendJson($invoices);
         }
         
         if ($method === 'GET' && $id) {
@@ -1947,14 +1982,50 @@ try {
         if ($method === 'GET' && !$id) {
             $leaseId = getQuery('leaseId');
             $invoiceId = getQuery('invoiceId');
-            
-            if ($leaseId) {
-                sendJson($storage->getPaymentsByLease($leaseId));
-            } elseif ($invoiceId) {
-                sendJson($storage->getPaymentsByInvoice($invoiceId));
-            } else {
-                sendJson($storage->getAllPayments());
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
+            $user = null;
+            $userRole = null;
+
+            if (isset($_SESSION['userId'])) {
+                $user = $storage->getUser($_SESSION['userId']);
+                $userRole = $user['role'] ?? 'landlord';
             }
+
+            if (!$user) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+
+            if ($userRole === 'admin' || $userRole === 'super_admin') {
+                $filters = [
+                    'adminId' => $user['id'] ?? null,
+                    'landlordId' => $landlordId,
+                    'propertyId' => $propertyId
+                ];
+                $payments = $storage->getPaymentsByScope($filters);
+            } elseif (isLandlordRole($userRole)) {
+                $filters = [
+                    'landlordId' => $user['id'] ?? null,
+                    'propertyId' => $propertyId
+                ];
+                $payments = $storage->getPaymentsByScope($filters);
+            } else {
+                $propertyIds = $storage->getUserPropertyIds($user['id']);
+                $payments = $storage->getPaymentsByPropertyIds($propertyIds);
+            }
+
+            if ($leaseId) {
+                $payments = array_values(array_filter($payments, function ($payment) use ($leaseId) {
+                    return (string) ($payment['lease_id'] ?? '') === (string) $leaseId;
+                }));
+            }
+            if ($invoiceId) {
+                $payments = array_values(array_filter($payments, function ($payment) use ($invoiceId) {
+                    return (string) ($payment['invoice_id'] ?? '') === (string) $invoiceId;
+                }));
+            }
+
+            sendJson($payments);
         }
         
         if ($method === 'GET' && $id) {

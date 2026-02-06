@@ -1616,40 +1616,64 @@ class Storage {
             throw new Exception("Unit already has an active lease during the specified period");
         }
         
-        $id = $this->generateUUID();
-        $stmt = $this->pdo->prepare("
-            INSERT INTO leases (id, unit_id, tenant_id, start_date, end_date, rent_amount, 
-            deposit_amount, water_rate_per_unit, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $id,
-            $data['unitId'],
-            $data['tenantId'],
-            $data['startDate'],
-            $data['endDate'],
-            $data['rentAmount'],
-            $data['depositAmount'],
-            $data['waterRatePerUnit'] ?? '15.50',
-            $data['status'] ?? 'active'
-        ]);
+        $leaseUuid = $this->generateUUID();
+        $hasLeaseUuid = $this->columnExists('leases', 'lease_uuid');
+        if ($hasLeaseUuid) {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO leases (lease_uuid, unit_id, tenant_id, start_date, end_date, rent_amount, 
+                deposit_amount, water_rate_per_unit, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $leaseUuid,
+                $data['unitId'],
+                $data['tenantId'],
+                $data['startDate'],
+                $data['endDate'],
+                $data['rentAmount'],
+                $data['depositAmount'],
+                $data['waterRatePerUnit'] ?? '15.50',
+                $data['status'] ?? 'active'
+            ]);
+        } else {
+            $id = $this->generateUUID();
+            $stmt = $this->pdo->prepare("
+                INSERT INTO leases (id, unit_id, tenant_id, start_date, end_date, rent_amount, 
+                deposit_amount, water_rate_per_unit, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $id,
+                $data['unitId'],
+                $data['tenantId'],
+                $data['startDate'],
+                $data['endDate'],
+                $data['rentAmount'],
+                $data['depositAmount'],
+                $data['waterRatePerUnit'] ?? '15.50',
+                $data['status'] ?? 'active'
+            ]);
+        }
         
         // Update unit status
         if (($data['status'] ?? 'active') === 'active') {
             $this->updateUnitStatusFromLeases($data['unitId']);
         }
 
-        $hasLeaseSeq = $this->columnExists('leases', 'lease_seq');
         $hasLeaseNumber = $this->columnExists('leases', 'lease_number');
-        if ($hasLeaseSeq && $hasLeaseNumber) {
-            $lease = $this->getLease($id);
-            if ($lease && empty($lease['lease_number']) && isset($lease['lease_seq'])) {
-                $leaseNumber = "LSE-" . str_pad($lease['lease_seq'], 6, '0', STR_PAD_LEFT);
-                $this->updateLease($id, ['leaseNumber' => $leaseNumber]);
+        if ($hasLeaseNumber) {
+            $leaseId = $this->pdo->lastInsertId();
+            if ($leaseId) {
+                $leaseNumber = "LSE-" . str_pad($leaseId, 6, '0', STR_PAD_LEFT);
+                $this->updateLease($leaseId, ['leaseNumber' => $leaseNumber]);
+                return $this->getLease($leaseId);
             }
         }
         
-        return $this->getLease($id);
+        if (!empty($id ?? null)) {
+            return $this->getLease($id);
+        }
+        return $this->getLease($this->pdo->lastInsertId());
     }
 
     public function updateLease($id, $data) {
@@ -1716,6 +1740,76 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    public function getInvoicesByScope($filters = []) {
+        $hasLandlordId = $this->columnExists('properties', 'landlord_id');
+        $hasAdminId = $this->columnExists('users', 'admin_id');
+        $dbType = $this->getDbType();
+        $currentDateFunc = ($dbType === 'pgsql') ? 'CURRENT_DATE' : 'CURDATE()';
+
+        $sql = "
+            SELECT i.* 
+            FROM invoices i
+            JOIN leases l ON i.lease_id = l.id
+            JOIN units u ON l.unit_id = u.id
+            JOIN properties p ON u.property_id = p.id
+        ";
+        $params = [];
+        $where = [];
+
+        if (!empty($filters['adminId']) && $hasAdminId && $hasLandlordId) {
+            $sql .= " JOIN users landlord ON p.landlord_id = landlord.id";
+            $where[] = "landlord.admin_id = ?";
+            $params[] = $filters['adminId'];
+        }
+
+        if (!empty($filters['landlordId']) && $hasLandlordId) {
+            $where[] = "p.landlord_id = ?";
+            $params[] = $filters['landlordId'];
+        }
+
+        if (!empty($filters['propertyId'])) {
+            $where[] = "p.id = ?";
+            $params[] = $filters['propertyId'];
+        }
+
+        if (!empty($filters['overdue'])) {
+            $where[] = "(i.status IN ('pending', 'partial', 'overdue') AND i.due_date < {$currentDateFunc})";
+        }
+
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+
+        $sql .= " ORDER BY i.created_at DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public function getInvoicesByPropertyIds($propertyIds = [], $overdue = false) {
+        if (empty($propertyIds)) return [];
+        $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        $dbType = $this->getDbType();
+        $currentDateFunc = ($dbType === 'pgsql') ? 'CURRENT_DATE' : 'CURDATE()';
+        $sql = "
+            SELECT i.* 
+            FROM invoices i
+            JOIN leases l ON i.lease_id = l.id
+            JOIN units u ON l.unit_id = u.id
+            JOIN properties p ON u.property_id = p.id
+            WHERE p.id IN ({$placeholders})
+        ";
+        $params = array_values($propertyIds);
+        if ($overdue) {
+            $sql .= " AND (i.status IN ('pending', 'partial', 'overdue') AND i.due_date < {$currentDateFunc})";
+        }
+        $sql .= " ORDER BY i.created_at DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
     public function getInvoice($id) {
         $stmt = $this->pdo->prepare("SELECT * FROM invoices WHERE id = ?");
         $stmt->execute([$id]);
@@ -1750,8 +1844,9 @@ class Storage {
             throw new Exception("Lease not found");
         }
         
-        $id = $this->generateUUID();
+        $invoiceUuid = $this->generateUUID();
         $invoiceNumber = $data['invoiceNumber'] ?? null;
+        $hasInvoiceUuid = $this->columnExists('invoices', 'invoice_uuid');
         
         if (!empty($invoiceNumber)) {
             // Check for unique invoice number
@@ -1763,37 +1858,55 @@ class Storage {
                 throw new Exception("Invoice with number {$invoiceNumber} already exists");
             }
         } else {
-            $invoiceNumber = "INV-TEMP-$id";
+            $invoiceNumber = "INV-TEMP-$invoiceUuid";
         }
         
-        $stmt = $this->pdo->prepare("
-            INSERT INTO invoices (id, lease_id, invoice_number, description, amount, due_date, issue_date, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $id,
-            $data['leaseId'],
-            $invoiceNumber,
-            $data['description'],
-            $data['amount'],
-            $data['dueDate'],
-            $data['issueDate'],
-            $data['status'] ?? 'pending'
-        ]);
+        if ($hasInvoiceUuid) {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO invoices (invoice_uuid, lease_id, invoice_number, description, amount, due_date, issue_date, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $invoiceUuid,
+                $data['leaseId'],
+                $invoiceNumber,
+                $data['description'],
+                $data['amount'],
+                $data['dueDate'],
+                $data['issueDate'],
+                $data['status'] ?? 'pending'
+            ]);
+        } else {
+            $id = $this->generateUUID();
+            $stmt = $this->pdo->prepare("
+                INSERT INTO invoices (id, lease_id, invoice_number, description, amount, due_date, issue_date, status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $id,
+                $data['leaseId'],
+                $invoiceNumber,
+                $data['description'],
+                $data['amount'],
+                $data['dueDate'],
+                $data['issueDate'],
+                $data['status'] ?? 'pending'
+            ]);
+        }
         
-        if (empty($data['invoiceNumber'])) {
-            $hasInvoiceSeq = $this->columnExists('invoices', 'invoice_seq');
-            $invoice = $this->getInvoice($id);
-            if ($hasInvoiceSeq && $invoice && isset($invoice['invoice_seq'])) {
-                $finalNumber = "INV-" . str_pad($invoice['invoice_seq'], 6, '0', STR_PAD_LEFT);
-                $this->updateInvoice($id, ['invoiceNumber' => $finalNumber]);
-            } else {
-                $finalNumber = "INV-" . strtoupper(substr($id, -6));
-                $this->updateInvoice($id, ['invoiceNumber' => $finalNumber]);
+        if (empty($data['invoiceNumber']) && $hasInvoiceUuid) {
+            $invoiceId = $this->pdo->lastInsertId();
+            if ($invoiceId) {
+                $finalNumber = "INV-" . str_pad($invoiceId, 6, '0', STR_PAD_LEFT);
+                $this->updateInvoice($invoiceId, ['invoiceNumber' => $finalNumber]);
+                return $this->getInvoice($invoiceId);
             }
         }
         
-        return $this->getInvoice($id);
+        if (!empty($id ?? null)) {
+            return $this->getInvoice($id);
+        }
+        return $this->getInvoice($this->pdo->lastInsertId());
     }
 
     public function updateInvoice($id, $data) {
@@ -1836,6 +1949,64 @@ class Storage {
     // ========== PAYMENTS ==========
     public function getAllPayments() {
         $stmt = $this->pdo->query("SELECT * FROM payments ORDER BY created_at DESC");
+        return $stmt->fetchAll();
+    }
+
+    public function getPaymentsByScope($filters = []) {
+        $hasLandlordId = $this->columnExists('properties', 'landlord_id');
+        $hasAdminId = $this->columnExists('users', 'admin_id');
+
+        $sql = "
+            SELECT pmt.* 
+            FROM payments pmt
+            JOIN leases l ON pmt.lease_id = l.id
+            JOIN units u ON l.unit_id = u.id
+            JOIN properties p ON u.property_id = p.id
+        ";
+        $params = [];
+        $where = [];
+
+        if (!empty($filters['adminId']) && $hasAdminId && $hasLandlordId) {
+            $sql .= " JOIN users landlord ON p.landlord_id = landlord.id";
+            $where[] = "landlord.admin_id = ?";
+            $params[] = $filters['adminId'];
+        }
+
+        if (!empty($filters['landlordId']) && $hasLandlordId) {
+            $where[] = "p.landlord_id = ?";
+            $params[] = $filters['landlordId'];
+        }
+
+        if (!empty($filters['propertyId'])) {
+            $where[] = "p.id = ?";
+            $params[] = $filters['propertyId'];
+        }
+
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+
+        $sql .= " ORDER BY pmt.created_at DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public function getPaymentsByPropertyIds($propertyIds = []) {
+        if (empty($propertyIds)) return [];
+        $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        $sql = "
+            SELECT pmt.* 
+            FROM payments pmt
+            JOIN leases l ON pmt.lease_id = l.id
+            JOIN units u ON l.unit_id = u.id
+            JOIN properties p ON u.property_id = p.id
+            WHERE p.id IN ({$placeholders})
+            ORDER BY pmt.created_at DESC
+        ";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(array_values($propertyIds));
         return $stmt->fetchAll();
     }
 

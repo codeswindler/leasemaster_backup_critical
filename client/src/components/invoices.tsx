@@ -80,9 +80,10 @@ export function Invoices() {
   const pendingDeleteRef = useRef<Record<string, NodeJS.Timeout>>({})
   const latestPaymentActivityRef = useRef<string | null>(null)
 
-  const formatInvoiceId = (id: string) => {
-    if (!id) return "INV-UNKNOWN"
-    const suffix = id.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase()
+  const formatInvoiceId = (id: string | number) => {
+    const value = String(id ?? "")
+    if (!value) return "INV-UNKNOWN"
+    const suffix = value.replace(/[^a-zA-Z0-9]/g, "").slice(-6).toUpperCase()
     return `INV-${suffix}`
   }
 

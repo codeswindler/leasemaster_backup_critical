@@ -163,8 +163,8 @@ CREATE TABLE units (
 
 -- Create leases table
 CREATE TABLE leases (
-    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    lease_seq BIGINT UNSIGNED AUTO_INCREMENT UNIQUE,
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    lease_uuid VARCHAR(36) NOT NULL UNIQUE,
     lease_number VARCHAR(50) UNIQUE,
     unit_id VARCHAR(36) NOT NULL,
     tenant_id INT NOT NULL,
@@ -181,9 +181,9 @@ CREATE TABLE leases (
 
 -- Create invoices table
 CREATE TABLE invoices (
-    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    invoice_seq BIGINT UNSIGNED AUTO_INCREMENT UNIQUE,
-    lease_id VARCHAR(36) NOT NULL,
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    invoice_uuid VARCHAR(36) NOT NULL UNIQUE,
+    lease_id BIGINT UNSIGNED NOT NULL,
     invoice_number VARCHAR(100) NOT NULL UNIQUE,
     description TEXT NOT NULL,
     amount DECIMAL(12, 2) NOT NULL,
@@ -197,7 +197,7 @@ CREATE TABLE invoices (
 -- Create invoice_items table
 CREATE TABLE invoice_items (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    invoice_id VARCHAR(36) NOT NULL,
+    invoice_id BIGINT UNSIGNED NOT NULL,
     charge_code VARCHAR(50) NOT NULL,
     description TEXT NOT NULL,
     quantity DECIMAL(10, 2) DEFAULT 1 NOT NULL,
@@ -227,8 +227,8 @@ CREATE TABLE water_readings (
 -- Create payments table
 CREATE TABLE payments (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    lease_id VARCHAR(36) NOT NULL,
-    invoice_id VARCHAR(36),
+    lease_id BIGINT UNSIGNED NOT NULL,
+    invoice_id BIGINT UNSIGNED,
     amount DECIMAL(12, 2) NOT NULL,
     payment_date DATE NOT NULL,
     payment_method VARCHAR(50) NOT NULL,

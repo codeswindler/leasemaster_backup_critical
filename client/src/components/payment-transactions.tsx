@@ -423,7 +423,7 @@ export function PaymentTransactions() {
                 </SelectTrigger>
                 <SelectContent>
                   {Array.isArray(tenants) ? tenants.map((tenant: any) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
+                    <SelectItem key={tenant.id} value={String(tenant.id)}>
                       {tenant.fullName}
                     </SelectItem>
                   )) : null}
@@ -438,7 +438,7 @@ export function PaymentTransactions() {
                 </SelectTrigger>
                 <SelectContent>
                   {Array.isArray(invoices) ? invoices.map((invoice: any) => (
-                    <SelectItem key={invoice.id} value={invoice.id}>
+                    <SelectItem key={invoice.id} value={String(invoice.id)}>
                       {invoice.invoiceNumber} - KSh {parseFloat(invoice.amount).toLocaleString()}
                     </SelectItem>
                   )) : null}

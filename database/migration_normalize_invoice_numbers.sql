@@ -1,2 +1,2 @@
 UPDATE invoices
-SET invoice_number = CONCAT('INV-', LPAD(invoice_seq, 6, '0'));
+SET invoice_number = CONCAT('INV-', LPAD(id, 6, '0'));
