@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { 
   Receipt, 
   Search, 
@@ -6,13 +6,14 @@ import {
   Eye,
   Download,
   Calendar,
+  CheckCircle,
   X
 } from "lucide-react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { jsPDF } from "jspdf"
 import autoTable from 'jspdf-autotable'
 import { useToast } from "@/hooks/use-toast"
-import { apiRequest } from "@/lib/queryClient"
+import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -43,12 +44,25 @@ import {
 } from "@/components/ui/table"
 
 export function Receipts() {
+  const receiptCardVariants = [
+    "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+    "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+    "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+    "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+    "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+    "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+  ]
+  const receiptSeed = useMemo(
+    () => Math.floor(Math.random() * receiptCardVariants.length),
+    []
+  )
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [viewingReceipt, setViewingReceipt] = useState<any>(null)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
-  const actionsDisabled = !selectedPropertyId
+  const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
+  const actionsDisabled = !selectedPropertyId || !isLandlordSelected
 
   // Fetch all required data with complete status tracking
   const paymentsQuery = useQuery({ 
@@ -61,6 +75,7 @@ export function Receipts() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const tenantsQuery = useQuery({ 
     queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
@@ -72,6 +87,7 @@ export function Receipts() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const unitsQuery = useQuery({ 
     queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
@@ -83,6 +99,7 @@ export function Receipts() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const propertiesQuery = useQuery({ 
     queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
@@ -94,6 +111,7 @@ export function Receipts() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const invoiceSettingsQuery = useQuery({
     queryKey: ['/api/settings/invoice', selectedLandlordId, selectedPropertyId],
@@ -105,6 +123,7 @@ export function Receipts() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const leasesQuery = useQuery({ 
     queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
@@ -116,6 +135,7 @@ export function Receipts() {
       const response = await apiRequest("GET", url)
       return await response.json()
     },
+    enabled: isLandlordSelected,
   })
   const invoicesQuery = useQuery({ 
     queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId],
@@ -126,6 +146,31 @@ export function Receipts() {
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
+    },
+    enabled: isLandlordSelected,
+  })
+
+  const confirmReceiptMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      if (actionsDisabled) {
+        throw new Error("Select a client and property in the header to confirm receipts.")
+      }
+      return await apiRequest("PUT", `/api/payments/${paymentId}`, { status: "verified" })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/payments'] })
+      await queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+      toast({
+        title: "Receipt Confirmed",
+        description: "Payment marked as verified.",
+      })
+    },
+    onError: () => {
+      toast({
+        title: "Confirmation Failed",
+        description: "Unable to confirm receipt. Please try again.",
+        variant: "destructive",
+      })
     },
   })
 
@@ -200,7 +245,7 @@ export function Receipts() {
       paymentDate: payment.paymentDate,
       paymentMethod: payment.paymentMethod || 'Unknown',
       reference: payment.reference || 'N/A',
-      status: payment.status || 'verified',
+      status: (payment.status || 'verified').toLowerCase(),
       tenantPhone: tenant?.phone || '',
       tenantEmail: tenant?.email || '',
       unitDetails: unit,
@@ -234,8 +279,8 @@ export function Receipts() {
   const downloadReceipt = (receipt: any) => {
     if (actionsDisabled) {
       toast({
-        title: "Property Required",
-        description: "Select a property in the header to download receipts.",
+        title: "Client Required",
+        description: "Select a client and property in the header to download receipts.",
         variant: "destructive",
       })
       return
@@ -319,10 +364,27 @@ export function Receipts() {
     setViewingReceipt(receipt)
   }
 
+  const handleGenerateReceipt = () => {
+    if (actionsDisabled) {
+      toast({
+        title: "Client Required",
+        description: "Select a client and property to generate receipts.",
+        variant: "destructive",
+      })
+      return
+    }
+    toast({
+      title: "Receipt Generation",
+      description: "Select a payment to generate a receipt.",
+    })
+  }
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "verified":
         return <Badge variant="default" className="bg-green-100 text-green-800">Verified</Badge>
+      case "draft":
+        return <Badge variant="secondary">Draft</Badge>
       case "pending":
         return <Badge variant="secondary">Pending</Badge>
       case "failed":
@@ -342,7 +404,7 @@ export function Receipts() {
             <p className="text-muted-foreground">Error loading receipt data</p>
           </div>
         </div>
-        <Card>
+        <Card className={`vibrant-card ${receiptCardVariants[receiptSeed % receiptCardVariants.length]}`}>
           <CardContent className="p-6">
             <div className="text-center text-red-500 space-y-2">
               <div>Failed to load receipts data. Please try again.</div>
@@ -371,7 +433,7 @@ export function Receipts() {
             <p className="text-muted-foreground">Loading payment receipts and related data...</p>
           </div>
         </div>
-        <Card>
+        <Card className={`vibrant-card ${receiptCardVariants[(receiptSeed + 1) % receiptCardVariants.length]}`}>
           <CardContent className="p-6">
             <div className="text-center space-y-2">
               <div>Loading receipts data...</div>
@@ -397,8 +459,11 @@ export function Receipts() {
         <div>
           <h1 className="text-3xl font-bold" data-testid="receipts-title">Receipts</h1>
           <p className="text-muted-foreground">View and manage payment receipts</p>
+          {!isLandlordSelected && (
+            <p className="text-xs text-amber-600 mt-1">Select a client to manage receipts.</p>
+          )}
         </div>
-        <Button data-testid="button-generate-receipt">
+        <Button data-testid="button-generate-receipt" onClick={handleGenerateReceipt}>
           <Receipt className="h-4 w-4 mr-2" />
           Generate Receipt
         </Button>
@@ -421,6 +486,7 @@ export function Receipts() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
             <SelectItem value="verified">Verified</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
           </SelectContent>
@@ -428,7 +494,7 @@ export function Receipts() {
       </div>
 
       {/* Receipts Table */}
-      <Card>
+      <Card className={`vibrant-card ${receiptCardVariants[(receiptSeed + 2) % receiptCardVariants.length]}`}>
         <CardHeader>
           <CardTitle>Payment Receipts</CardTitle>
           <CardDescription>
@@ -463,6 +529,17 @@ export function Receipts() {
                   <TableCell>{getStatusBadge(receipt.status)}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
+                      {receipt.status === "draft" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          data-testid={`button-confirm-${receipt.id}`}
+                          disabled={actionsDisabled || confirmReceiptMutation.isPending}
+                          onClick={() => confirmReceiptMutation.mutate(receipt.paymentId)}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="sm" 

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
@@ -57,12 +57,25 @@ type Bill = {
 }
 
 export function Bills() {
+  const billsCardVariants = [
+    "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+    "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+    "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+    "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+    "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+    "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+  ]
+  const billsCardSeed = useMemo(
+    () => Math.floor(Math.random() * billsCardVariants.length),
+    []
+  )
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const { selectedPropertyId } = useFilter()
-  const actionsDisabled = !selectedPropertyId
+  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
+  const actionsDisabled = !selectedPropertyId || !isLandlordSelected
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
@@ -140,7 +153,7 @@ export function Bills() {
   const paymentMutation = useMutation({
     mutationFn: async (data: any) => {
       if (actionsDisabled) {
-        throw new Error("Select a property in the header to record bill payments.")
+        throw new Error("Select a client and property in the header to record bill payments.")
       }
       // Mock payment processing
       return Promise.resolve({
@@ -175,7 +188,7 @@ export function Bills() {
   const updateBillStatusMutation = useMutation({
     mutationFn: async ({ billId, status }: { billId: string; status: string }) => {
       if (actionsDisabled) {
-        throw new Error("Select a property in the header to update bills.")
+        throw new Error("Select a client and property in the header to update bills.")
       }
       // Mock status update
       return Promise.resolve({ id: billId, status })
@@ -208,6 +221,14 @@ export function Bills() {
   }
 
   const handleMakePayment = (bill: any) => {
+    if (actionsDisabled) {
+      toast({
+        title: "Client Required",
+        description: "Select a client and property in the header to make payments.",
+        variant: "destructive",
+      })
+      return
+    }
     setSelectedBill(bill)
     setPaymentData({
       billId: bill.id,
@@ -223,6 +244,14 @@ export function Bills() {
   }
 
   const handleProcessPayment = () => {
+    if (actionsDisabled) {
+      toast({
+        title: "Client Required",
+        description: "Select a client and property in the header to make payments.",
+        variant: "destructive",
+      })
+      return
+    }
     if (!paymentData.billId || !paymentData.amount || !paymentData.reference) {
       toast({
         title: "Missing Information",
@@ -277,8 +306,8 @@ export function Bills() {
   const handleAddBill = () => {
     if (actionsDisabled) {
       toast({
-        title: "Property Required",
-        description: "Select a property in the header to add bills.",
+        title: "Client Required",
+        description: "Select a client and property in the header to add bills.",
         variant: "destructive",
       })
       return
@@ -301,6 +330,9 @@ export function Bills() {
         <div>
           <h1 className="text-3xl font-bold" data-testid="bills-title">Bills</h1>
           <p className="text-muted-foreground">Manage property expenses and vendor bills</p>
+          {!isLandlordSelected && (
+            <p className="text-xs text-amber-600 mt-1">Select a client to manage bills.</p>
+          )}
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
@@ -404,10 +436,10 @@ export function Bills() {
 
       {/* Status Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {Object.entries(statusCounts).map(([status, count]) => (
+        {Object.entries(statusCounts).map(([status, count], index) => (
           <Card 
             key={status}
-            className={`cursor-pointer hover-elevate ${statusFilter === status ? 'ring-2 ring-primary' : ''}`}
+            className={`vibrant-card cursor-pointer hover-elevate ${billsCardVariants[(billsCardSeed + index) % billsCardVariants.length]} ${statusFilter === status ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setStatusFilter(status)}
           >
             <CardContent className="p-4 text-center">
@@ -446,7 +478,7 @@ export function Bills() {
       </div>
 
       {/* Bills Table */}
-      <Card>
+      <Card className={`vibrant-card ${billsCardVariants[(billsCardSeed + 5) % billsCardVariants.length]}`}>
         <CardHeader>
           <CardTitle>Bills List</CardTitle>
           <CardDescription>
@@ -532,7 +564,7 @@ export function Bills() {
       </Card>
 
       {/* Make Payment Module */}
-      <Card>
+      <Card className={`vibrant-card ${billsCardVariants[(billsCardSeed + 6) % billsCardVariants.length]}`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CheckCircle className="h-5 w-5 text-green-500" />
@@ -582,7 +614,12 @@ export function Bills() {
                     placeholder="Enter payment reference or transaction ID"
                   />
                 </div>
-                <Button className="w-full" data-testid="button-make-payment">
+                <Button
+                  className="w-full"
+                  data-testid="button-make-payment"
+                  onClick={handleProcessPayment}
+                  disabled={actionsDisabled}
+                >
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Make Payment
                 </Button>

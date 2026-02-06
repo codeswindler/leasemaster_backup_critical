@@ -1837,23 +1837,44 @@ class Storage {
         }
         
         $id = $this->generateUUID();
-        $stmt = $this->pdo->prepare("
-            INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, reference, notes) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $id,
-            $data['leaseId'],
-            $data['invoiceId'] ?? null,
-            $data['amount'],
-            $data['paymentDate'],
-            $data['paymentMethod'],
-            $data['reference'] ?? null,
-            $data['notes'] ?? null
-        ]);
+        $status = $data['status'] ?? 'verified';
+        $hasStatusColumn = $this->columnExists('payments', 'status');
+
+        if ($hasStatusColumn) {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, status, reference, notes) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $id,
+                $data['leaseId'],
+                $data['invoiceId'] ?? null,
+                $data['amount'],
+                $data['paymentDate'],
+                $data['paymentMethod'],
+                $status,
+                $data['reference'] ?? null,
+                $data['notes'] ?? null
+            ]);
+        } else {
+            $stmt = $this->pdo->prepare("
+                INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, reference, notes) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $id,
+                $data['leaseId'],
+                $data['invoiceId'] ?? null,
+                $data['amount'],
+                $data['paymentDate'],
+                $data['paymentMethod'],
+                $data['reference'] ?? null,
+                $data['notes'] ?? null
+            ]);
+        }
         
         // Update invoice status if payment is against an invoice
-        if (!empty($data['invoiceId'])) {
+        if (!empty($data['invoiceId']) && $status === 'verified') {
             $this->updateInvoiceStatusAfterPayment($data['invoiceId']);
         }
         
@@ -1873,6 +1894,9 @@ class Storage {
             'reference' => 'reference',
             'notes' => 'notes'
         ];
+        if ($this->columnExists('payments', 'status')) {
+            $mapping['status'] = 'status';
+        }
         
         foreach ($mapping as $key => $field) {
             if (isset($data[$key])) {
@@ -1887,6 +1911,13 @@ class Storage {
         $sql = "UPDATE payments SET " . implode(', ', $fields) . " WHERE id = ?";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
+
+        if (isset($data['invoiceId']) || isset($data['status'])) {
+            $payment = $this->getPayment($id);
+            if (!empty($payment['invoice_id'])) {
+                $this->updateInvoiceStatusAfterPayment($payment['invoice_id']);
+            }
+        }
         
         return $this->getPayment($id);
     }
@@ -1903,7 +1934,10 @@ class Storage {
         if (!$invoice) return;
         
         $payments = $this->getPaymentsByInvoice($invoiceId);
-        $totalPaid = array_sum(array_column($payments, 'amount'));
+        $verifiedPayments = array_filter($payments, function ($payment) {
+            return ($payment['status'] ?? 'verified') === 'verified';
+        });
+        $totalPaid = array_sum(array_column($verifiedPayments, 'amount'));
         $invoiceAmount = floatval($invoice['amount']);
         
         $newStatus = 'pending';
