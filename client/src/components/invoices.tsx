@@ -397,8 +397,14 @@ export function Invoices() {
           <CardContent className="p-6">
             <div className="rounded-xl border border-white/5 bg-slate-900/30 px-6 py-8">
               <div className="mx-auto max-w-xl text-center space-y-2">
-                <div className="text-lg font-semibold animate-pulse">
-                  Please select a client and property filter first.
+                <div className="flex items-center justify-center">
+                  <span
+                    className={`inline-flex items-center rounded-full px-4 py-1 text-sm font-semibold shadow-sm animate-pulse ${
+                      invoicesListVariants[invoicesListSeed.current % invoicesListVariants.length]
+                    }`}
+                  >
+                    Please select a client and property filter first.
+                  </span>
                 </div>
                 <div className="text-sm text-muted-foreground animate-[pulse_2.2s_ease-in-out_infinite]">
                   Apply filters in the top nav so I can fetch invoices.
