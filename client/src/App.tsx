@@ -54,6 +54,7 @@ const TenantLogin = lazy(() => import("@/pages/TenantLogin").then(m => ({ defaul
 const AdminPortal = lazy(() => import("@/pages/AdminPortal").then(m => ({ default: m.AdminPortal })));
 const ClientPortal = lazy(() => import("@/pages/ClientPortal").then(m => ({ default: m.ClientPortal })));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage").then(m => ({ default: m.ClientsPage })));
+const AgentsPage = lazy(() => import("@/pages/AgentsPage").then(m => ({ default: m.AgentsPage })));
 const EnquiriesPage = lazy(() => import("@/pages/EnquiriesPage").then(m => ({ default: m.EnquiriesPage })));
 const EnquiryForm = lazy(() => import("@/pages/EnquiryForm").then(m => ({ default: m.EnquiryForm })));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -133,7 +134,9 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
     <Suspense fallback={<LoadingSpinner />}>
       <Switch>
         {/* Login routes */}
-        <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/admin/login">
+          {() => <AdminLogin />}
+        </Route>
         <Route path="/agent/login" component={AgentLogin} />
         <Route path="/portal/login" component={ClientLogin} />
         <Route path="/tenant/login" component={TenantLogin} />
@@ -175,6 +178,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         {/* Special pages */}
         <Route path="/register" component={EnquiryForm} />
         <Route path="/clients" component={ClientsPage} />
+        <Route path="/agents" component={AgentsPage} />
         <Route path="/enquiries" component={EnquiriesPage} />
         
         {/* Specific routes first */}
@@ -1000,7 +1004,7 @@ function AppContent() {
   
   // Path-based detection (for localhost)
   // Clients and enquiries are part of admin context (admin-authenticated pages)
-  const isAdminPath = isLocalhost && (pathname.startsWith('/admin') || pathname.startsWith('/enquiries'));
+  const isAdminPath = isLocalhost && (pathname.startsWith('/admin') || pathname.startsWith('/enquiries') || pathname.startsWith('/agents'));
   const isAgentPath = isLocalhost && (pathname.startsWith('/agent') || pathname.startsWith('/clients'));
   const isPortalPath = isLocalhost && (pathname.startsWith('/portal') || isPortalModuleRoute);
   
@@ -1027,14 +1031,19 @@ function AppContent() {
   // Clients and enquiries are standalone pages (no sidebar) but require admin auth
   const isClientsPage = pathname === '/clients';
   const isEnquiriesPage = pathname === '/enquiries';
-  const isStandalonePage = isClientsPage || isEnquiriesPage;
+  const isAgentsPage = pathname === '/agents';
+  const isStandalonePage = isClientsPage || isEnquiriesPage || isAgentsPage;
   
   // Handle standalone pages (clients, enquiries) - require admin auth but no sidebar
   if (isStandalonePage) {
     const role = (currentUser?.role || "").toLowerCase();
     const canViewClients = role === "super_admin" || role === "agent";
     const canViewEnquiries = role === "super_admin";
-    const hasAccess = (isClientsPage && canViewClients) || (isEnquiriesPage && canViewEnquiries);
+    const canViewAgents = role === "super_admin";
+    const hasAccess =
+      (isClientsPage && canViewClients) ||
+      (isEnquiriesPage && canViewEnquiries) ||
+      (isAgentsPage && canViewAgents);
 
     if (!isAuthenticated || !hasAccess) {
       if (!isAuthenticated) {
@@ -1228,10 +1237,11 @@ function AppContent() {
       ];
       
       // Clients and Enquiries pages require admin role (they're routes under admin subdomain)
-      if (currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries')) {
+      if (currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries') || currentPathname.startsWith('/agents')) {
         const canViewClients = currentPathname.startsWith('/clients') && hasAgentAccess;
         const canViewEnquiries = currentPathname.startsWith('/enquiries') && hasAdminAccess;
-        if (!canViewClients && !canViewEnquiries) {
+        const canViewAgents = currentPathname.startsWith('/agents') && hasAdminAccess;
+        if (!canViewClients && !canViewEnquiries && !canViewAgents) {
           // Redirect to appropriate portal
           if (isLocalhost) {
             setLocation('/portal');

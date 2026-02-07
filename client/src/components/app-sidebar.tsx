@@ -91,6 +91,7 @@ export function AppSidebar() {
   });
 
   const currentRole = (authData?.user?.role || "").toLowerCase();
+  const isSuperAdmin = currentRole === "super_admin";
   const isAdminUser = currentRole === "admin" || currentRole === "super_admin" || currentRole === "agent";
   const permissionsRaw = authData?.user?.permissions;
   const permissions = Array.isArray(permissionsRaw)
@@ -312,6 +313,11 @@ export function AppSidebar() {
       icon: BarChart3,
     },
     {
+      title: "Agents",
+      url: "/agents",
+      icon: Users,
+    },
+    {
       title: "User Management",
       url: "/users",
       icon: Shield,
@@ -359,6 +365,7 @@ export function AppSidebar() {
   const visibleOtherItems = otherItems.filter((item) => {
     if (item.title === "Maintenance") return canViewMaintenance;
     if (item.title === "Reports") return canViewReports;
+    if (item.title === "Agents") return isSuperAdmin;
     if (item.title === "User Management") return canViewUsers;
     if (item.title === "Credit Usage") return canViewCreditUsage;
     if (item.title === "Settings") return canViewSettings;
