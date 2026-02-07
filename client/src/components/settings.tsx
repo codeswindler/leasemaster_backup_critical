@@ -191,6 +191,15 @@ export function Settings() {
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const tabsSeed = useRef(Math.floor(Math.random() * 6))
   const tabsPalette = getPaletteByIndex(tabsSeed.current)
+  const settingsVariants = [
+    "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+    "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+    "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+    "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+    "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+    "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+  ]
+  const settingsSeed = useRef(Math.floor(Math.random() * settingsVariants.length))
   const { toast } = useToast()
   const [showFields, setShowFields] = useState<Record<string, boolean>>({})
   const settingsDisabled = !selectedPropertyId || selectedPropertyId === "all"
@@ -634,7 +643,7 @@ export function Settings() {
   if (settingsDisabled) {
     return (
       <div className="p-6">
-        <Card className="vibrant-panel">
+        <Card className={`vibrant-panel ${settingsVariants[settingsSeed.current % settingsVariants.length]}`}>
           <CardHeader>
             <CardTitle>Settings</CardTitle>
             <CardDescription>Select a client and property to manage settings.</CardDescription>
@@ -688,7 +697,7 @@ export function Settings() {
         </TabsList>
 
         <TabsContent value="sms">
-          <Card className="vibrant-card">
+          <Card className={`vibrant-card ${settingsVariants[(settingsSeed.current + 1) % settingsVariants.length]}`}>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Smartphone className="h-5 w-5" />
@@ -758,7 +767,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="email">
-          <Card className="vibrant-card">
+          <Card className={`vibrant-card ${settingsVariants[(settingsSeed.current + 2) % settingsVariants.length]}`}>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Mail className="h-5 w-5" />
@@ -825,7 +834,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="mpesa">
-          <Card className="vibrant-card">
+          <Card className={`vibrant-card ${settingsVariants[(settingsSeed.current + 3) % settingsVariants.length]}`}>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
@@ -904,7 +913,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="invoice">
-          <Card>
+          <Card className={`vibrant-card ${settingsVariants[(settingsSeed.current + 4) % settingsVariants.length]}`}>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <SettingsIcon className="h-5 w-5" />
@@ -1005,7 +1014,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="alerts">
-          <Card>
+          <Card className={`vibrant-card ${settingsVariants[(settingsSeed.current + 5) % settingsVariants.length]}`}>
             <CardHeader>
               <div className="flex items-center gap-2">
                 <SettingsIcon className="h-5 w-5" />
