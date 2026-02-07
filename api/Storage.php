@@ -2896,6 +2896,13 @@ class Storage {
         $id = $this->generateUUID();
         $action = $data['action'] ?? 'Activity';
         $type = $data['type'] ?? 'system';
+        $userName = null;
+        if (!empty($data['userId'])) {
+            $user = $this->getUser($data['userId']);
+            if ($user) {
+                $userName = $user['full_name'] ?? $user['fullName'] ?? $user['username'] ?? null;
+            }
+        }
         try {
             $columns = ['id'];
             $values = [$id];
@@ -2921,6 +2928,14 @@ class Storage {
             if ($this->columnExists('activity_logs', 'user_id')) {
                 $columns[] = 'user_id';
                 $values[] = $data['userId'] ?? null;
+            }
+            if ($this->columnExists('activity_logs', 'user_name')) {
+                $columns[] = 'user_name';
+                $values[] = $userName;
+            }
+            if ($this->columnExists('activity_logs', 'username')) {
+                $columns[] = 'username';
+                $values[] = $userName;
             }
             if ($this->columnExists('activity_logs', 'property_id')) {
                 $columns[] = 'property_id';
@@ -2970,9 +2985,28 @@ class Storage {
             return [];
         }
         $hasFullName = $this->columnExists('users', 'full_name');
-        $userNameSelect = $hasFullName
-            ? "COALESCE(u.full_name, u.username) AS user_name"
-            : "u.username AS user_name";
+        $hasUserNameColumn = $this->columnExists('activity_logs', 'user_name');
+        $hasUsernameColumn = $this->columnExists('activity_logs', 'username');
+        $fallbacks = [];
+        if ($hasUserNameColumn) {
+            $fallbacks[] = 'al.user_name';
+        }
+        if ($hasUsernameColumn) {
+            $fallbacks[] = 'al.username';
+        }
+        if ($hasFullName) {
+            $userNameSelect = "COALESCE(u.full_name, u.username";
+            if (!empty($fallbacks)) {
+                $userNameSelect .= ", " . implode(", ", $fallbacks);
+            }
+            $userNameSelect .= ") AS user_name";
+        } else {
+            $userNameSelect = "COALESCE(u.username";
+            if (!empty($fallbacks)) {
+                $userNameSelect .= ", " . implode(", ", $fallbacks);
+            }
+            $userNameSelect .= ") AS user_name";
+        }
 
         try {
             $sql = "SELECT al.*, {$userNameSelect}
