@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import { LogIn, Loader2, Eye, EyeOff, FileText, ArrowRight, Users, Mail, Phone, Search, ThumbsUp, ArrowLeft, Book, BookOpen, User, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -288,7 +289,9 @@ export function AdminLogin({
   showBecomeAgent = false,
   becomeAgentPath,
 }: AdminLoginProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [resetToken, setResetToken] = useState("");
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const resolvedPortalLabel = portalLabel || (loginType === "agent" ? "Agent Portal" : "Admin Portal");
   const portalSubdomain = loginType === "agent" ? "agents" : "admin";
   const portalPath = loginType === "agent" ? "/agent" : "/admin";
@@ -308,6 +311,15 @@ export function AdminLogin({
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [shakeQuickAction, setShakeQuickAction] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") || "";
+    setResetToken(token);
+    if (loginType === "agent" && (token || window.location.pathname.endsWith("/reset"))) {
+      setIsResetDialogOpen(true);
+    }
+  }, [location, loginType]);
 
   useEffect(() => {
     if (!otpCooldown) return;
@@ -1028,7 +1040,7 @@ export function AdminLogin({
                     {showForgotPassword && (
                       <button
                         type="button"
-                        onClick={() => setLocation(forgotPasswordPath || "/agent/reset")}
+                        onClick={() => setIsResetDialogOpen(true)}
                         className="text-sm text-primary hover:underline"
                       >
                         Forgot password?
@@ -1079,6 +1091,15 @@ export function AdminLogin({
                         </button>
                       </p>
                     </motion.div>
+                  )}
+                  {showForgotPassword && (
+                    <ResetPasswordDialog
+                      isOpen={isResetDialogOpen}
+                      onOpenChange={setIsResetDialogOpen}
+                      accountType="agent"
+                      token={resetToken}
+                      loginPath="/agent/login"
+                    />
                   )}
                 </form>
                 ) : (

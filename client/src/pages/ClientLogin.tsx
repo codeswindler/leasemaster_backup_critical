@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import { LogIn, Loader2, Eye, EyeOff, ArrowRight, User, Lock, Home, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 export function ClientLogin() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [resetToken, setResetToken] = useState("");
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -45,6 +48,15 @@ export function ClientLogin() {
     }, 1000);
     return () => clearInterval(interval);
   }, [otpCooldown]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") || "";
+    setResetToken(token);
+    if (token || window.location.pathname.endsWith("/reset")) {
+      setIsResetDialogOpen(true);
+    }
+  }, [location]);
 
   // Generate 50 luxury property image URLs
   // Using actual Unsplash photo IDs for luxury properties
@@ -668,7 +680,7 @@ export function ClientLogin() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setLocation('/portal/reset')}
+                      onClick={() => setIsResetDialogOpen(true)}
                       className="text-sm text-primary hover:underline"
                     >
                       Forgot password?
@@ -718,6 +730,13 @@ export function ClientLogin() {
                     </p>
                   </motion.div>
                 </form>
+                <ResetPasswordDialog
+                  isOpen={isResetDialogOpen}
+                  onOpenChange={setIsResetDialogOpen}
+                  accountType="client"
+                  token={resetToken}
+                  loginPath="/portal/login"
+                />
 
                 {/* Back to Homepage Button */}
                 <motion.div

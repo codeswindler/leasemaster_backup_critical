@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { ResetPasswordDialog } from "@/components/reset-password-dialog";
 import { ArrowLeft, ArrowRight, KeyRound, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import "@/components/animated-icons.css";
 
 export function TenantLogin() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const [resetToken, setResetToken] = useState("");
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [otpRequired, setOtpRequired] = useState(false);
@@ -27,6 +30,15 @@ export function TenantLogin() {
     }, 1000);
     return () => clearInterval(interval);
   }, [otpCooldown]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token") || "";
+    setResetToken(token);
+    if (token || window.location.pathname.endsWith("/reset")) {
+      setIsResetDialogOpen(true);
+    }
+  }, [location]);
 
   const propertyImages = [
     'https://images.unsplash.com/photo-1613977257363-707ba9348227?w=1920&h=1080&fit=crop&q=80',
@@ -418,7 +430,7 @@ export function TenantLogin() {
                     >
                       <button
                         type="button"
-                        onClick={() => setLocation('/tenant/reset')}
+                        onClick={() => setIsResetDialogOpen(true)}
                         className={`text-sm hover:underline ${getTextContrastClass()}`}
                       >
                         Forgot password?
@@ -489,6 +501,13 @@ export function TenantLogin() {
                   </Button>
                 </motion.div>
               </form>
+              <ResetPasswordDialog
+                isOpen={isResetDialogOpen}
+                onOpenChange={setIsResetDialogOpen}
+                accountType="tenant"
+                token={resetToken}
+                loginPath="/tenant/login"
+              />
 
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
