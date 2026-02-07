@@ -213,6 +213,7 @@ export function SingleInvoicing() {
       unitId: lease.unitId ?? lease.unit_id,
       tenantId: lease.tenantId ?? lease.tenant_id,
       rentAmount: lease.rentAmount ?? lease.rent_amount,
+      depositAmount: lease.depositAmount ?? lease.deposit_amount,
       waterRatePerUnit: lease.waterRatePerUnit ?? lease.water_rate_per_unit,
       status: lease.status,
     }))
@@ -275,10 +276,8 @@ export function SingleInvoicing() {
 
   useEffect(() => {
     if (!selectedPropertyId) return
-    if (selectedChargeCodes.length === 0 && chargeOptions.length > 0) {
-      setSelectedChargeCodes(chargeOptions.map((charge) => charge.id))
-    }
-  }, [selectedPropertyId, chargeOptions.length])
+    setSelectedChargeCodes([])
+  }, [selectedPropertyId])
 
   // Create real units with tenant information
   const realUnits = normalizedUnits.flatMap((unit: any) => {
@@ -329,6 +328,10 @@ export function SingleInvoicing() {
     selectedChargeCodes.forEach((chargeId) => {
       if (chargeId === "rent") {
         baseCharges[chargeId] = parseAmount(selectedLease?.rentAmount)
+        return
+      }
+      if (chargeId === "deposit") {
+        baseCharges[chargeId] = parseAmount(selectedLease?.depositAmount)
         return
       }
       if (chargeId === "water") {
@@ -525,7 +528,10 @@ export function SingleInvoicing() {
                     <Label htmlFor={charge.id} className="flex-1 cursor-pointer">
                       <div className="flex justify-between">
                         <span>{charge.name}</span>
-                        {charge.id !== "rent" && charge.id !== "water" && (
+                        {charge.id === "deposit" && (
+                          <span className="text-muted-foreground font-mono text-sm">Property deposit</span>
+                        )}
+                        {charge.id !== "rent" && charge.id !== "water" && charge.id !== "deposit" && (
                           <span className="text-muted-foreground font-mono text-sm">Property charge</span>
                         )}
                       </div>

@@ -233,6 +233,7 @@ export function BulkInvoicing() {
       unitId: lease.unitId ?? lease.unit_id,
       tenantId: lease.tenantId ?? lease.tenant_id,
       rentAmount: lease.rentAmount ?? lease.rent_amount,
+      depositAmount: lease.depositAmount ?? lease.deposit_amount,
       waterRatePerUnit: lease.waterRatePerUnit ?? lease.water_rate_per_unit,
       status: lease.status,
     }))
@@ -262,10 +263,8 @@ export function BulkInvoicing() {
 
   useEffect(() => {
     if (!selectedPropertyId) return
-    if (selectedChargeCodes.length === 0 && chargeOptions.length > 0) {
-      setSelectedChargeCodes(chargeOptions.map((charge) => charge.id))
-    }
-  }, [selectedPropertyId, chargeOptions.length])
+    setSelectedChargeCodes([])
+  }, [selectedPropertyId])
 
   const uniqueLandlordIds = new Set(normalizedProperties.map((property) => property.landlordId).filter(Boolean))
   const requiresLandlordSelection = uniqueLandlordIds.size > 1 && (!selectedLandlordId || selectedLandlordId === "all")
@@ -324,6 +323,10 @@ export function BulkInvoicing() {
       selectedChargeCodes.forEach((chargeId) => {
         if (chargeId === "rent") {
           baseCharges[chargeId] = unitLease ? parseAmount(unitLease.rentAmount) : 0
+          return
+        }
+        if (chargeId === "deposit") {
+          baseCharges[chargeId] = unitLease ? parseAmount(unitLease.depositAmount) : 0
           return
         }
         if (chargeId === "water") {
@@ -667,7 +670,10 @@ export function BulkInvoicing() {
                     <Label htmlFor={charge.id} className="flex-1 cursor-pointer">
                       <div className="flex justify-between">
                         <span>{charge.name}</span>
-                        {charge.id !== "rent" && charge.id !== "water" && (
+                        {charge.id === "deposit" && (
+                          <span className="text-muted-foreground font-mono text-sm">Property deposit</span>
+                        )}
+                        {charge.id !== "rent" && charge.id !== "water" && charge.id !== "deposit" && (
                           <span className="text-muted-foreground font-mono text-sm">Property charge</span>
                         )}
                       </div>
