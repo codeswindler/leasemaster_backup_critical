@@ -1348,7 +1348,6 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
           </div>
         </DialogContent>
       </Dialog>
-      )}
 
       {/* Enquiries Dialog */}
       {!hideEnquiries && (
@@ -1413,6 +1412,7 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
     </div>
   );
