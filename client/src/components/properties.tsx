@@ -65,7 +65,7 @@ export function Properties() {
   const [isCreateLandlordDialogOpen, setIsCreateLandlordDialogOpen] = useState(false)
   const [, setLocation] = useLocation()
   const { toast } = useToast()
-  const { selectedPropertyId, selectedLandlordId, clearFilters, setSelectedPropertyId, setSelectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId, clearFilters, setSelectedPropertyId, setSelectedLandlordId } = useFilter()
   const normalizeFilterValue = (value: string | null) =>
     value && value !== "all" ? String(value) : null
   const normalizedLandlordId = normalizeFilterValue(selectedLandlordId)
@@ -84,7 +84,7 @@ export function Properties() {
     },
   })
   const currentUser = authData?.authenticated ? authData.user : null
-  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin"
+  const isAdmin = currentUser?.role === "super_admin" || currentUser?.role === "agent" || currentUser?.role === "admin"
   const permissionsRaw = currentUser?.permissions
   const permissions = Array.isArray(permissionsRaw)
     ? permissionsRaw
@@ -327,11 +327,12 @@ export function Properties() {
 
   // Fetch properties from API with filters
   const { data: properties = [], isLoading: propertiesLoading, error: propertiesError } = useQuery({
-    queryKey: ["/api/properties", normalizedLandlordId, normalizedPropertyId],
+    queryKey: ["/api/properties", normalizedLandlordId, normalizedPropertyId, selectedAgentId],
     queryFn: async () => {
       try {
         let url = "/api/properties";
         const params = new URLSearchParams();
+        if (selectedAgentId) params.append("agentId", selectedAgentId);
         if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId);
         if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId);
         if (params.toString()) url += `?${params.toString()}`;
@@ -384,9 +385,10 @@ export function Properties() {
 
   // Fetch units for occupancy data
   const { data: units = [] } = useQuery({
-    queryKey: ["/api/units", normalizedPropertyId, normalizedLandlordId],
+    queryKey: ["/api/units", normalizedPropertyId, normalizedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
@@ -397,9 +399,10 @@ export function Properties() {
   })
 
   const { data: houseTypes = [] } = useQuery({
-    queryKey: ["/api/house-types", normalizedPropertyId, normalizedLandlordId],
+    queryKey: ["/api/house-types", normalizedPropertyId, normalizedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       if (normalizedLandlordId) params.append("landlordId", normalizedLandlordId)
       const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
@@ -772,12 +775,12 @@ export function Properties() {
                                 <SelectValue placeholder="Select landlord or create new" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="all">
-                                  <span className="flex items-center gap-2">
-                                    <Building2 className="h-4 w-4" />
-                                    All Landlords
-                                  </span>
-                                </SelectItem>
+                                  <SelectItem value="all">
+                                    <span className="flex items-center gap-2">
+                                      <Building2 className="h-4 w-4" />
+                                      All Landlords
+                                    </span>
+                                  </SelectItem>
                                 {!selectedLandlordId && (
                                   <SelectItem value="create-new">
                                     <span className="flex items-center gap-2">
@@ -868,43 +871,43 @@ export function Properties() {
           
         {/* Create New Landlord Dialog */}
         {isAdmin && (
-          <Dialog open={isCreateLandlordDialogOpen} onOpenChange={setIsCreateLandlordDialogOpen}>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Create New Landlord</DialogTitle>
-                <DialogDescription>
-                  Create a new landlord account. Credentials will be sent via email and SMS.
-                </DialogDescription>
-              </DialogHeader>
-              <CreateLandlordForm
-                onSuccess={(landlord) => {
-                  // Close dialog
-                  setIsCreateLandlordDialogOpen(false)
-                  // Refresh landlords list
-                  refetchLandlords()
+        <Dialog open={isCreateLandlordDialogOpen} onOpenChange={setIsCreateLandlordDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Create New Landlord</DialogTitle>
+              <DialogDescription>
+                Create a new landlord account. Credentials will be sent via email and SMS.
+              </DialogDescription>
+            </DialogHeader>
+            <CreateLandlordForm
+              onSuccess={(landlord) => {
+                // Close dialog
+                setIsCreateLandlordDialogOpen(false)
+                // Refresh landlords list
+                refetchLandlords()
 
-                  if (isAddDialogOpen) {
-                    // Auto-select newly created landlord for add flow
-                    form.setValue("landlordId", landlord.id)
-                    form.setValue("landlordEmail", landlord.username)
-                  }
+                if (isAddDialogOpen) {
+                  // Auto-select newly created landlord for add flow
+                  form.setValue("landlordId", landlord.id)
+                  form.setValue("landlordEmail", landlord.username)
+                }
 
-                  if (isEditDialogOpen) {
-                    // Update edit form to the newly created landlord
-                    editForm.setValue("landlordName", landlord.username || landlord.fullName || "")
-                    editForm.setValue("landlordEmail", landlord.username || "")
-                  }
+                if (isEditDialogOpen) {
+                  // Update edit form to the newly created landlord
+                  editForm.setValue("landlordName", landlord.username || landlord.fullName || "")
+                  editForm.setValue("landlordEmail", landlord.username || "")
+                }
 
-                  // Show success toast with password
-                  toast({
-                    title: "Landlord Created",
-                    description: `Landlord account created. Credentials sent to ${landlord.username}. Temporary password: ${(landlord as any).tempPassword || 'Check email'}`,
-                  })
-                }}
-                onCancel={() => setIsCreateLandlordDialogOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
+                // Show success toast with password
+                toast({
+                  title: "Landlord Created",
+                  description: `Landlord account created. Credentials sent to ${landlord.username}. Temporary password: ${(landlord as any).tempPassword || 'Check email'}`,
+                })
+              }}
+              onCancel={() => setIsCreateLandlordDialogOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
         )}
         
         {/* Search Bar */}
@@ -971,7 +974,7 @@ export function Properties() {
           <Building2 className="h-12 w-12 mb-4" />
           <h3 className="text-lg font-semibold mb-2">No properties found</h3>
           {canCreateProperty && (
-            <Button
+            <Button 
               onClick={() => setIsAddDialogOpen(true)}
               className="mt-4"
               disabled={propertyLimitReached}

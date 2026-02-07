@@ -83,7 +83,7 @@ export function Tenants() {
   const [, setLocation] = useLocation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingDeleteRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const actionsDisabled = !selectedPropertyId
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export function Tenants() {
     },
   })
   const currentUser = authData?.authenticated ? authData.user : null
-  const isAdminUser = currentUser && (currentUser.role === "admin" || currentUser.role === "super_admin")
+  const isAdminUser = currentUser && (currentUser.role === "admin" || currentUser.role === "super_admin" || currentUser.role === "agent")
   const userPermissions = (() => {
     if (!currentUser?.permissions) return []
     if (Array.isArray(currentUser.permissions)) return currentUser.permissions
@@ -354,9 +354,10 @@ export function Tenants() {
 
   // Fetch tenants data
   const { data: tenants = [], isLoading: tenantsLoading, error: tenantsError } = useQuery<Tenant[]>({
-    queryKey: ["/api/tenants", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/tenants", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -367,9 +368,10 @@ export function Tenants() {
 
   // Fetch properties for lease creation
   const { data: properties = [] } = useQuery<Property[]>({
-    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
+    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -380,9 +382,10 @@ export function Tenants() {
 
   // Fetch units (we'll filter by property selection)
   const { data: units = [] } = useQuery<Unit[]>({
-    queryKey: ["/api/units", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/units", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`

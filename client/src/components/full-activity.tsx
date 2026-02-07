@@ -47,7 +47,7 @@ type ActivityLog = {
 }
 
 export function FullActivity() {
-  const { selectedPropertyId } = useFilter()
+  const { selectedAgentId, selectedPropertyId } = useFilter()
   const filtersPaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
   const logPaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
   const filtersPalette = getPaletteByIndex(filtersPaletteSeed)
@@ -66,11 +66,12 @@ export function FullActivity() {
   })
 
   const { data: activities = [], isLoading } = useQuery<ActivityLog[]>({
-    queryKey: ['/api/activity-logs', searchTerm, filterType, selectedPropertyId, startDate, endDate],
+    queryKey: ['/api/activity-logs', searchTerm, filterType, selectedPropertyId, selectedAgentId, startDate, endDate],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (searchTerm) params.append("search", searchTerm)
       if (filterType !== "all") params.append("type", filterType)
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (startDate) params.append("dateFrom", startDate)
       if (endDate) params.append("dateTo", endDate)

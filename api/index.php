@@ -89,6 +89,39 @@ function isLandlordRole($role) {
     return $normalized === 'landlord' || $normalized === 'client';
 }
 
+function resolveAdminScopeId($currentUser, $agentIdFilter = null) {
+    if (!$currentUser) {
+        return null;
+    }
+    $role = strtolower(trim((string)($currentUser['role'] ?? '')));
+    if ($role === 'agent') {
+        return $currentUser['id'] ?? null;
+    }
+    if ($role === 'super_admin' && !empty($agentIdFilter)) {
+        return $agentIdFilter;
+    }
+    if ($role === 'admin') {
+        return $currentUser['id'] ?? null;
+    }
+    return null;
+}
+
+function getLandlordIdsForAdmin($storage, $adminScopeId) {
+    if (!$adminScopeId) {
+        return [];
+    }
+    $landlords = $storage->getLandlords($adminScopeId);
+    if (!is_array($landlords)) {
+        return [];
+    }
+    $ids = array_map(static function ($landlord) {
+        return (string)($landlord['id'] ?? '');
+    }, $landlords);
+    return array_values(array_filter($ids, static function ($value) {
+        return $value !== '';
+    }));
+}
+
 function hasPermissionCategory($permissions, $category) {
     if (in_array($category, $permissions, true)) {
         return true;
@@ -568,6 +601,16 @@ try {
             if (!$user) {
                 sendJson(['error' => 'Invalid username or password'], 401);
             }
+            $userRole = strtolower(trim((string)($user['role'] ?? 'landlord')));
+            if ($loginType === 'admin' && $userRole !== 'super_admin') {
+                sendJson(['error' => 'Admin access is restricted to super admins.'], 403);
+            }
+            if ($loginType === 'agent' && $userRole !== 'agent') {
+                sendJson(['error' => 'Agent access is restricted to agent users.'], 403);
+            }
+            if ($loginType === 'client' && !isLandlordRole($userRole)) {
+                sendJson(['error' => 'Client access is restricted to landlords.'], 403);
+            }
             
             // Check if account is blocked (security feature)
             $status = $user['status'] ?? 1; // Default to 1 (active) if status column doesn't exist
@@ -949,8 +992,13 @@ try {
                 if ($user) {
                     // Ensure role is always returned (default to 'landlord' if missing)
                     $userRole = $user['role'] ?? 'landlord';
-                    if (empty($user['role']) && (($_SESSION['loginType'] ?? null) === 'admin')) {
-                        $userRole = 'admin';
+                    if (empty($user['role'])) {
+                        $loginType = $_SESSION['loginType'] ?? null;
+                        if ($loginType === 'admin') {
+                            $userRole = 'admin';
+                        } elseif ($loginType === 'agent') {
+                            $userRole = 'agent';
+                        }
                     }
                     
                     // Log warning if role is missing (shouldn't happen but helps debug)
@@ -1048,6 +1096,7 @@ try {
         if ($method === 'GET' && !$id) {
             $landlordId = getQuery('landlordId');
             $propertyId = getQuery('propertyId');
+            $agentIdFilter = getQuery('agentId');
             
             // Get current user role from session
             $userRole = null;
@@ -1057,8 +1106,27 @@ try {
                 $userRole = $user['role'] ?? 'landlord';
             }
             
-            // Admin and super_admin users can see all properties, but honor filters when provided
-            if ($userRole === 'admin' || $userRole === 'super_admin') {
+            // Admin, super_admin, and agent users can see all properties, but honor filters when provided
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
+                if ($adminScopeId) {
+                    $landlordIds = getLandlordIdsForAdmin($storage, $adminScopeId);
+                    $scopedProperties = [];
+                    if ($propertyId) {
+                        $properties = $storage->getAllProperties(null, $propertyId);
+                        foreach ($properties as $property) {
+                            $propLandlordId = (string)($property['landlord_id'] ?? '');
+                            if (in_array($propLandlordId, $landlordIds, true)) {
+                                $scopedProperties[] = $property;
+                            }
+                        }
+                    } else {
+                        foreach ($landlordIds as $landlordScopeId) {
+                            $scopedProperties = array_merge($scopedProperties, $storage->getAllProperties($landlordScopeId, $propertyId));
+                        }
+                    }
+                    sendJson($scopedProperties);
+                }
                 if ($landlordId || $propertyId) {
                     sendJson($storage->getAllProperties($landlordId, $propertyId));
                 } else {
@@ -1124,7 +1192,7 @@ try {
                     $user = $storage->getUser($_SESSION['userId']);
                     $userRole = $user['role'] ?? 'landlord';
                 }
-                if ($userRole !== 'admin' && $userRole !== 'super_admin') {
+                if ($userRole !== 'admin' && $userRole !== 'super_admin' && $userRole !== 'agent') {
                     if (!$user) {
                         sendJson(['error' => 'Unauthorized'], 401);
                     }
@@ -1160,6 +1228,7 @@ try {
             $canCreateProperty =
                 $userRole === 'admin' ||
                 $userRole === 'super_admin' ||
+                $userRole === 'agent' ||
                 in_array('properties.create', $permissions, true) ||
                 hasPermissionCategory($permissions, 'properties');
             if (!$canCreateProperty) {
@@ -1350,11 +1419,8 @@ try {
         // Standard CRUD operations
         if ($method === 'GET' && !$id) {
             $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
-            $currentRole = $currentUser['role'] ?? 'landlord';
-            $adminId = null;
-            if ($currentRole === 'admin') {
-                $adminId = $currentUser['id'] ?? null;
-            }
+            $agentIdFilter = getQuery('agentId');
+            $adminId = resolveAdminScopeId($currentUser, $agentIdFilter);
             sendJson($storage->getLandlords($adminId));
         }
         
@@ -1374,13 +1440,20 @@ try {
             $canCreateLandlord =
                 $userRole === 'admin' ||
                 $userRole === 'super_admin' ||
+                $userRole === 'agent' ||
                 in_array('landlords.create', $permissions, true) ||
                 hasPermissionCategory($permissions, 'landlords');
             if (!$canCreateLandlord) {
                 sendJson(['error' => 'You do not have permission to create landlords.'], 403);
             }
             try {
-                $body['adminId'] = $userId;
+                if ($userRole === 'agent') {
+                    $body['adminId'] = $userId;
+                } elseif ($userRole === 'super_admin' && !empty($body['adminId'])) {
+                    $body['adminId'] = $body['adminId'];
+                } else {
+                    $body['adminId'] = $userId;
+                }
                 $landlord = $storage->createLandlord($body);
                 // Verify landlord was actually created in database
                 $verifyLandlord = $storage->getLandlord($landlord['id']);
@@ -1510,6 +1583,21 @@ try {
         if ($method === 'GET' && !$id) {
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
+            $agentIdFilter = getQuery('agentId');
+            $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
+            $adminScopeId = resolveAdminScopeId($currentUser, $agentIdFilter);
+            if ($adminScopeId && !$landlordId) {
+                $landlordIds = getLandlordIdsForAdmin($storage, $adminScopeId);
+                $units = [];
+                foreach ($landlordIds as $landlordScopeId) {
+                    if ($propertyId) {
+                        $units = array_merge($units, $storage->getUnitsByLandlordAndProperty($landlordScopeId, $propertyId));
+                    } else {
+                        $units = array_merge($units, $storage->getUnitsByLandlord($landlordScopeId));
+                    }
+                }
+                sendJson($units);
+            }
             if ($propertyId && $landlordId) {
                 sendJson($storage->getUnitsByLandlordAndProperty($landlordId, $propertyId));
             } elseif ($propertyId) {
@@ -1687,6 +1775,7 @@ try {
         if ($method === 'GET' && !$id) {
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
+            $agentIdFilter = getQuery('agentId');
             $userRole = null;
             $user = null;
             if (isset($_SESSION['userId'])) {
@@ -1694,7 +1783,20 @@ try {
                 $userRole = $user['role'] ?? 'landlord';
             }
 
-            if ($userRole === 'admin' || $userRole === 'super_admin') {
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
+                if ($adminScopeId && !$landlordId) {
+                    $landlordIds = getLandlordIdsForAdmin($storage, $adminScopeId);
+                    $tenants = [];
+                    foreach ($landlordIds as $landlordScopeId) {
+                        if ($propertyId) {
+                            $tenants = array_merge($tenants, $storage->getTenantsByLandlordAndProperty($landlordScopeId, $propertyId));
+                        } else {
+                            $tenants = array_merge($tenants, $storage->getTenantsByLandlord($landlordScopeId));
+                        }
+                    }
+                    sendJson($tenants);
+                }
                 if ($propertyId && $landlordId) {
                     sendJson($storage->getTenantsByLandlordAndProperty($landlordId, $propertyId));
                 } elseif ($propertyId) {
@@ -1854,8 +1956,10 @@ try {
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
             $overdue = getQuery('overdue');
+            $agentIdFilter = getQuery('agentId');
             $user = null;
             $userRole = null;
+            $agentIdFilter = getQuery('agentId');
 
             if (isset($_SESSION['userId'])) {
                 $user = $storage->getUser($_SESSION['userId']);
@@ -1868,9 +1972,10 @@ try {
 
             $isOverdue = ($overdue === 'true');
 
-            if ($userRole === 'admin' || $userRole === 'super_admin') {
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
                 $filters = [
-                    'adminId' => $user['id'] ?? null,
+                    'adminId' => $adminScopeId,
                     'landlordId' => $landlordId,
                     'propertyId' => $propertyId,
                     'overdue' => $isOverdue
@@ -2002,6 +2107,7 @@ try {
         if ($method === 'GET' && !$id) {
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
+            $agentIdFilter = getQuery('agentId');
             $user = null;
             $userRole = null;
 
@@ -2014,9 +2120,10 @@ try {
                 sendJson(['error' => 'Unauthorized'], 401);
             }
 
-            if ($userRole === 'admin' || $userRole === 'super_admin') {
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
                 $filters = [
-                    'adminId' => $user['id'] ?? null,
+                    'adminId' => $adminScopeId,
                     'landlordId' => $landlordId,
                     'propertyId' => $propertyId
                 ];
@@ -2078,6 +2185,7 @@ try {
             $landlordId = getQuery('landlordId');
             $from = getQuery('from');
             $to = getQuery('to');
+            $agentIdFilter = getQuery('agentId');
             $user = null;
             $userRole = null;
 
@@ -2090,9 +2198,10 @@ try {
                 sendJson(['error' => 'Unauthorized'], 401);
             }
 
-            if ($userRole === 'admin' || $userRole === 'super_admin') {
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
                 $filters = [
-                    'adminId' => $user['id'] ?? null,
+                    'adminId' => $adminScopeId,
                     'landlordId' => $landlordId,
                     'propertyId' => $propertyId,
                     'from' => $from,
@@ -2234,9 +2343,10 @@ try {
                 sendJson(['error' => 'Unauthorized'], 401);
             }
 
-            if ($userRole === 'admin' || $userRole === 'super_admin') {
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
                 $filters = [
-                    'adminId' => $user['id'] ?? null,
+                    'adminId' => $adminScopeId,
                     'landlordId' => $landlordId,
                     'propertyId' => $propertyId,
                     'from' => $from,
@@ -3326,6 +3436,8 @@ try {
         if ($method === 'GET' && !$id) {
             $propertyId = getQuery('propertyId');
             $landlordId = getQuery('landlordId');
+            $agentIdFilter = getQuery('agentId');
+            $roleFilter = getQuery('role');
             $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
             $currentRole = $currentUser['role'] ?? 'landlord';
             if (isLandlordRole($currentRole) && !$landlordId) {
@@ -3338,8 +3450,12 @@ try {
             if ($landlordId) {
                 $filters['landlordId'] = $landlordId;
             }
-            if ($currentRole === 'admin') {
-                $filters['adminId'] = $currentUser['id'] ?? null;
+            if ($roleFilter) {
+                $filters['role'] = $roleFilter;
+            }
+            $adminScopeId = resolveAdminScopeId($currentUser, $agentIdFilter);
+            if ($adminScopeId) {
+                $filters['adminId'] = $adminScopeId;
             }
             $users = $storage->getUsers($filters);
             foreach ($users as &$user) {
@@ -3360,7 +3476,7 @@ try {
         if ($method === 'POST' && !$id) {
             $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
             $currentRole = $currentUser['role'] ?? 'landlord';
-            $isAdmin = $currentRole === 'admin' || $currentRole === 'super_admin';
+            $isAdmin = $currentRole === 'admin' || $currentRole === 'super_admin' || $currentRole === 'agent';
             $requestedLandlordId = $body['landlordId'] ?? null;
             $propertyIds = $body['propertyIds'] ?? [];
             if (!is_array($propertyIds)) {
@@ -3456,9 +3572,13 @@ try {
             $recipientName = $user['full_name'] ?? $user['fullName'] ?? $recipient;
             $senderShortcode = getenv('SYSTEM_SMS_SHORTCODE') ?: 'AdvantaSMS';
             $userRole = $user['role'] ?? 'admin';
-            $loginUrl = ($userRole === 'client' || $userRole === 'landlord')
-                ? 'https://portal.theleasemaster.com/login'
-                : 'https://admin.theleasemaster.com/login';
+            if ($userRole === 'client' || $userRole === 'landlord') {
+                $loginUrl = 'https://portal.theleasemaster.com/login';
+            } elseif ($userRole === 'agent') {
+                $loginUrl = 'https://agents.theleasemaster.com/login';
+            } else {
+                $loginUrl = 'https://admin.theleasemaster.com/login';
+            }
 
             global $messagingService;
 
@@ -3807,7 +3927,13 @@ try {
     elseif ($endpoint === 'email-balance' && $method === 'GET') {
         requireAuth();
         $propertyId = getQuery('propertyId');
+        $agentIdFilter = getQuery('agentId');
+        $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
         $landlordId = getQuery('landlordId') ?? $_SESSION['userId'] ?? null;
+        $adminScopeId = resolveAdminScopeId($currentUser, $agentIdFilter);
+        if ($adminScopeId) {
+            $landlordId = $adminScopeId;
+        }
         $settings = $storage->getEmailSettings($propertyId, $landlordId);
         $balance = isset($settings['credit_balance']) ? intval($settings['credit_balance']) : null;
         $threshold = isset($settings['credit_threshold']) ? intval($settings['credit_threshold']) : null;

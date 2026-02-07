@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 interface FilterContextType {
+  selectedAgentId: string | null;
   selectedLandlordId: string | null;
   selectedPropertyId: string | null;
+  setSelectedAgentId: (id: string | null) => void;
   setSelectedLandlordId: (id: string | null) => void;
   setSelectedPropertyId: (id: string | null) => void;
   clearFilters: () => void;
@@ -11,6 +13,13 @@ interface FilterContextType {
 const FilterContext = createContext<FilterContextType | undefined>(undefined);
 
 export function FilterProvider({ children }: { children: ReactNode }) {
+  const [selectedAgentId, setSelectedAgentIdState] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedAgentId");
+    }
+    return null;
+  });
+
   const [selectedLandlordId, setSelectedLandlordIdState] = useState<string | null>(() => {
     // Don't load from localStorage if user is admin (will be cleared on auth check)
     if (typeof window !== "undefined") {
@@ -28,15 +37,25 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   
   // Clear all filters
   const clearFilters = () => {
+    setSelectedAgentIdState(null);
     setSelectedLandlordIdState(null);
     setSelectedPropertyIdState(null);
     if (typeof window !== "undefined") {
+      localStorage.removeItem("selectedAgentId");
       localStorage.removeItem("selectedLandlordId");
       localStorage.removeItem("selectedPropertyId");
     }
   };
 
   // Sync state with localStorage
+  useEffect(() => {
+    if (selectedAgentId) {
+      localStorage.setItem("selectedAgentId", selectedAgentId);
+    } else {
+      localStorage.removeItem("selectedAgentId");
+    }
+  }, [selectedAgentId]);
+
   useEffect(() => {
     if (selectedLandlordId) {
       localStorage.setItem("selectedLandlordId", selectedLandlordId);
@@ -62,6 +81,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setSelectedAgentId = (id: string | null) => {
+    setSelectedAgentIdState(id);
+    if (id !== selectedAgentId) {
+      setSelectedLandlordIdState(null);
+      setSelectedPropertyIdState(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("selectedLandlordId");
+        localStorage.removeItem("selectedPropertyId");
+      }
+    }
+  };
+
   const setSelectedPropertyId = (id: string | null) => {
     setSelectedPropertyIdState(id);
   };
@@ -69,8 +100,10 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   return (
     <FilterContext.Provider
       value={{
+        selectedAgentId,
         selectedLandlordId,
         selectedPropertyId,
+        setSelectedAgentId,
         setSelectedLandlordId,
         setSelectedPropertyId,
         clearFilters,

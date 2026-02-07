@@ -269,8 +269,17 @@ function AnimatedBook() {
   );
 }
 
-export function AdminLogin() {
+type AdminLoginProps = {
+  loginType?: "admin" | "agent";
+  hideEnquiries?: boolean;
+  portalLabel?: string;
+};
+
+export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalLabel }: AdminLoginProps) {
   const [, setLocation] = useLocation();
+  const resolvedPortalLabel = portalLabel || (loginType === "agent" ? "Agent Portal" : "Admin Portal");
+  const portalSubdomain = loginType === "agent" ? "agents" : "admin";
+  const portalPath = loginType === "agent" ? "/agent" : "/admin";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -529,7 +538,7 @@ export function AdminLogin() {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ username, password, rememberMe, loginType: "admin" }),
+        body: JSON.stringify({ username, password, rememberMe, loginType }),
       });
 
       const data = await response.json();
@@ -609,7 +618,7 @@ export function AdminLogin() {
       const response = await apiRequest("GET", "/api/enquiries");
       return await response.json();
     },
-    enabled: showEnquiriesDialog && isAuthenticated,
+    enabled: !hideEnquiries && showEnquiriesDialog && isAuthenticated,
   });
 
   // Filter tenants based on search term
@@ -630,6 +639,9 @@ export function AdminLogin() {
       setTimeout(() => setShakeQuickAction(null), 500);
       return;
     }
+    if (action === 'enquiries' && hideEnquiries) {
+      return;
+    }
     
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
@@ -639,15 +651,15 @@ export function AdminLogin() {
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         window.location.href = '/clients';
       } else {
-        const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
-        window.location.href = `${protocol}//admin.${rootDomain}/clients`;
+        const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
+        window.location.href = `${protocol}//${portalSubdomain}.${rootDomain}/clients`;
       }
     } else {
       // Navigate to enquiries page - use path-based routing under admin subdomain
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         window.location.href = '/enquiries';
       } else {
-        const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
+        const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
         window.location.href = `${protocol}//admin.${rootDomain}/enquiries`;
       }
     }
@@ -659,14 +671,14 @@ export function AdminLogin() {
     const protocol = window.location.protocol;
     // Navigate to admin portal
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      console.log('Navigating to /admin (localhost)');
-      window.location.href = '/admin';
+      console.log(`Navigating to ${portalPath} (localhost)`);
+      window.location.href = portalPath;
     } else {
       // Remove any existing subdomain and use admin subdomain
-      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
-      const adminUrl = `${protocol}//admin.${rootDomain}`;
-      console.log('Navigating to', adminUrl);
-      window.location.href = adminUrl;
+      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
+      const portalUrl = `${protocol}//${portalSubdomain}.${rootDomain}`;
+      console.log('Navigating to', portalUrl);
+      window.location.href = portalUrl;
     }
   };
 
@@ -860,7 +872,7 @@ export function AdminLogin() {
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
                 <CardDescription className={`text-xl mt-3 ${getTextContrastClass()}`}>
-                  Admin Portal Login
+                  {resolvedPortalLabel} Login
                 </CardDescription>
               </motion.div>
             </CardHeader>
@@ -1147,50 +1159,52 @@ export function AdminLogin() {
               )}
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-            >
+            {!hideEnquiries && (
               <motion.div
-                animate={shakeQuickAction === 'enquiries' ? {
-                  x: [0, -10, 10, -10, 10, 0],
-                  rotate: [0, -5, 5, -5, 5, 0]
-                } : {}}
-                transition={{ duration: 0.5 }}
-                onClick={() => handleQuickActionClick('enquiries')}
-                className="cursor-pointer"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.6 }}
               >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className={`w-full h-16 text-lg gap-3 border-2 hover:border-primary/50 hover:bg-primary/5 backdrop-blur-sm bg-background/20 dark:bg-background/20 transition-all ${!isAuthenticated ? 'opacity-60' : ''}`}
+                <motion.div
+                  animate={shakeQuickAction === 'enquiries' ? {
+                    x: [0, -10, 10, -10, 10, 0],
+                    rotate: [0, -5, 5, -5, 5, 0]
+                  } : {}}
+                  transition={{ duration: 0.5 }}
+                  onClick={() => handleQuickActionClick('enquiries')}
+                  className="cursor-pointer"
                 >
-                  <AnimatedBook />
-                  <span className="font-medium">Enquiries</span>
-                  {Array.isArray(enquiries) && enquiries.length > 0 && isAuthenticated && (
-                    <Badge variant="default" className="ml-auto">
-                      {enquiries.length}
-                    </Badge>
-                  )}
-                  {!isAuthenticated && (
-                    <Badge variant="destructive" className="ml-auto">
-                      Login Required
-                    </Badge>
-                  )}
-                </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className={`w-full h-16 text-lg gap-3 border-2 hover:border-primary/50 hover:bg-primary/5 backdrop-blur-sm bg-background/20 dark:bg-background/20 transition-all ${!isAuthenticated ? 'opacity-60' : ''}`}
+                  >
+                    <AnimatedBook />
+                    <span className="font-medium">Enquiries</span>
+                    {Array.isArray(enquiries) && enquiries.length > 0 && isAuthenticated && (
+                      <Badge variant="default" className="ml-auto">
+                        {enquiries.length}
+                      </Badge>
+                    )}
+                    {!isAuthenticated && (
+                      <Badge variant="destructive" className="ml-auto">
+                        Login Required
+                      </Badge>
+                    )}
+                  </Button>
+                </motion.div>
+                {!isAuthenticated && shakeQuickAction === 'enquiries' && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-sm text-red-500 text-center mt-2"
+                  >
+                    ⚠️ You need to login to access this feature
+                  </motion.p>
+                )}
               </motion.div>
-              {!isAuthenticated && shakeQuickAction === 'enquiries' && (
-                <motion.p
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-sm text-red-500 text-center mt-2"
-                >
-                  ⚠️ You need to login to access this feature
-                </motion.p>
-              )}
-            </motion.div>
+            )}
 
             {/* Back to Homepage */}
             <motion.div
@@ -1211,7 +1225,7 @@ export function AdminLogin() {
                     setLocation('/');
                   } else {
                     // Production: always redirect to root domain (theleasemaster.com)
-                    const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
+                    const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
                     window.location.href = `${protocol}//${rootDomain}/`;
                   }
                 }}
@@ -1334,23 +1348,25 @@ export function AdminLogin() {
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Enquiries Dialog */}
-      <Dialog open={showEnquiriesDialog} onOpenChange={setShowEnquiriesDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Enquiries Inbox
-            </DialogTitle>
-            <DialogDescription>
-              View and manage all property enquiries
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-auto">
-            {enquiriesLoading ? (
-              <div className="flex items-center justify-center py-12">
+      {!hideEnquiries && (
+        <Dialog open={showEnquiriesDialog} onOpenChange={setShowEnquiriesDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Enquiries Inbox
+              </DialogTitle>
+              <DialogDescription>
+                View and manage all property enquiries
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-auto">
+              {enquiriesLoading ? (
+                <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
             ) : Array.isArray(enquiries) && enquiries.length > 0 ? (

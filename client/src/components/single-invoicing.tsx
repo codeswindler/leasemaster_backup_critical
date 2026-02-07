@@ -50,7 +50,7 @@ export function SingleInvoicing() {
   const [selectedUnit, setSelectedUnit] = useState("")
   const [unitSearch, setUnitSearch] = useState("")
   const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
-  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const [isWaterPromptOpen, setIsWaterPromptOpen] = useState(false)
@@ -88,9 +88,10 @@ export function SingleInvoicing() {
 
   // Fetch real data from API
   const { data: propertiesData = [] } = useQuery<PropertySummary[]>({ 
-    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
+    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -99,9 +100,10 @@ export function SingleInvoicing() {
     },
   })
   const { data: tenants = [] } = useQuery({ 
-    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -110,9 +112,10 @@ export function SingleInvoicing() {
     },
   })
   const { data: units = [] } = useQuery({ 
-    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
@@ -121,9 +124,10 @@ export function SingleInvoicing() {
     },
   })
   const { data: leases = [] } = useQuery({ 
-    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -145,9 +149,10 @@ export function SingleInvoicing() {
   })
 
   const { data: waterReadings = [] } = useQuery({
-    queryKey: ["/api/water-readings", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/water-readings", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/water-readings${params.toString() ? `?${params}` : ''}`

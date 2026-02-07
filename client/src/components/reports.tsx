@@ -69,7 +69,7 @@ export function Reports() {
   const [selectedTenant, setSelectedTenant] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const [selectedTenants, setSelectedTenants] = useState<string[]>([])
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const parseNumericValue = (value: string) => {
     const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
     return Number.isFinite(parsed) ? parsed : 0;
@@ -77,9 +77,10 @@ export function Reports() {
 
   // Fetch real properties data
   const { data: propertiesData } = useQuery({ 
-    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
+    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -94,9 +95,10 @@ export function Reports() {
 
   // Fetch real tenant data (reports now use API data instead of hardcoded samples)
   const { data: tenantsData = [] } = useQuery({ 
-    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -105,9 +107,10 @@ export function Reports() {
     },
   })
   const { data: invoicesData = [] } = useQuery({
-    queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
@@ -117,9 +120,10 @@ export function Reports() {
   })
 
   const { data: paymentsData = [] } = useQuery({
-    queryKey: ['/api/payments', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/payments', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/payments${params.toString() ? `?${params}` : ''}`
@@ -129,9 +133,10 @@ export function Reports() {
   })
 
   const { data: leasesData = [] } = useQuery({
-    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -548,6 +553,7 @@ export function Reports() {
     try {
       // Build query params for filtering
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const queryString = params.toString() ? `?${params}` : ''

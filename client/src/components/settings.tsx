@@ -188,7 +188,7 @@ const timezoneOffsets = [
 ]
 
 export function Settings() {
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const tabsSeed = useRef(Math.floor(Math.random() * 6))
   const tabsPalette = getPaletteByIndex(tabsSeed.current)
   const settingsVariants = [
@@ -206,13 +206,14 @@ export function Settings() {
 
   const scopeParams = useMemo(() => {
     const params = new URLSearchParams()
+    if (selectedAgentId) params.append("agentId", selectedAgentId)
     if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
     if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
     return params.toString() ? `?${params}` : ""
-  }, [selectedPropertyId, selectedLandlordId])
+  }, [selectedAgentId, selectedPropertyId, selectedLandlordId])
 
   const { data: smsData } = useQuery({
-    queryKey: ["/api/settings/sms", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/sms", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/settings/sms${scopeParams}`)
       return await response.json()
@@ -220,7 +221,7 @@ export function Settings() {
   })
 
   const { data: emailData } = useQuery({
-    queryKey: ["/api/settings/email", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/email", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/settings/email${scopeParams}`)
       return await response.json()
@@ -228,7 +229,7 @@ export function Settings() {
   })
 
   const { data: mpesaData } = useQuery({
-    queryKey: ["/api/settings/mpesa", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/mpesa", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/settings/mpesa${scopeParams}`)
       return await response.json()
@@ -236,7 +237,7 @@ export function Settings() {
   })
 
   const { data: invoiceData } = useQuery({
-    queryKey: ["/api/settings/invoice", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/invoice", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/settings/invoice${scopeParams}`)
       return await response.json()
@@ -244,7 +245,7 @@ export function Settings() {
   })
 
   const { data: alertsData } = useQuery({
-    queryKey: ["/api/settings/alerts", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/alerts", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/settings/alerts${scopeParams}`)
       return await response.json()

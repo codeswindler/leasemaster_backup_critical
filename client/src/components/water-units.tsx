@@ -26,7 +26,7 @@ import type { Unit, WaterReading } from "@shared/schema"
 
 export function WaterUnits() {
   const { toast } = useToast()
-  const { selectedPropertyId: globalSelectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId: globalSelectedPropertyId, selectedLandlordId } = useFilter()
   const summaryPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const listPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const analysisPaletteSeed = useRef(Math.floor(Math.random() * 6))
@@ -53,9 +53,10 @@ export function WaterUnits() {
 
   // Fetch units for dropdown
   const { data: units = [], isLoading: isLoadingUnits } = useQuery<Unit[]>({
-    queryKey: ["/api/units", globalSelectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/units", globalSelectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (globalSelectedPropertyId) params.append("propertyId", globalSelectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
@@ -66,9 +67,10 @@ export function WaterUnits() {
 
   // Fetch properties for filtering
   const { data: properties = [], isLoading: isLoadingProperties } = useQuery<Array<{ id: string; name: string }>>({
-    queryKey: ["/api/properties", selectedLandlordId, globalSelectedPropertyId],
+    queryKey: ["/api/properties", selectedLandlordId, globalSelectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (globalSelectedPropertyId) params.append("propertyId", globalSelectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -79,9 +81,10 @@ export function WaterUnits() {
 
   // Fetch water readings with consumption data
   const { data: waterReadings = [], isLoading: isLoadingReadings } = useQuery<WaterReading[]>({
-    queryKey: ["/api/water-readings", globalSelectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/water-readings", globalSelectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (globalSelectedPropertyId) params.append("propertyId", globalSelectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/water-readings${params.toString() ? `?${params}` : ''}`
@@ -92,9 +95,10 @@ export function WaterUnits() {
 
   // Fetch leases to get water rates per unit
   const { data: leases = [] } = useQuery<Array<{ id: string; unitId: string; waterRatePerUnit: string }>>({
-    queryKey: ["/api/leases", globalSelectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/leases", globalSelectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (globalSelectedPropertyId) params.append("propertyId", globalSelectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -104,9 +108,10 @@ export function WaterUnits() {
   })
 
   const { data: invoices = [] } = useQuery({
-    queryKey: ["/api/invoices", globalSelectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/invoices", globalSelectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (globalSelectedPropertyId && globalSelectedPropertyId !== "all") params.append("propertyId", globalSelectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
@@ -116,9 +121,10 @@ export function WaterUnits() {
   })
 
   const { data: tenants = [] } = useQuery({
-    queryKey: ["/api/tenants", globalSelectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/tenants", globalSelectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (globalSelectedPropertyId && globalSelectedPropertyId !== "all") params.append("propertyId", globalSelectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`

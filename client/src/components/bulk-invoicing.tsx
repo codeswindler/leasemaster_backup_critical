@@ -69,7 +69,7 @@ export function BulkInvoicing() {
   const [missingWaterAccounts, setMissingWaterAccounts] = useState<TenantAccount[]>([])
   const [isWaterPromptOpen, setIsWaterPromptOpen] = useState(false)
   const { toast } = useToast()
-  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
 
   useEffect(() => {
@@ -96,9 +96,10 @@ export function BulkInvoicing() {
 
   // Fetch properties from API
   const { data: properties = [] } = useQuery<PropertySummary[]>({
-    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
+    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -109,9 +110,10 @@ export function BulkInvoicing() {
 
   // Fetch tenants from API
   const { data: tenants = [] } = useQuery({
-    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -122,9 +124,10 @@ export function BulkInvoicing() {
 
   // Fetch units from API
   const { data: units = [] } = useQuery({
-    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
@@ -135,9 +138,10 @@ export function BulkInvoicing() {
 
   // Fetch leases from API
   const { data: leases = [] } = useQuery({
-    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -159,9 +163,10 @@ export function BulkInvoicing() {
   })
 
   const { data: waterReadings = [] } = useQuery({
-    queryKey: ["/api/water-readings", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/water-readings", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/water-readings${params.toString() ? `?${params}` : ''}`

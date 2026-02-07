@@ -83,7 +83,13 @@ export function ClientsPage() {
   const [sendingLoginTo, setSendingLoginTo] = useState<string | null>(null);
   const [isSendLoginDialogOpen, setIsSendLoginDialogOpen] = useState(false);
   const [, setLocation] = useLocation();
-  const { selectedLandlordId, selectedPropertyId, setSelectedLandlordId, setSelectedPropertyId } = useFilter();
+  const {
+    selectedAgentId,
+    selectedLandlordId,
+    selectedPropertyId,
+    setSelectedLandlordId,
+    setSelectedPropertyId,
+  } = useFilter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
@@ -100,9 +106,11 @@ export function ClientsPage() {
 
   // Fetch all landlords (users with role 'landlord')
   const { data: landlords = [], isLoading } = useQuery({
-    queryKey: ["/api/landlords"],
+    queryKey: ["/api/landlords", selectedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/landlords");
+      const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
+      const response = await apiRequest("GET", `/api/landlords${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
     staleTime: 0, // Always fetch fresh data (no caching)
@@ -116,9 +124,11 @@ export function ClientsPage() {
 
   // Fetch properties for each landlord
   const { data: allProperties = [] } = useQuery({
-    queryKey: ["/api/properties"],
+    queryKey: ["/api/properties", selectedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/properties");
+      const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
+      const response = await apiRequest("GET", `/api/properties${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
     enabled: landlords.length > 0,
@@ -164,6 +174,7 @@ export function ClientsPage() {
         phone: data.phone,
         idNumber: data.idNumber || undefined,
         propertyLimit: data.propertyLimit,
+        adminId: selectedAgentId || undefined,
       });
       const result = await response.json();
       

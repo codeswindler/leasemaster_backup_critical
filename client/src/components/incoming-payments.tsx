@@ -25,7 +25,7 @@ import {
 import { getPaletteByIndex } from "@/lib/palette"
 
 export function IncomingPayments() {
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
   const pagePaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
   const listPaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
@@ -42,9 +42,10 @@ export function IncomingPayments() {
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
 
   const { data: incomingPayments = [], isLoading: incomingLoading } = useQuery({
-    queryKey: ["/api/incoming-payments", selectedPropertyId, selectedLandlordId, "all"],
+    queryKey: ["/api/incoming-payments", selectedPropertyId, selectedLandlordId, selectedAgentId, "all"],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/incoming-payments?${params.toString()}`
@@ -56,9 +57,10 @@ export function IncomingPayments() {
   })
 
   const { data: leases = [] } = useQuery({
-    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -69,9 +71,10 @@ export function IncomingPayments() {
   })
 
   const { data: tenants = [] } = useQuery({
-    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -82,9 +85,10 @@ export function IncomingPayments() {
   })
 
   const { data: units = [] } = useQuery({
-    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
@@ -95,9 +99,10 @@ export function IncomingPayments() {
   })
 
   const { data: invoices = [] } = useQuery({
-    queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
