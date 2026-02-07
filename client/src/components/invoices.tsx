@@ -87,6 +87,7 @@ const parseUtcOffsetToMinutes = (offset?: string) => {
 
 export function Invoices() {
   const invoicesListSeed = useRef(Math.floor(Math.random() * invoicesListVariants.length))
+  const penaltyCardSeed = useRef(Math.floor(Math.random() * invoicesListVariants.length))
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([])
@@ -95,6 +96,7 @@ export function Invoices() {
   const [sendDialogOpen, setSendDialogOpen] = useState(false)
   const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false)
   const [penaltyPercent, setPenaltyPercent] = useState("")
+  const [penaltySuccess, setPenaltySuccess] = useState(false)
   const [penaltyPromptOpen, setPenaltyPromptOpen] = useState(false)
   const [penaltyInvoiceIds, setPenaltyInvoiceIds] = useState<string[]>([])
   const [isApplyingPenalty, setIsApplyingPenalty] = useState(false)
@@ -813,8 +815,12 @@ export function Invoices() {
       }
 
       setPenaltyInvoiceIds(createdInvoiceIds)
-      setPenaltyDialogOpen(false)
-      setPenaltyPromptOpen(true)
+      setPenaltySuccess(true)
+      setTimeout(() => {
+        setPenaltyDialogOpen(false)
+        setPenaltyPromptOpen(true)
+        setPenaltySuccess(false)
+      }, 900)
       toast({
         title: "Penalties Applied",
         description: `Created ${createdInvoiceIds.length} penalty invoice(s).`,
@@ -1050,33 +1056,51 @@ export function Invoices() {
   return (
     <div className="p-6 space-y-6">
       <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent
+          className={`sm:max-w-[480px] vibrant-card ${invoicesListVariants[penaltyCardSeed.current % invoicesListVariants.length]} border border-red-200 text-red-700`}
+        >
           <DialogHeader>
-            <DialogTitle>Apply Penalty</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-red-700">Apply Penalty</DialogTitle>
+            <DialogDescription className="text-red-600">
               Set a penalty percentage based on the tenant's rent amount (not the full invoice).
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
-            <Label htmlFor="penalty-percent">Penalty Percentage</Label>
-            <Input
-              id="penalty-percent"
-              type="number"
-              min="0"
-              step="0.1"
-              placeholder="e.g. 10"
-              value={penaltyPercent}
-              onChange={(e) => setPenaltyPercent(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
+            <Label htmlFor="penalty-percent" className="text-red-700">Penalty Percentage</Label>
+            <div className="relative">
+              <Input
+                id="penalty-percent"
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="e.g. 10"
+                value={penaltyPercent}
+                onChange={(e) => setPenaltyPercent(e.target.value)}
+                className="pr-10 text-red-700 placeholder:text-red-400 border-red-200 focus-visible:ring-red-300"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-red-600">
+                %
+              </span>
+            </div>
+            <p className="text-xs text-red-500">
               Percentage is applied to each tenant's rent amount.
             </p>
+            {penaltySuccess && (
+              <div className="flex items-center gap-2 text-sm text-red-600 animate-pulse">
+                <Check className="h-4 w-4" />
+                Penalty submitted.
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setPenaltyDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={applyPenaltyInvoices} disabled={isApplyingPenalty}>
+            <Button
+              onClick={applyPenaltyInvoices}
+              disabled={isApplyingPenalty}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
               {isApplyingPenalty ? "Applying..." : "Apply Penalty"}
             </Button>
           </div>
