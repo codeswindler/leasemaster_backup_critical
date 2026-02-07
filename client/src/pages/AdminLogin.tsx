@@ -273,9 +273,21 @@ type AdminLoginProps = {
   loginType?: "admin" | "agent";
   hideEnquiries?: boolean;
   portalLabel?: string;
+  showForgotPassword?: boolean;
+  forgotPasswordPath?: string;
+  showBecomeAgent?: boolean;
+  becomeAgentPath?: string;
 };
 
-export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalLabel }: AdminLoginProps) {
+export function AdminLogin({
+  loginType = "admin",
+  hideEnquiries = false,
+  portalLabel,
+  showForgotPassword = false,
+  forgotPasswordPath,
+  showBecomeAgent = false,
+  becomeAgentPath,
+}: AdminLoginProps) {
   const [, setLocation] = useLocation();
   const resolvedPortalLabel = portalLabel || (loginType === "agent" ? "Agent Portal" : "Admin Portal");
   const portalSubdomain = loginType === "agent" ? "agents" : "admin";
@@ -996,21 +1008,32 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.55 }}
-                    className="flex items-center space-x-2"
+                    className="flex items-center justify-between"
                   >
-                    <input
-                      type="checkbox"
-                      id="rememberMe"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <Label
-                      htmlFor="rememberMe"
-                      className={`text-sm cursor-pointer ${getTextContrastClass()}`}
-                    >
-                      Remember me for 30 days
-                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="rememberMe"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <Label
+                        htmlFor="rememberMe"
+                        className={`text-sm cursor-pointer ${getTextContrastClass()}`}
+                      >
+                        Remember me for 30 days
+                      </Label>
+                    </div>
+                    {showForgotPassword && (
+                      <button
+                        type="button"
+                        onClick={() => setLocation(forgotPasswordPath || "/agent/reset")}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
                   </motion.div>
 
                   <motion.div
@@ -1037,6 +1060,26 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
                       )}
                     </Button>
                   </motion.div>
+
+                  {showBecomeAgent && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.65 }}
+                      className="text-center"
+                    >
+                      <p className="text-sm text-foreground/80">
+                        Don&apos;t have an account?{" "}
+                        <button
+                          type="button"
+                          onClick={() => setLocation(becomeAgentPath || "/register")}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          Become an agent with us
+                        </button>
+                      </p>
+                    </motion.div>
+                  )}
                 </form>
                 ) : (
                 <div 

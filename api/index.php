@@ -403,12 +403,22 @@ function buildPasswordResetUrl($accountType, $token) {
     $isLocalhost = str_contains($host, 'localhost') || str_contains($host, '127.0.0.1');
     if ($isLocalhost && $host) {
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $path = $accountType === 'tenant' ? '/tenant/reset' : '/portal/reset';
+        if ($accountType === 'tenant') {
+            $path = '/tenant/reset';
+        } elseif ($accountType === 'agent') {
+            $path = '/agent/reset';
+        } else {
+            $path = '/portal/reset';
+        }
         return "{$protocol}://{$host}{$path}?token={$token}";
     }
 
     if ($accountType === 'tenant') {
         return "https://tenants.theleasemaster.com/tenant/reset?token={$token}";
+    }
+
+    if ($accountType === 'agent') {
+        return "https://agents.theleasemaster.com/agent/reset?token={$token}";
     }
 
     return "https://portal.theleasemaster.com/portal/reset?token={$token}";
@@ -791,13 +801,18 @@ try {
             } else {
                 $user = $storage->getUserByUsername($identifier);
                 $role = strtolower(trim((string)($user['role'] ?? 'landlord')));
-                if ($user && isLandlordRole($role)) {
+                $expectsAgent = $accountType === 'agent';
+                if ($user && ($expectsAgent ? $role === 'agent' : isLandlordRole($role))) {
                     $contact = $user['username'] ?? null;
                     if ($contact) {
                         $storage->createPasswordResetToken($user['id'], null, $tokenHash, $expiresAt, 'email', $contact);
-                        $resetUrl = buildPasswordResetUrl('client', $token);
-                        $message = "Reset your LeaseMaster client password using this link (expires in 60 minutes): {$resetUrl}";
-                        $messagingService->sendEmail($contact, $user['full_name'] ?? null, "Client Password Reset", $message);
+                        $resetType = $expectsAgent ? 'agent' : 'client';
+                        $resetUrl = buildPasswordResetUrl($resetType, $token);
+                        $message = $expectsAgent
+                            ? "Reset your LeaseMaster agent password using this link (expires in 60 minutes): {$resetUrl}"
+                            : "Reset your LeaseMaster client password using this link (expires in 60 minutes): {$resetUrl}";
+                        $subject = $expectsAgent ? "Agent Password Reset" : "Client Password Reset";
+                        $messagingService->sendEmail($contact, $user['full_name'] ?? null, $subject, $message);
                     }
                 }
             }
