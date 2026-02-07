@@ -718,10 +718,11 @@ export function Reports() {
   }
 
   const handleToggleAllTenants = () => {
+    const visibleTenants = tenants.filter((tenant: any) => tenant.balance !== 0)
     setSelectedTenants(
-      selectedTenants.length === tenants.length 
+      selectedTenants.length === visibleTenants.length 
         ? [] 
-        : tenants.map((t: any) => t.id)
+        : visibleTenants.map((t: any) => t.id)
     )
   }
 
@@ -1135,7 +1136,7 @@ export function Reports() {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={selectedTenants.length === tenants.length}
+                        checked={selectedTenants.length === tenants.filter((tenant: any) => tenant.balance !== 0).length}
                         onCheckedChange={handleToggleAllTenants}
                         data-testid="checkbox-select-all"
                       />
@@ -1149,6 +1150,7 @@ export function Reports() {
                 </TableHeader>
                 <TableBody>
                   {tenants
+                    .filter((tenant: any) => tenant.balance !== 0)
                     .sort((a: any, b: any) => b.balance - a.balance)
                     .map((tenant: any) => (
                     <TableRow key={tenant.id} className="hover-elevate">
@@ -1163,7 +1165,9 @@ export function Reports() {
                       <TableCell>{tenant.unit}</TableCell>
                       <TableCell className="font-mono">{tenant.account}</TableCell>
                       <TableCell>
-                        <span className={`font-mono font-medium ${tenant.balance === 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <span
+                          className={`font-mono font-medium ${tenant.balance < 0 ? 'text-green-600' : 'text-red-600'}`}
+                        >
                           KSh {tenant.balance.toLocaleString()}
                         </span>
                       </TableCell>
