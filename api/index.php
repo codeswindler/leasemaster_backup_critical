@@ -404,24 +404,24 @@ function buildPasswordResetUrl($accountType, $token) {
     if ($isLocalhost && $host) {
         $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         if ($accountType === 'tenant') {
-            $path = '/tenant/reset';
+            $path = '/tenant/login';
         } elseif ($accountType === 'agent') {
-            $path = '/agent/reset';
+            $path = '/agent/login';
         } else {
-            $path = '/portal/reset';
+            $path = '/portal/login';
         }
         return "{$protocol}://{$host}{$path}?token={$token}";
     }
 
     if ($accountType === 'tenant') {
-        return "https://tenants.theleasemaster.com/tenant/reset?token={$token}";
+        return "https://tenants.theleasemaster.com/tenant/login?token={$token}";
     }
 
     if ($accountType === 'agent') {
-        return "https://agents.theleasemaster.com/agent/reset?token={$token}";
+        return "https://agents.theleasemaster.com/agent/login?token={$token}";
     }
 
-    return "https://portal.theleasemaster.com/portal/reset?token={$token}";
+    return "https://portal.theleasemaster.com/portal/login?token={$token}";
 }
 
 function buildTenantAccountNumber($propertyPrefix, $unitNumber) {
