@@ -70,6 +70,8 @@ export function About() {
     'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop&q=80', // Digital security/encryption
     driveImage('1x6Cdp3vqLMtaEGl7YxJzVOkOEUGUbCvc'),
   ];
+  const agentWorkspaceImage = driveImage('1KNSxSILzSa69_atbqyqkr13K9dgXfqIv');
+  const propertyHqImage = driveImage('1sxAlLQf-o3yZr4YSZ4fpsi1UHf9kqIs5');
 
   // Check current theme
   useEffect(() => {
@@ -634,6 +636,117 @@ export function About() {
               </CardContent>
             </Card>
           </div>
+        </motion.div>
+
+        {/* Agent Program Sections */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+          className="max-w-6xl mx-auto mb-16"
+        >
+          <div className="grid md:grid-cols-2 gap-8">
+            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+              <CardContent className="p-10">
+                <div className="space-y-6">
+                  <div>
+                    <h2 className={`text-3xl font-bold mb-3 ${getTextContrastClass()}`}>
+                      The Agent Workspace: Grow Your Portfolio, Not Your Workload
+                    </h2>
+                    <p className={`text-lg ${getTextContrastClass()}`}>
+                      Your Command Center for Client Growth. Manage every landlord and portfolio from a single, powerful
+                      workspace designed streamline your operations.
+                    </p>
+                  </div>
+                  <ul className={`space-y-3 ${getTextContrastClass()}`}>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Onboard and manage multiple landlord clients</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Oversee portfolios, rent collection, and maintenance</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Deliver branded reports and real-time insights</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Access exclusive partner tools and support</span>
+                    </li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+              <CardContent className="p-10">
+                <div className="relative aspect-video rounded-lg overflow-hidden border-2 border-primary/30">
+                  <img
+                    src={agentWorkspaceImage}
+                    alt="Agent workspace dashboard preview"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={() => {}}
+                    onLoad={() => {}}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.7 }}
+          className="max-w-6xl mx-auto mb-16"
+        >
+          <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <CardContent className="p-12">
+              <div className="grid md:grid-cols-2 gap-12 items-center">
+                <div className="relative order-2 md:order-1 aspect-video rounded-lg overflow-hidden border-2 border-primary/30">
+                  <img
+                    src={propertyHqImage}
+                    alt="Property management control center preview"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={() => {}}
+                    onLoad={() => {}}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                </div>
+                <div className="order-1 md:order-2">
+                  <h2 className={`text-3xl md:text-4xl font-bold mb-4 ${getTextContrastClass()}`}>
+                    Your Property HQ: Full Visibility, Total Control
+                  </h2>
+                  <p className={`text-lg mb-6 ${getTextContrastClass()}`}>
+                    Your Property Dashboard for Complete Control
+                    <br />
+                    Take charge of your investments with a landlord-specific portal that puts visibility, automation,
+                    and peace of mind at your fingertips.
+                  </p>
+                  <ul className={`space-y-3 ${getTextContrastClass()}`}>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>View all properties, tenants, and financials in one place</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Automate rent collection and payment tracking</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Approve maintenance requests and track progress</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <span>Generate financial reports and export statements</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Tenant Self-Service Portal Section */}
