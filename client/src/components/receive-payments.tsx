@@ -779,11 +779,11 @@ export function ReceivePayments() {
                     </div>
                   )
                 })}
-                <Button variant="outline" className="w-full" onClick={() => setIncomingDialogOpen(true)}>
-                  View All Incoming Transactions
-                </Button>
               </div>
             )}
+            <Button variant="outline" className="w-full mt-3" onClick={() => setIncomingDialogOpen(true)}>
+              View All Incoming Transactions
+            </Button>
           </CardContent>
         </Card>
       </div>
