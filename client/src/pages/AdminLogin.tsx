@@ -293,6 +293,10 @@ export function AdminLogin({
   const [resetToken, setResetToken] = useState("");
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const resolvedPortalLabel = portalLabel || (loginType === "agent" ? "Agent Portal" : "Admin Portal");
+  const loginCardClassName =
+    loginType === "agent"
+      ? "border-2 shadow-2xl backdrop-blur-2xl bg-white/80 dark:bg-background/20"
+      : "border-2 shadow-2xl backdrop-blur-2xl bg-background/20 dark:bg-background/20";
   const portalSubdomain = loginType === "agent" ? "agents" : "admin";
   const portalPath = loginType === "agent" ? "/agent" : "/admin";
   const [username, setUsername] = useState("");
@@ -884,7 +888,7 @@ export function AdminLogin({
           className="w-full max-w-md lg:max-w-lg"
           style={{ pointerEvents: 'auto', position: 'relative', zIndex: 10 }}
         >
-          <Card className="border-2 shadow-2xl backdrop-blur-2xl bg-background/20 dark:bg-background/20" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 11 }}>
+          <Card className={loginCardClassName} style={{ pointerEvents: 'auto', position: 'relative', zIndex: 11 }}>
             <CardHeader className="text-center space-y-6 pb-8" style={{ pointerEvents: 'auto' }}>
               <motion.div
                 initial={{ scale: 0.8, rotate: -5 }}
