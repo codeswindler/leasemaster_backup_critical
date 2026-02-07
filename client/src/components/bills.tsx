@@ -75,7 +75,7 @@ export function Bills() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -99,9 +99,10 @@ export function Bills() {
   })
 
   const { data: propertiesData = [] } = useQuery({
-    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
+    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -113,9 +114,10 @@ export function Bills() {
 
   // Fetch bills from API
   const { data: bills = [], isLoading: billsLoading, error: billsError } = useQuery<Bill[]>({
-    queryKey: ["/api/bills", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/bills", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/bills${params.toString() ? `?${params}` : ''}`

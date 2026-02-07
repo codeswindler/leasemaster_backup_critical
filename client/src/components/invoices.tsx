@@ -105,7 +105,7 @@ export function Invoices() {
   const [noteText, setNoteText] = useState("")
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const { toast } = useToast()
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
   const pendingDeleteRef = useRef<Record<string, NodeJS.Timeout>>({})
@@ -219,9 +219,10 @@ export function Invoices() {
 
   // Fetch all required data with complete status tracking
   const invoicesQuery = useQuery<any[]>({ 
-    queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/invoices', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
@@ -232,9 +233,10 @@ export function Invoices() {
     enabled: isLandlordSelected,
   })
   const invoiceItemsQuery = useQuery<any[]>({
-    queryKey: ['/api/invoice-items', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/invoice-items', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoice-items${params.toString() ? `?${params}` : ''}`
@@ -245,9 +247,10 @@ export function Invoices() {
     enabled: isLandlordSelected,
   })
   const tenantsQuery = useQuery<any[]>({ 
-    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/tenants', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -258,9 +261,10 @@ export function Invoices() {
     enabled: isLandlordSelected,
   })
   const unitsQuery = useQuery<any[]>({ 
-    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/units', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
@@ -271,9 +275,10 @@ export function Invoices() {
     enabled: isLandlordSelected,
   })
   const propertiesQuery = useQuery({ 
-    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId],
+    queryKey: ['/api/properties', selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -284,9 +289,10 @@ export function Invoices() {
   })
 
   const invoiceSettingsQuery = useQuery({
-    queryKey: ['/api/settings/invoice', selectedLandlordId, selectedPropertyId],
+    queryKey: ['/api/settings/invoice', selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
@@ -339,10 +345,11 @@ export function Invoices() {
   })
 
   const paymentActivityQuery = useQuery({
-    queryKey: ["/api/activity-logs", "payment", selectedPropertyId],
+    queryKey: ["/api/activity-logs", "payment", selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
       params.append("type", "payment")
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const response = await apiRequest("GET", `/api/activity-logs?${params.toString()}`)
       return await response.json()
@@ -368,9 +375,10 @@ export function Invoices() {
     }
   }, [paymentActivityQuery.data, toast])
   const leasesQuery = useQuery({ 
-    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId],
+    queryKey: ['/api/leases', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -379,9 +387,13 @@ export function Invoices() {
     },
   })
   const paymentsQuery = useQuery({
-    queryKey: ['/api/payments'],
+    queryKey: ['/api/payments', selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/payments")
+      const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const response = await apiRequest("GET", `/api/payments${params.toString() ? `?${params}` : ""}`)
       return await response.json()
     },
   })

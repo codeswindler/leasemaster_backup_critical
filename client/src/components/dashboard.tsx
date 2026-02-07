@@ -64,7 +64,7 @@ export function Dashboard() {
   const incomingPalette = getPaletteByIndex(incomingPaletteSeed.current)
   const { toast } = useToast()
   const [, setLocation] = useLocation()
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   
   // Debug logging
   console.log("Dashboard filtering - selectedLandlordId:", selectedLandlordId, "selectedPropertyId:", selectedPropertyId)
@@ -91,9 +91,10 @@ export function Dashboard() {
 
   // Fetch real data from backend with optimized caching
   const { data: properties, isLoading: propertiesLoading } = useQuery({
-    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId],
+    queryKey: ["/api/properties", selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -120,9 +121,10 @@ export function Dashboard() {
   }, [statsError])
 
   const { data: allRecentPayments, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["/api/payments", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/payments", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/payments${params.toString() ? `?${params}` : ''}`
@@ -133,9 +135,10 @@ export function Dashboard() {
   })
 
   const invoiceSettingsQuery = useQuery({
-    queryKey: ["/api/settings/invoice", selectedLandlordId, selectedPropertyId],
+    queryKey: ["/api/settings/invoice", selectedLandlordId, selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
@@ -148,9 +151,10 @@ export function Dashboard() {
   const nowInAccountMs = Date.now() + timezoneOffsetMinutes * 60 * 1000
 
   const { data: incomingPayments = [], isLoading: incomingLoading } = useQuery({
-    queryKey: ["/api/incoming-payments", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/incoming-payments", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       params.append("limit", "6")
@@ -167,9 +171,10 @@ export function Dashboard() {
   let overdueInvoices: any[] = []
 
   const { data: allInvoices, isLoading: invoicesLoading } = useQuery({
-    queryKey: ["/api/invoices", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/invoices", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
@@ -180,9 +185,10 @@ export function Dashboard() {
   })
 
   const { data: allPayments, isLoading: allPaymentsLoading } = useQuery({
-    queryKey: ["/api/payments", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/payments", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/payments${params.toString() ? `?${params}` : ''}`
@@ -193,9 +199,10 @@ export function Dashboard() {
   })
 
   const { data: leases } = useQuery({
-    queryKey: ["/api/leases", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/leases", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
@@ -206,9 +213,10 @@ export function Dashboard() {
   })
 
   const { data: tenants } = useQuery({
-    queryKey: ["/api/tenants", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/tenants", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -219,9 +227,10 @@ export function Dashboard() {
   })
 
   const { data: activityLogs, isLoading: activityLoading } = useQuery({
-    queryKey: ["/api/activity-logs", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/activity-logs", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId && selectedPropertyId !== "all") {
         params.append("propertyId", selectedPropertyId)
       }
@@ -235,9 +244,10 @@ export function Dashboard() {
 
   // Fetch units data for filtering (needed for unitId → propertyId mapping)
   const { data: units } = useQuery({
-    queryKey: ["/api/units", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/units", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`

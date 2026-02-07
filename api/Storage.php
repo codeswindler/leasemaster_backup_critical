@@ -238,6 +238,18 @@ class Storage {
             $params[] = $filters['adminId'];
         }
 
+        if (!empty($filters['role']) && $hasRole) {
+            $roles = is_array($filters['role']) ? $filters['role'] : [$filters['role']];
+            $roles = array_values(array_filter(array_map('strval', $roles)));
+            if (!empty($roles)) {
+                $placeholders = implode(', ', array_fill(0, count($roles), '?'));
+                $where[] = "u.role IN ($placeholders)";
+                foreach ($roles as $role) {
+                    $params[] = $role;
+                }
+            }
+        }
+
         if (!empty($filters['landlordId']) && $hasRole) {
             $where[] = "(u.role IS NULL OR u.role NOT IN ('admin', 'super_admin'))";
         }

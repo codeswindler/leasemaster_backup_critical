@@ -48,6 +48,7 @@ const UserDetail = lazy(() => import("@/components/user-detail").then(m => ({ de
 const Landing = lazy(() => import("@/pages/Landing").then(m => ({ default: m.Landing })));
 const About = lazy(() => import("@/pages/About").then(m => ({ default: m.About })));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin").then(m => ({ default: m.AdminLogin })));
+const AgentLogin = lazy(() => import("@/pages/AgentLogin").then(m => ({ default: m.AgentLogin })));
 const ClientLogin = lazy(() => import("@/pages/ClientLogin").then(m => ({ default: m.ClientLogin })));
 const TenantLogin = lazy(() => import("@/pages/TenantLogin").then(m => ({ default: m.TenantLogin })));
 const AdminPortal = lazy(() => import("@/pages/AdminPortal").then(m => ({ default: m.AdminPortal })));
@@ -90,7 +91,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
     return (
       <Suspense fallback={<LoadingSpinner />}>
         <Switch>
-          {/* Old /login redirects to admin login */}
+          {/* Old /login redirects to role-specific login */}
           <Route path="/login">
             {() => {
               const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
@@ -102,8 +103,14 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
                   window.location.href = 'https://tenants.theleasemaster.com/login';
                   return null;
                 }
+                if (hostname.startsWith('agents.')) {
+                  const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+                  const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
+                  window.location.href = `${protocol}//agents.${rootDomain}/login`;
+                  return null;
+                }
                 const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-                const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+                const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
                 window.location.href = `${protocol}//admin.${rootDomain}/login`;
                 return null;
               }
@@ -127,6 +134,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
       <Switch>
         {/* Login routes */}
         <Route path="/admin/login" component={AdminLogin} />
+        <Route path="/agent/login" component={AgentLogin} />
         <Route path="/portal/login" component={ClientLogin} />
         <Route path="/tenant/login" component={TenantLogin} />
         <Route path="/login">
@@ -143,6 +151,8 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
             // Production: Show correct login component based on subdomain
             if (hostname.startsWith('admin.')) {
               return <AdminLogin />;
+            } else if (hostname.startsWith('agents.')) {
+              return <AgentLogin />;
             } else if (hostname.startsWith('portal.')) {
               return <ClientLogin />;
             } else if (hostname.startsWith('tenant.') || hostname.startsWith('tenants.')) {
@@ -150,7 +160,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
             } else {
               // Fallback: redirect to admin login
               const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-              const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants)\./, '');
+              const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants)\./, '');
               window.location.href = `${protocol}//admin.${rootDomain}/login`;
               return null;
             }
@@ -159,6 +169,7 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         
         {/* Portal pages */}
         <Route path="/admin" component={AdminPortal} />
+        <Route path="/agent" component={AdminPortal} />
         <Route path="/portal" component={ClientPortal} />
         
         {/* Special pages */}
@@ -311,8 +322,10 @@ function AppContent() {
     propertyLimit?: number | null;
   } | null>(null)
   const {
+    selectedAgentId,
     selectedPropertyId,
     selectedLandlordId,
+    setSelectedAgentId,
     setSelectedLandlordId,
     setSelectedPropertyId,
   } = useFilter()
@@ -400,10 +413,17 @@ function AppContent() {
                 propertyLimit: data.user.propertyLimit ?? null
               });
               
-              // Clear filters for admin users on login (they should see all data by default)
-              if (userRole === 'admin' || userRole === 'super_admin') {
+              // Clear filters for super admin users on login (they should see all data by default)
+              if (userRole === 'super_admin') {
+                localStorage.removeItem('selectedAgentId');
                 localStorage.removeItem('selectedLandlordId');
                 localStorage.removeItem('selectedPropertyId');
+                setSelectedAgentId(null);
+                setSelectedLandlordId(null);
+                setSelectedPropertyId(null);
+              } else {
+                localStorage.removeItem('selectedAgentId');
+                setSelectedAgentId(null);
               }
             } else {
               // Development mode: warn if user data is missing
@@ -454,6 +474,7 @@ function AppContent() {
     const isLanding =
       !isLocalhost &&
       !hostname.startsWith('admin.') &&
+      !hostname.startsWith('agents.') &&
       !hostname.startsWith('portal.') &&
       !hostname.startsWith('clients.') &&
       !hostname.startsWith('enquiries.');
@@ -515,9 +536,10 @@ function AppContent() {
 
   // Fetch SMS balance from API (only when authenticated)
   const { data: smsData } = useQuery({
-    queryKey: ["/api/sms-balance", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/sms-balance", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const response = await apiRequest("GET", `/api/sms-balance${params.toString() ? `?${params}` : ""}`);
@@ -528,9 +550,10 @@ function AppContent() {
   })
 
   const { data: emailData } = useQuery({
-    queryKey: ["/api/email-balance", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/email-balance", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const response = await apiRequest("GET", `/api/email-balance${params.toString() ? `?${params}` : ""}`)
@@ -541,9 +564,10 @@ function AppContent() {
   })
 
   const { data: smsSettingsData } = useQuery({
-    queryKey: ["/api/settings/sms", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/sms", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const response = await apiRequest("GET", `/api/settings/sms${params.toString() ? `?${params}` : ""}`)
@@ -553,9 +577,10 @@ function AppContent() {
   })
 
   const { data: emailSettingsData } = useQuery({
-    queryKey: ["/api/settings/email", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/settings/email", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const response = await apiRequest("GET", `/api/settings/email${params.toString() ? `?${params}` : ""}`)
@@ -566,9 +591,11 @@ function AppContent() {
 
   // Fetch properties for selector (admin sees all, clients see only their property)
   const { data: properties = [] } = useQuery({
-    queryKey: ["/api/properties"],
+    queryKey: ["/api/properties", selectedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/properties");
+      const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
+      const response = await apiRequest("GET", `/api/properties${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
     enabled: isAuthenticated,
@@ -576,12 +603,14 @@ function AppContent() {
 
   // Fetch landlords for selector (only for admin users)
   const { data: landlords = [] } = useQuery({
-    queryKey: ["/api/landlords"],
+    queryKey: ["/api/landlords", selectedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/landlords");
+      const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
+      const response = await apiRequest("GET", `/api/landlords${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
-    enabled: isAuthenticated && currentUser?.role === 'admin',
+    enabled: isAuthenticated && (currentUser?.role === 'super_admin' || currentUser?.role === 'agent'),
   })
 
   useEffect(() => {
@@ -644,9 +673,10 @@ function AppContent() {
   })
 
   const { data: maintenanceRequests = [] } = useQuery({
-    queryKey: ["/api/maintenance-requests", selectedPropertyId],
+    queryKey: ["/api/maintenance-requests", selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
       const response = await apiRequest("GET", `/api/maintenance-requests?${params.toString()}`);
       return await response.json();
@@ -656,9 +686,10 @@ function AppContent() {
   });
 
   const { data: invoicesForNotifications = [] } = useQuery({
-    queryKey: ["/api/invoices", "notifications", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/invoices", "notifications", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId);
       const response = await apiRequest("GET", `/api/invoices?${params.toString()}`);
@@ -669,9 +700,10 @@ function AppContent() {
   });
 
   const { data: leasesForNotifications = [] } = useQuery({
-    queryKey: ["/api/leases", "notifications", selectedPropertyId, selectedLandlordId],
+    queryKey: ["/api/leases", "notifications", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams();
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId);
       const response = await apiRequest("GET", `/api/leases?${params.toString()}`);
@@ -682,11 +714,12 @@ function AppContent() {
   });
 
   const { data: paymentLogs = [] } = useQuery({
-    queryKey: ["/api/activity-logs", "payment", selectedPropertyId],
+    queryKey: ["/api/activity-logs", "payment", selectedPropertyId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", "payment");
       params.append("limit", "10");
+      if (selectedAgentId) params.append("agentId", selectedAgentId);
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
       const response = await apiRequest("GET", `/api/activity-logs?${params.toString()}`);
       return await response.json();
@@ -957,28 +990,32 @@ function AppContent() {
   // Subdomain detection (for production)
   // Clients and enquiries are routes under admin subdomain, not separate subdomains
   const isAdminSubdomain = !isLocalhost && hostname.startsWith('admin.');
+  const isAgentSubdomain = !isLocalhost && hostname.startsWith('agents.');
   const isPortalSubdomain = !isLocalhost && hostname.startsWith('portal.');
   const isTenantSubdomain = !isLocalhost && (hostname.startsWith('tenant.') || hostname.startsWith('tenants.'));
-  const isRootDomain = !isLocalhost && !isAdminSubdomain && !isPortalSubdomain && !isTenantSubdomain;
+  const isRootDomain = !isLocalhost && !isAdminSubdomain && !isAgentSubdomain && !isPortalSubdomain && !isTenantSubdomain;
   
   // Portal module routes (existing routes that should use app router)
   const isPortalModuleRoute = isLocalhost && portalModuleRoutes.some(route => pathname.startsWith(route));
   
   // Path-based detection (for localhost)
   // Clients and enquiries are part of admin context (admin-authenticated pages)
-  const isAdminPath = isLocalhost && (pathname.startsWith('/admin') || pathname.startsWith('/clients') || pathname.startsWith('/enquiries'));
+  const isAdminPath = isLocalhost && (pathname.startsWith('/admin') || pathname.startsWith('/enquiries'));
+  const isAgentPath = isLocalhost && (pathname.startsWith('/agent') || pathname.startsWith('/clients'));
   const isPortalPath = isLocalhost && (pathname.startsWith('/portal') || isPortalModuleRoute);
   
   // Determine context
   // In production: admin subdomain includes /clients and /enquiries routes
   // In localhost: /clients and /enquiries are part of admin context
   const isAdminContext = isAdminSubdomain || isAdminPath;
+  const isAgentContext = isAgentSubdomain || isAgentPath;
   const isPortalContext = isPortalSubdomain || isPortalPath;
-  const isAppContext = isAdminContext || isPortalContext;
+  const isAppContext = isAdminContext || isAgentContext || isPortalContext;
   
   // Early return for login routes and standalone pages - render WITHOUT app layout
   // This MUST be checked BEFORE isAppContext to prevent sidebar from rendering
   const isLoginRoute = pathname === '/admin/login' || 
+                       pathname === '/agent/login' ||
                        pathname === '/portal/login' || 
                        pathname === '/tenant/login' ||
                        pathname === '/login';
@@ -988,34 +1025,40 @@ function AppContent() {
     pathname.startsWith('/tenant-portal') ||
     isTenantSubdomain;
   // Clients and enquiries are standalone pages (no sidebar) but require admin auth
-  const isStandalonePage = pathname === '/clients' || pathname === '/enquiries';
+  const isClientsPage = pathname === '/clients';
+  const isEnquiriesPage = pathname === '/enquiries';
+  const isStandalonePage = isClientsPage || isEnquiriesPage;
   
   // Handle standalone pages (clients, enquiries) - require admin auth but no sidebar
   if (isStandalonePage) {
-    // Check if authenticated and admin before rendering
-    if (!isAuthenticated || (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'super_admin')) {
-      // Redirect to admin login if not authenticated or not admin
+    const role = (currentUser?.role || "").toLowerCase();
+    const canViewClients = role === "super_admin" || role === "agent";
+    const canViewEnquiries = role === "super_admin";
+    const hasAccess = (isClientsPage && canViewClients) || (isEnquiriesPage && canViewEnquiries);
+
+    if (!isAuthenticated || !hasAccess) {
       if (!isAuthenticated) {
         if (isLocalhost) {
-          setLocation('/admin/login');
+          setLocation(isClientsPage ? "/agent/login" : "/admin/login");
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
-          window.location.href = `${protocol}//admin.${rootDomain}/login`;
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries)\./, "");
+          const targetSubdomain = isClientsPage ? "agents" : "admin";
+          window.location.href = `${protocol}//${targetSubdomain}.${rootDomain}/login`;
         }
         return null;
       }
-      // If authenticated but not admin, redirect to portal
+
       if (isLocalhost) {
-        setLocation('/portal');
+        setLocation("/portal");
       } else {
         const protocol = window.location.protocol;
-        const rootDomain = hostname.replace(/^(www|admin|portal)\./, '');
+        const rootDomain = hostname.replace(/^(www|admin|agents|portal)\./, "");
         window.location.href = `${protocol}//portal.${rootDomain}`;
       }
       return null;
     }
-    // Render standalone (no sidebar) for authenticated admin users
+
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -1083,14 +1126,15 @@ function AppContent() {
     // Determine which login page to show based on context (for redirects when not authenticated)
     // IMPORTANT: Check subdomain FIRST, then path, to avoid incorrect redirects
     // Clients and enquiries are part of admin context (they're admin-authenticated)
-    const shouldShowAdminLogin = isAdminSubdomain || (isLocalhost && (currentPathname.startsWith('/admin') || currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries')));
+    const shouldShowAdminLogin = isAdminSubdomain || (isLocalhost && (currentPathname.startsWith('/admin') || currentPathname.startsWith('/enquiries')));
+    const shouldShowAgentLogin = isAgentSubdomain || (isLocalhost && (currentPathname.startsWith('/agent') || currentPathname.startsWith('/clients')));
     const shouldShowClientLogin = isPortalSubdomain || (isLocalhost && (currentPathname.startsWith('/portal') || isPortalModuleRoute) && !currentPathname.includes('/admin'));
     const shouldShowTenantLogin = isTenantSubdomain || (isLocalhost && currentPathname.startsWith('/tenant'));
     
     if (!isAuthenticated) {
       // Redirect to appropriate login page
       // CRITICAL: Don't redirect if already on a login page (prevents redirect loops)
-      if (currentPathname === '/admin/login' || currentPathname === '/portal/login' || currentPathname === '/login') {
+      if (currentPathname === '/admin/login' || currentPathname === '/agent/login' || currentPathname === '/portal/login' || currentPathname === '/login') {
         // Already on login page, let Router handle it
         return (
           <QueryClientProvider client={queryClient}>
@@ -1109,8 +1153,17 @@ function AppContent() {
           setLocation('/admin/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//admin.${rootDomain}/login`;
+          return null;
+        }
+      } else if (shouldShowAgentLogin) {
+        if (isLocalhost) {
+          setLocation('/agent/login');
+        } else {
+          const protocol = window.location.protocol;
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
+          window.location.href = `${protocol}//agents.${rootDomain}/login`;
           return null;
         }
       } else if (shouldShowClientLogin) {
@@ -1118,7 +1171,7 @@ function AppContent() {
           setLocation('/portal/login');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}/login`;
           return null;
         }
@@ -1147,7 +1200,10 @@ function AppContent() {
     // Add null-safety check: ensure currentUser exists and has role before checking access
     if (isAuthenticated && currentUser) {
       // Check if user has admin access (admin or super_admin roles) - with null-safety
-      const hasAdminAccess = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+      const role = (currentUser?.role || "").toLowerCase();
+      const hasAdminAccess = role === 'super_admin';
+      const hasAgentAccess = role === 'agent' || role === 'super_admin';
+      const hasAdminLikeAccess = role === 'agent' || role === 'super_admin';
       const permissions = getUserPermissions();
       const hasUsersAccess =
         hasPermissionCategory("users", permissions) ||
@@ -1173,13 +1229,15 @@ function AppContent() {
       
       // Clients and Enquiries pages require admin role (they're routes under admin subdomain)
       if (currentPathname.startsWith('/clients') || currentPathname.startsWith('/enquiries')) {
-        if (!hasAdminAccess) {
+        const canViewClients = currentPathname.startsWith('/clients') && hasAgentAccess;
+        const canViewEnquiries = currentPathname.startsWith('/enquiries') && hasAdminAccess;
+        if (!canViewClients && !canViewEnquiries) {
           // Redirect to appropriate portal
           if (isLocalhost) {
             setLocation('/portal');
           } else {
             const protocol = window.location.protocol;
-            const rootDomain = hostname.replace(/^(www|admin|portal)\./, '');
+            const rootDomain = hostname.replace(/^(www|admin|agents|portal)\./, '');
             window.location.href = `${protocol}//portal.${rootDomain}`;
           }
           return null;
@@ -1187,18 +1245,18 @@ function AppContent() {
       }
 
       // User management requires explicit permission (clients should not access it)
-      if (currentPathname.startsWith('/users') && !hasAdminAccess && !hasUsersAccess) {
+      if (currentPathname.startsWith('/users') && !hasAdminLikeAccess && !hasUsersAccess) {
         if (isLocalhost) {
           setLocation('/portal');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}`;
         }
         return null;
       }
 
-      if (!hasAdminAccess) {
+      if (!hasAdminLikeAccess) {
         const matchedPermission = routePermissionMap.find((entry) =>
           currentPathname.startsWith(entry.prefix)
         );
@@ -1216,7 +1274,7 @@ function AppContent() {
               setLocation('/portal');
             } else {
               const protocol = window.location.protocol;
-              const rootDomain = hostname.replace(/^(www|admin|portal|tenant|tenants|clients|enquiries)\./, '');
+              const rootDomain = hostname.replace(/^(www|admin|agents|portal|tenant|tenants|clients|enquiries)\./, '');
               window.location.href = `${protocol}//portal.${rootDomain}`;
             }
             return null;
@@ -1231,7 +1289,18 @@ function AppContent() {
           setLocation('/portal');
         } else {
           const protocol = window.location.protocol;
-          const rootDomain = hostname.replace(/^(www|admin|portal)\./, '');
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal)\./, '');
+          window.location.href = `${protocol}//portal.${rootDomain}`;
+        }
+        return null;
+      }
+
+      if ((isAgentContext || (isLocalhost && currentPathname.startsWith('/agent') && !currentPathname.includes('/login'))) && !hasAgentAccess) {
+        if (isLocalhost) {
+          setLocation('/portal');
+        } else {
+          const protocol = window.location.protocol;
+          const rootDomain = hostname.replace(/^(www|admin|agents|portal)\./, '');
           window.location.href = `${protocol}//portal.${rootDomain}`;
         }
         return null;

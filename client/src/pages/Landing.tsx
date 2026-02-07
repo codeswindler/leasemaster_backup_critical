@@ -373,9 +373,15 @@ export function Landing() {
     return "text-white border-white/40 hover:bg-white/10";
   };
 
-  const handleTryDemo = () => {
-    // TODO: Implement demo logic
-    alert("Demo feature coming soon!");
+  const handleAgentLogin = () => {
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      setLocation("/agent/login");
+    } else {
+      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, "");
+      window.location.href = `${protocol}//agents.${rootDomain}/login`;
+    }
   };
 
   const handleClientLogin = () => {
@@ -387,7 +393,7 @@ export function Landing() {
       setLocation('/portal/login');
     } else {
       // Production - redirect to portal subdomain (strip any existing subdomain first)
-      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
       window.location.href = `${protocol}//portal.${rootDomain}/login`;
     }
   };
@@ -401,7 +407,7 @@ export function Landing() {
       setLocation('/admin/login');
     } else {
       // Production - redirect to admin subdomain (strip any existing subdomain first)
-      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
       window.location.href = `${protocol}//admin.${rootDomain}/login`;
     }
   };
@@ -412,7 +418,7 @@ export function Landing() {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       setLocation("/tenant/login");
     } else {
-      const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries|tenant|tenants)\./, '');
+      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
       window.location.href = `${protocol}//tenants.${rootDomain}/login`;
     }
   };
@@ -817,10 +823,10 @@ export function Landing() {
               <Button 
                 size="lg" 
                 className={`text-sm px-5 py-3 gap-2 group border-2 ${getButtonContrastClass()}`}
-                onClick={handleTryDemo}
+                onClick={handleAgentLogin}
               >
                 <Play className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                Try Demo
+                Agent Sign In
               </Button>
               <Button 
                 size="lg" 

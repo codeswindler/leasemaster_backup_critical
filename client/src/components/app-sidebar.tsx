@@ -48,7 +48,7 @@ import { useFilter } from "@/contexts/FilterContext"
 import { getPaletteByIndex } from "@/lib/palette"
 
 export function AppSidebar() {
-  const { selectedPropertyId, selectedLandlordId } = useFilter();
+  const { selectedPropertyId, selectedLandlordId, selectedAgentId } = useFilter();
   const [messagingOpen, setMessagingOpen] = useState(false);
   const [tenantsOpen, setTenantsOpen] = useState(false);
 
@@ -59,12 +59,14 @@ export function AppSidebar() {
   const getPropertyId = (item: any) => normalizeId(item?.propertyId ?? item?.property_id);
   const getLandlordId = (item: any) => normalizeId(item?.landlordId ?? item?.landlord_id);
   const queryLandlordId = normalizedLandlordId && normalizedLandlordId !== "all" ? normalizedLandlordId : null;
+  const queryAgentId = selectedAgentId && selectedAgentId !== "all" ? String(selectedAgentId) : null;
   const queryPropertyId = normalizedPropertyId && normalizedPropertyId !== "all" ? normalizedPropertyId : null;
 
   const { data: landlordProperties = [] } = useQuery({
-    queryKey: ["/api/properties", "landlordOnly", queryLandlordId],
+    queryKey: ["/api/properties", "landlordOnly", queryLandlordId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (queryAgentId) params.append("agentId", queryAgentId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -89,7 +91,7 @@ export function AppSidebar() {
   });
 
   const currentRole = (authData?.user?.role || "").toLowerCase();
-  const isAdminUser = currentRole === "admin" || currentRole === "super_admin";
+  const isAdminUser = currentRole === "admin" || currentRole === "super_admin" || currentRole === "agent";
   const permissionsRaw = authData?.user?.permissions;
   const permissions = Array.isArray(permissionsRaw)
     ? permissionsRaw
@@ -135,9 +137,10 @@ export function AppSidebar() {
 
   // Fetch data for badges
   const { data: allProperties = [] } = useQuery({
-    queryKey: ["/api/properties", queryLandlordId, effectivePropertyId],
+    queryKey: ["/api/properties", queryLandlordId, effectivePropertyId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (queryAgentId) params.append("agentId", queryAgentId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
@@ -147,9 +150,10 @@ export function AppSidebar() {
   })
 
   const { data: allTenants = [] } = useQuery({
-    queryKey: ["/api/tenants", effectivePropertyId, queryLandlordId],
+    queryKey: ["/api/tenants", effectivePropertyId, queryLandlordId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (queryAgentId) params.append("agentId", queryAgentId)
       if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
@@ -159,9 +163,10 @@ export function AppSidebar() {
   })
 
   const { data: allInvoices = [] } = useQuery({
-    queryKey: ["/api/invoices", effectivePropertyId, queryLandlordId],
+    queryKey: ["/api/invoices", effectivePropertyId, queryLandlordId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (queryAgentId) params.append("agentId", queryAgentId)
       if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/invoices${params.toString() ? `?${params}` : ''}`
@@ -171,9 +176,10 @@ export function AppSidebar() {
   })
 
   const { data: allHouseTypes = [] } = useQuery({
-    queryKey: ["/api/house-types", effectivePropertyId, queryLandlordId],
+    queryKey: ["/api/house-types", effectivePropertyId, queryLandlordId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (queryAgentId) params.append("agentId", queryAgentId)
       if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
@@ -183,9 +189,10 @@ export function AppSidebar() {
   })
 
   const { data: allBulkMessages = [] } = useQuery({
-    queryKey: ["/api/bulk-messages", effectivePropertyId, queryLandlordId],
+    queryKey: ["/api/bulk-messages", effectivePropertyId, queryLandlordId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (queryAgentId) params.append("agentId", queryAgentId)
       if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
       if (queryLandlordId) params.append("landlordId", queryLandlordId)
       const url = `/api/bulk-messages${params.toString() ? `?${params}` : ''}`
@@ -195,7 +202,7 @@ export function AppSidebar() {
   })
 
   const { data: allUnits = [] } = useQuery({
-    queryKey: ["/api/units", effectivePropertyId, queryLandlordId],
+    queryKey: ["/api/units", effectivePropertyId, queryLandlordId, queryAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (effectivePropertyId) params.append("propertyId", effectivePropertyId)
@@ -433,234 +440,234 @@ export function AppSidebar() {
                 </motion.div>
               ))}
               {visibleTenantItems.length > 0 && (
-                <Collapsible open={tenantsOpen} onOpenChange={setTenantsOpen}>
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+              <Collapsible open={tenantsOpen} onOpenChange={setTenantsOpen}>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: visibleMenuItems.length * 0.05 }}
-                  >
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton 
-                          className="group transition-all duration-200 hover:scale-[1.02]"
-                          tooltip="Tenants"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton 
+                        className="group transition-all duration-200 hover:scale-[1.02]"
+                        tooltip="Tenants"
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
                         >
-                          <motion.div
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <Users className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(tenantsOffset)}`} />
-                          </motion.div>
-                          <span>Tenants</span>
-                          {Array.isArray(tenants) && tenants.length > 0 && (
-                            <Badge variant="secondary" className="ml-auto text-xs mr-2">
-                              {tenants.length}
-                            </Badge>
-                          )}
-                          {tenantsOpen ? (
-                            <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
-                          )}
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
+                          <Users className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(tenantsOffset)}`} />
+                        </motion.div>
+                        <span>Tenants</span>
+                        {Array.isArray(tenants) && tenants.length > 0 && (
+                          <Badge variant="secondary" className="ml-auto text-xs mr-2">
+                            {tenants.length}
+                          </Badge>
+                        )}
+                        {tenantsOpen ? (
+                          <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
                           {visibleTenantItems.map((item, index) => (
-                            <SidebarMenuSubItem key={item.title}>
-                              <SidebarMenuSubButton asChild>
-                                <Link href={item.url} data-testid={`nav-tenants-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                  <item.icon className={`h-4 w-4 ${iconClassForIndex(tenantItemsOffset + index)}`} />
-                                  <span>{item.title}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </motion.div>
-                </Collapsible>
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton asChild>
+                              <Link href={item.url} data-testid={`nav-tenants-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                                <item.icon className={`h-4 w-4 ${iconClassForIndex(tenantItemsOffset + index)}`} />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </motion.div>
+              </Collapsible>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
                 {visibleAccountingItems.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Accounting</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
+        <SidebarGroup>
+          <SidebarGroupLabel>Accounting</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
                 {visibleAccountingItems.map((item, index) => (
-                  <motion.div
-                    key={item.title}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: (visibleMenuItems.length + index) * 0.05 }}
-                  >
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        className="group transition-all duration-200 hover:scale-[1.02]"
-                        tooltip={item.title}
-                      >
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                >
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      className="group transition-all duration-200 hover:scale-[1.02]"
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(accountingOffset + index)}`} />
+                        </motion.div>
+                        <span>{item.title}</span>
+                        {item.badge && (
                           <motion.div
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
                           >
-                            <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(accountingOffset + index)}`} />
-                          </motion.div>
-                          <span>{item.title}</span>
-                          {item.badge && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                            <Badge 
+                              variant={(item.badgeVariant as "default" | "destructive" | "outline" | "secondary") || "default"} 
+                              className={`ml-auto text-xs ${item.badgeVariant === "destructive" ? "text-overdue-foreground bg-overdue animate-pulse" : ""}`}
                             >
-                              <Badge
-                                variant={(item.badgeVariant as "default" | "destructive" | "outline" | "secondary") || "default"}
-                                className={`ml-auto text-xs ${item.badgeVariant === "destructive" ? "text-overdue-foreground bg-overdue animate-pulse" : ""}`}
-                              >
-                                {item.badge}
-                              </Badge>
-                            </motion.div>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                              {item.badge}
+                            </Badge>
+                          </motion.div>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </motion.div>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
         )}
 
         {hasOtherSection && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Other</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {/* Maintenance item */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Other</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {/* Maintenance item */}
                 {canViewMaintenance && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length) * 0.05 }}
+              >
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    asChild 
+                    className="group transition-all duration-200 hover:scale-[1.02]"
+                    tooltip="Maintenance"
                   >
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        className="group transition-all duration-200 hover:scale-[1.02]"
-                        tooltip="Maintenance"
+                    <Link href="/maintenance" data-testid="nav-maintenance">
+                      <motion.div
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
                       >
-                        <Link href="/maintenance" data-testid="nav-maintenance">
-                          <motion.div
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                          >
-                            <AlertTriangle className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset)}`} />
-                          </motion.div>
-                          <span>Maintenance</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
+                        <AlertTriangle className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset)}`} />
+                      </motion.div>
+                      <span>Maintenance</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </motion.div>
                 )}
 
-                {/* Messaging Collapsible Dropdown */}
+              {/* Messaging Collapsible Dropdown */}
                 {visibleMessagingItems.length > 0 && (
-                  <Collapsible open={messagingOpen} onOpenChange={setMessagingOpen}>
-                    <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
+              <Collapsible open={messagingOpen} onOpenChange={setMessagingOpen}>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 1) * 0.05 }}
-                    >
-                      <SidebarMenuItem>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            className="group transition-all duration-200 hover:scale-[1.02]"
-                            tooltip="Messaging"
-                          >
-                            <motion.div
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                            >
-                              <MessageSquare className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 1)}`} />
-                            </motion.div>
-                            <span>Messaging</span>
-                            {Array.isArray(bulkMessages) && bulkMessages.length > 0 && (
-                              <Badge variant="outline" className="ml-auto text-xs mr-2">
-                                {bulkMessages.length}
-                              </Badge>
-                            )}
-                            {messagingOpen ? (
-                              <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
-                            )}
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton 
+                        className="group transition-all duration-200 hover:scale-[1.02]"
+                        tooltip="Messaging"
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <MessageSquare className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 1)}`} />
+                        </motion.div>
+                        <span>Messaging</span>
+                        {Array.isArray(bulkMessages) && bulkMessages.length > 0 && (
+                          <Badge variant="outline" className="ml-auto text-xs mr-2">
+                            {bulkMessages.length}
+                          </Badge>
+                        )}
+                        {messagingOpen ? (
+                          <ChevronDown className="h-4 w-4 ml-auto transition-transform" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 ml-auto transition-transform" />
+                        )}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
                             {visibleMessagingItems.map((item, index) => (
-                              <SidebarMenuSubItem key={item.title}>
-                                <SidebarMenuSubButton asChild>
-                                  <Link href={item.url} data-testid={`nav-messaging-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                                    <item.icon className={`h-4 w-4 ${iconClassForIndex(messagingOffset + index)}`} />
-                                    <span>{item.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </SidebarMenuItem>
-                    </motion.div>
-                  </Collapsible>
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton asChild>
+                              <Link href={item.url} data-testid={`nav-messaging-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                                <item.icon className={`h-4 w-4 ${iconClassForIndex(messagingOffset + index)}`} />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </motion.div>
+              </Collapsible>
                 )}
 
-                {/* Remaining other items (Reports, User Management, Settings) */}
+              {/* Remaining other items (Reports, User Management, Settings) */}
                 {visibleOtherItemsWithoutMaintenance.map((item, index) => (
-                  <motion.div
-                    key={item.title}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: (visibleMenuItems.length + visibleAccountingItems.length + 2 + index) * 0.05 }}
-                  >
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        className="group transition-all duration-200 hover:scale-[1.02]"
-                        tooltip={item.title}
-                      >
-                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                >
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      className="group transition-all duration-200 hover:scale-[1.02]"
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}>
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                        >
+                          <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 2 + index)}`} />
+                        </motion.div>
+                        <span>{item.title}</span>
+                        {item.badge && (
                           <motion.div
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
                           >
-                            <item.icon className={`h-4 w-4 transition-transform group-hover:rotate-12 ${iconClassForIndex(otherOffset + 2 + index)}`} />
+                            <Badge variant="outline" className="ml-auto text-xs">
+                              {item.badge}
+                            </Badge>
                           </motion.div>
-                          <span>{item.title}</span>
-                          {item.badge && (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                            >
-                              <Badge variant="outline" className="ml-auto text-xs">
-                                {item.badge}
-                              </Badge>
-                            </motion.div>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </motion.div>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
         )}
       </SidebarContent>
       
@@ -682,7 +689,7 @@ export function AppSidebar() {
                 window.location.href = '/landing';
               } else {
                 // Production: always redirect to root domain (theleasemaster.com)
-                const rootDomain = hostname.replace(/^(www|admin|portal|clients|enquiries)\./, '');
+                const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries)\./, '');
                 window.location.href = `${protocol}//${rootDomain}/`;
               }
             }}

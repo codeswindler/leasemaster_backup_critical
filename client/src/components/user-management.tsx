@@ -53,7 +53,7 @@ export function UserManagement() {
     role: "",
   })
   const { toast } = useToast()
-  const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const [, setLocation] = useLocation()
   const [newUser, setNewUser] = useState({
     name: "",
@@ -77,7 +77,7 @@ export function UserManagement() {
     },
   })
   const currentRole = (authData?.user?.role || "").toLowerCase()
-  const isAdmin = currentRole === "admin" || currentRole === "super_admin" || currentRole === "administrator"
+  const isAdmin = currentRole === "super_admin" || currentRole === "agent" || currentRole === "admin" || currentRole === "administrator"
   const isLandlord = currentRole === "landlord" || currentRole === "client"
   const currentUserId = authData?.user?.id ? String(authData.user.id) : null
   const landlordIdToUse =
@@ -96,9 +96,12 @@ export function UserManagement() {
 
   // Fetch real user data from API
   const { data: apiUsers = [], isLoading: usersLoading } = useQuery({
-    queryKey: ["/api/users", selectedPropertyId, selectedLandlordId, currentRole],
+    queryKey: ["/api/users", selectedPropertyId, selectedLandlordId, selectedAgentId, currentRole],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) {
+        params.append("agentId", selectedAgentId)
+      }
       if (selectedPropertyId && selectedPropertyId !== "all") {
         params.append("propertyId", selectedPropertyId)
       }
@@ -113,9 +116,12 @@ export function UserManagement() {
   })
 
   const { data: availableProperties = [] } = useQuery({
-    queryKey: ["/api/properties", selectedLandlordId],
+    queryKey: ["/api/properties", selectedLandlordId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) {
+        params.append("agentId", selectedAgentId)
+      }
       if (selectedLandlordId && selectedLandlordId !== "all") {
         params.append("landlordId", selectedLandlordId)
       }
@@ -590,6 +596,8 @@ export function UserManagement() {
       case "admin":
       case "super_admin":
         return <Badge variant="default" className="bg-red-100 text-red-800">Admin</Badge>
+      case "agent":
+        return <Badge variant="default" className="bg-blue-100 text-blue-800">Agent</Badge>
       case "Manager":
         return <Badge variant="default" className="bg-blue-100 text-blue-800">Manager</Badge>
       case "Accountant":
@@ -683,6 +691,7 @@ export function UserManagement() {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
+                    {currentRole === "super_admin" && <SelectItem value="agent">Agent</SelectItem>}
                         <SelectItem value="Manager">Manager</SelectItem>
                         <SelectItem value="Accountant">Accountant</SelectItem>
                         <SelectItem value="Support">Support</SelectItem>
@@ -898,6 +907,7 @@ export function UserManagement() {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
+                          {currentRole === "super_admin" && <SelectItem value="agent">Agent</SelectItem>}
                           <SelectItem value="Manager">Manager</SelectItem>
                           <SelectItem value="Accountant">Accountant</SelectItem>
                           <SelectItem value="Support">Support</SelectItem>

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
+import { useFilter } from "@/contexts/FilterContext"
 
 const permissionCategories = [
   {
@@ -301,10 +302,14 @@ export function UserDetail() {
     return null
   }, [user])
 
+  const { selectedAgentId } = useFilter()
   const { data: properties = [] } = useQuery({
-    queryKey: ["/api/properties", landlordScopeId],
+    queryKey: ["/api/properties", landlordScopeId, selectedAgentId],
     queryFn: async () => {
       const params = new URLSearchParams()
+      if (selectedAgentId) {
+        params.append("agentId", selectedAgentId)
+      }
       if (landlordScopeId) {
         params.append("landlordId", landlordScopeId)
       }
@@ -326,6 +331,9 @@ export function UserDetail() {
     if (role === "landlord" || role === "client") {
       return "Landlord"
     }
+    if (role === "agent") {
+      return "Agent"
+    }
     if (role === "admin" || role === "super_admin" || role === "administrator") {
       return "Admin"
     }
@@ -334,7 +342,7 @@ export function UserDetail() {
   const roleLower = String(user?.role || "").toLowerCase()
   const isAdminUser = useMemo(() => {
     const role = String(user?.role || "").toLowerCase()
-    return role === "admin" || role === "super_admin" || role === "administrator"
+    return role === "admin" || role === "super_admin" || role === "administrator" || role === "agent"
   }, [user])
   const hideAssignedProperties = isAdminUser || roleLower.includes("admin")
 
@@ -711,7 +719,7 @@ export function UserDetail() {
                   <div>{user.phone || "—"}</div>
                 )}
                 <div className="text-sm text-muted-foreground">Role</div>
-                {isEditingUser && !["admin", "super_admin"].includes(String(user.role || "").toLowerCase()) ? (
+                {isEditingUser && !["admin", "super_admin", "agent"].includes(String(user.role || "").toLowerCase()) ? (
                   <Select
                     value={editUserDraft.role}
                     onValueChange={(value) => setEditUserDraft(prev => ({ ...prev, role: value }))}

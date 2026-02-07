@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Building2 } from "lucide-react";
+import { Users, Building2, UserCog } from "lucide-react";
 import { useFilter } from "@/contexts/FilterContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -10,28 +10,54 @@ interface FilterSelectorsProps {
 }
 
 export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
-  const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId, setSelectedLandlordId } = useFilter();
+  const {
+    selectedAgentId,
+    selectedPropertyId,
+    selectedLandlordId,
+    setSelectedAgentId,
+    setSelectedPropertyId,
+    setSelectedLandlordId,
+  } = useFilter();
   const role = (currentUser?.role || "").toLowerCase();
-  const isAdmin = role === "admin" || role === "super_admin" || role === "administrator";
+  const isSuperAdmin = role === "super_admin";
+  const isAdmin = role === "admin" || role === "super_admin" || role === "administrator" || role === "agent";
   const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value));
+  const normalizedAgentId = normalizeId(selectedAgentId);
   const normalizedLandlordId = normalizeId(selectedLandlordId);
   const normalizedPropertyId = normalizeId(selectedPropertyId);
 
   // Fetch landlords (only for admin)
   const { data: landlords = [] } = useQuery({
-    queryKey: ["/api/landlords"],
+    queryKey: ["/api/landlords", normalizedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/landlords");
+      const params = new URLSearchParams();
+      if (normalizedAgentId) {
+        params.append("agentId", normalizedAgentId);
+      }
+      const response = await apiRequest("GET", `/api/landlords${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
     enabled: isAdmin,
   });
 
+  const { data: agents = [] } = useQuery({
+    queryKey: ["/api/users", "agents"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/users?role=agent");
+      return await response.json();
+    },
+    enabled: isSuperAdmin,
+  });
+
   // Fetch properties
   const { data: properties = [] } = useQuery({
-    queryKey: ["/api/properties"],
+    queryKey: ["/api/properties", normalizedAgentId],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/properties");
+      const params = new URLSearchParams();
+      if (normalizedAgentId) {
+        params.append("agentId", normalizedAgentId);
+      }
+      const response = await apiRequest("GET", `/api/properties${params.toString() ? `?${params}` : ""}`);
       return await response.json();
     },
   });
@@ -80,6 +106,37 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
 
   return (
     <>
+      {/* Agent Selector - Only for Super Admin */}
+      {isSuperAdmin && (
+        <Select
+          value={normalizedAgentId || "all"}
+          onValueChange={(value) => {
+            if (value === "all") {
+              setSelectedAgentId(null);
+            } else {
+              setSelectedAgentId(normalizeId(value));
+            }
+            setSelectedLandlordId(null);
+            setSelectedPropertyId(null);
+            queryClient.invalidateQueries();
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-[200px]">
+            <UserCog className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Select Agent" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">View Agents</SelectItem>
+            {Array.isArray(agents) &&
+              agents.map((agent: any) => (
+                <SelectItem key={agent.id} value={String(agent.id)}>
+                  {agent.username}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      )}
+
       {/* Landlord Selector - Only for Admin */}
       {isAdmin && (
         <Select
