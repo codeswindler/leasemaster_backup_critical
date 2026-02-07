@@ -1025,6 +1025,12 @@ function AppContent() {
                        pathname === '/portal/login' || 
                        pathname === '/tenant/login' ||
                        pathname === '/login';
+  const isPublicRoute =
+    isLoginRoute ||
+    pathname === '/register' ||
+    pathname === '/agent/reset' ||
+    pathname === '/portal/reset' ||
+    pathname === '/tenant/reset';
   const isTenantRoute =
     pathname === '/tenant/login' ||
     pathname.startsWith('/tenant/') ||
@@ -1082,7 +1088,7 @@ function AppContent() {
     );
   }
   
-  if (isLoginRoute || isTenantRoute) {
+  if (isPublicRoute || isTenantRoute) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
@@ -1145,7 +1151,16 @@ function AppContent() {
     if (!isAuthenticated) {
       // Redirect to appropriate login page
       // CRITICAL: Don't redirect if already on a login page (prevents redirect loops)
-      if (currentPathname === '/admin/login' || currentPathname === '/agent/login' || currentPathname === '/portal/login' || currentPathname === '/login') {
+      if (
+        currentPathname === '/admin/login' ||
+        currentPathname === '/agent/login' ||
+        currentPathname === '/portal/login' ||
+        currentPathname === '/login' ||
+        currentPathname === '/register' ||
+        currentPathname === '/agent/reset' ||
+        currentPathname === '/portal/reset' ||
+        currentPathname === '/tenant/reset'
+      ) {
         // Already on login page, let Router handle it
         return (
           <QueryClientProvider client={queryClient}>
