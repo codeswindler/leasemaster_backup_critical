@@ -765,12 +765,12 @@ export function Invoices() {
       return
     }
     const overdueInvoices = enrichedInvoices.filter(
-      (inv: any) => selectedInvoices.includes(inv.id) && inv.isOverdue
+      (inv: any) => selectedInvoices.includes(inv.id) && inv.isOverdue && inv.workflowStatus === "approved"
     )
     if (overdueInvoices.length === 0) {
       toast({
         title: "No Overdue Invoices",
-        description: "Select overdue invoices to apply penalties.",
+        description: "Select overdue approved invoices to apply penalties.",
       })
       return
     }
@@ -1085,6 +1085,25 @@ export function Invoices() {
             <p className="text-xs text-red-500">
               Percentage is applied to each tenant's rent amount.
             </p>
+            <div className="text-xs text-red-600">
+              Ready for penalty:{" "}
+              {enrichedInvoices.filter(
+                (inv: any) =>
+                  selectedInvoices.includes(inv.id) &&
+                  inv.isOverdue &&
+                  inv.workflowStatus === "approved"
+              ).length}
+            </div>
+            {enrichedInvoices.some(
+              (inv: any) =>
+                selectedInvoices.includes(inv.id) &&
+                inv.isOverdue &&
+                inv.workflowStatus === "draft"
+            ) && (
+              <div className="text-xs text-red-600">
+                Draft invoices cannot be penalized.
+              </div>
+            )}
             {penaltySuccess && (
               <div className="flex items-center gap-2 text-sm text-red-600 animate-pulse">
                 <Check className="h-4 w-4" />
@@ -1211,7 +1230,16 @@ export function Invoices() {
           )}
         </div>
         {selectedInvoices.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-red-600">
+              Ready for penalty:{" "}
+              {enrichedInvoices.filter(
+                (inv: any) =>
+                  selectedInvoices.includes(inv.id) &&
+                  inv.isOverdue &&
+                  inv.workflowStatus === "approved"
+              ).length}
+            </span>
             {enrichedInvoices.some((inv: any) => selectedInvoices.includes(inv.id) && inv.isOverdue) && (
               <Button
                 variant="outline"
