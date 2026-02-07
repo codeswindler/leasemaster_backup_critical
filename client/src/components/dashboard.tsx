@@ -1138,7 +1138,9 @@ export function Dashboard() {
       </Card>
 
         {/* Financial Overview */}
-        <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
+        <Card
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${activityPalette.border} ${activityPalette.card} backdrop-blur-sm`}
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-emerald-500" />
@@ -1265,7 +1267,9 @@ export function Dashboard() {
         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
       >
         {/* Recent Activity */}
-        <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
+        <Card
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${overduePalette.border} ${overduePalette.card} backdrop-blur-sm`}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div>
               <CardTitle>Recent Activity</CardTitle>
