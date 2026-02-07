@@ -838,8 +838,9 @@ export function Dashboard() {
   const overduePalette = getPaletteByName(hasOverdue ? "rose" : "emerald")
 
   const activityLast24h = filteredActivityLogs.filter((activity: any) => {
-    if (!activity.created_at) return false
-    const createdAt = new Date(activity.created_at)
+    const rawValue = activity.created_at || activity.createdAt
+    if (!rawValue) return false
+    const createdAt = new Date(rawValue)
     if (Number.isNaN(createdAt.getTime())) return false
     return Date.now() - createdAt.getTime() <= 24 * 60 * 60 * 1000
   }).length
