@@ -504,6 +504,9 @@ export function AdminLogin({
 
   // Calculate text contrast based on image brightness and theme
   const getTextContrastClass = (baseClass: string = '') => {
+    if (loginType === "agent" && !isDarkTheme) {
+      return `${baseClass} text-slate-900`;
+    }
     // Consider effective brightness (image + overlay dimming + theme)
     // With black/40 overlay and 0.5 brightness filter, images are quite dark
     // Account for dimming: 0.5 brightness filter + 40% dark overlay = ~0.25-0.3 effective brightness

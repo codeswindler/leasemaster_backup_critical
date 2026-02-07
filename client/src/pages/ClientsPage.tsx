@@ -37,7 +37,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Users, Search, Building2, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, UserPlus, LogIn, KeyRound, Shield } from "lucide-react";
+import { Users, Search, Building2, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, UserPlus, LogIn, KeyRound, Shield, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -103,6 +103,15 @@ export function ClientsPage() {
     [dialogPaletteSeed]
   );
   const { scheduleDelete } = useUndoDelete();
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check");
+      return await response.json();
+    },
+  });
+  const currentRole = (authData?.user?.role || "").toLowerCase();
+  const isSuperAdmin = currentRole === "super_admin";
 
   // Fetch all landlords (users with role 'landlord')
   const { data: landlords = [], isLoading } = useQuery({
@@ -482,6 +491,12 @@ export function ClientsPage() {
                   </AlertDialogContent>
                 </AlertDialog>
               </>
+            )}
+            {isSuperAdmin && (
+              <Button variant="outline" onClick={() => setLocation("/agents")} className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Agents
+              </Button>
             )}
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
