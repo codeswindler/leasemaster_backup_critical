@@ -63,20 +63,42 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
   });
 
   const getPropertyLandlordId = (property: any) => property?.landlordId ?? property?.landlord_id;
+  const getPropertyAgentId = (property: any) => property?.adminId ?? property?.admin_id;
+  const getLandlordAgentId = (landlord: any) => landlord?.adminId ?? landlord?.admin_id;
 
   useEffect(() => {
     if (!selectedPropertyId) return;
     const matchProperty = (properties as any[]).find((property: any) => normalizeId(property.id) === normalizedPropertyId);
     if (!matchProperty) return;
     const ownerId = normalizeId(getPropertyLandlordId(matchProperty));
+    const propertyAgentId = normalizeId(getPropertyAgentId(matchProperty));
     if (ownerId && ownerId !== normalizedLandlordId) {
       setSelectedLandlordId(ownerId);
-      queryClient.invalidateQueries();
     }
-  }, [normalizedPropertyId, properties, normalizedLandlordId, setSelectedLandlordId]);
+    if (propertyAgentId && propertyAgentId !== normalizedAgentId) {
+      setSelectedAgentId(propertyAgentId);
+    }
+    queryClient.invalidateQueries();
+  }, [
+    normalizedPropertyId,
+    properties,
+    normalizedLandlordId,
+    normalizedAgentId,
+    setSelectedLandlordId,
+    setSelectedAgentId,
+  ]);
 
   useEffect(() => {
     if (!normalizedLandlordId) return;
+    if (isSuperAdmin && Array.isArray(landlords)) {
+      const matchLandlord = (landlords as any[]).find(
+        (landlord: any) => normalizeId(landlord.id) === normalizedLandlordId
+      );
+      const landlordAgentId = normalizeId(getLandlordAgentId(matchLandlord));
+      if (landlordAgentId && landlordAgentId !== normalizedAgentId) {
+        setSelectedAgentId(landlordAgentId);
+      }
+    }
     const ownedProperties = (properties as any[]).filter((property: any) => normalizeId(getPropertyLandlordId(property)) === normalizedLandlordId);
     if (ownedProperties.length === 1) {
       const onlyPropertyId = normalizeId(ownedProperties[0].id);
@@ -90,7 +112,16 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
       setSelectedPropertyId(null);
       queryClient.invalidateQueries();
     }
-  }, [normalizedLandlordId, normalizedPropertyId, properties, setSelectedPropertyId]);
+  }, [
+    normalizedLandlordId,
+    normalizedPropertyId,
+    normalizedAgentId,
+    properties,
+    landlords,
+    isSuperAdmin,
+    setSelectedPropertyId,
+    setSelectedAgentId,
+  ]);
 
   useEffect(() => {
     const role = (currentUser?.role || "").toLowerCase();
