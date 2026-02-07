@@ -1240,7 +1240,12 @@ export function Invoices() {
                   inv.workflowStatus === "approved"
               ).length}
             </span>
-            {enrichedInvoices.some((inv: any) => selectedInvoices.includes(inv.id) && inv.isOverdue) && (
+            {enrichedInvoices.some(
+              (inv: any) =>
+                selectedInvoices.includes(inv.id) &&
+                inv.isOverdue &&
+                inv.workflowStatus === "approved"
+            ) && (
               <Button
                 variant="outline"
                 size="sm"
