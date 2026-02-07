@@ -270,6 +270,16 @@ export function UserDetail() {
     []
   )
 
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check")
+      return await response.json()
+    },
+  })
+  const currentUserId = authData?.user?.id ? String(authData.user.id) : null
+  const isSelf = currentUserId && userId ? String(currentUserId) === String(userId) : false
+
   const { data: user, isLoading } = useQuery({
     queryKey: ["/api/users", userId],
     queryFn: async () => {
@@ -548,6 +558,7 @@ export function UserDetail() {
   })
 
   const togglePermission = (permissionId: string) => {
+    if (isSelf) return
     setSelectedPermissions((prev) =>
       prev.includes(permissionId) ? prev.filter((p) => p !== permissionId) : [...prev, permissionId]
     )
@@ -577,14 +588,17 @@ export function UserDetail() {
   }
 
   const selectAllPermissions = () => {
+    if (isSelf) return
     setSelectedPermissions(allPermissionIds)
   }
 
   const clearAllPermissions = () => {
+    if (isSelf) return
     setSelectedPermissions([])
   }
 
   const toggleCategory = (categoryId: string) => {
+    if (isSelf) return
     const category = permissionCategories.find((item) => item.id === categoryId)
     if (!category) return
     const categoryPermissionIds = category.permissions.map((permission) => permission.id)
@@ -638,15 +652,15 @@ export function UserDetail() {
             <CardDescription>Account and property assignment</CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAlertsToggle}
-              aria-label={alertsEnabled ? "Disable alerts" : "Enable alerts"}
-              title={alertsEnabled ? "Alerts enabled" : "Alerts disabled"}
-            >
-              {alertsEnabled ? "🔔" : "🔕 zzz"}
-            </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAlertsToggle}
+            aria-label={alertsEnabled ? "Disable alerts" : "Enable alerts"}
+            title={alertsEnabled ? "Alerts enabled" : "Alerts disabled"}
+          >
+            {alertsEnabled ? "🔔" : "🔕 zzz"}
+          </Button>
             {isEditingUser ? (
               <>
                 <Button variant="outline" size="sm" onClick={() => setIsEditingUser(false)}>
@@ -676,7 +690,7 @@ export function UserDetail() {
                     onChange={(e) => setEditUserDraft(prev => ({ ...prev, name: e.target.value }))}
                   />
                 ) : (
-                  <div className="text-lg font-semibold">{user.full_name || user.fullName || user.username}</div>
+                <div className="text-lg font-semibold">{user.full_name || user.fullName || user.username}</div>
                 )}
                 <div className="text-sm text-muted-foreground">Username / Email</div>
                 {isEditingUser ? (
@@ -685,7 +699,7 @@ export function UserDetail() {
                     onChange={(e) => setEditUserDraft(prev => ({ ...prev, email: e.target.value }))}
                   />
                 ) : (
-                  <div>{user.username}</div>
+                <div>{user.username}</div>
                 )}
                 <div className="text-sm text-muted-foreground">Mobile</div>
                 {isEditingUser ? (
@@ -764,7 +778,7 @@ export function UserDetail() {
 
       {!hideAssignedProperties && (
         <Card className={`vibrant-card ${cardVariants[(colorSeed + 2) % cardVariants.length]}`}>
-          <CardHeader>
+        <CardHeader>
             <CardTitle>
               {String(user?.role || "").toLowerCase() === "landlord" || String(user?.role || "").toLowerCase() === "client"
                 ? "Owned Properties"
@@ -775,11 +789,11 @@ export function UserDetail() {
                 ? "Properties owned by this landlord"
                 : "Select which properties this user can manage"}
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {properties.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No properties available.</div>
-            ) : (
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {properties.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No properties available.</div>
+          ) : (
               <>
                 {(() => {
                   const role = String(user?.role || "").toLowerCase()
@@ -794,13 +808,13 @@ export function UserDetail() {
 
                   if (isLandlord) {
                     return (
-                      <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
-                        {(properties as any[]).map((property: any) => (
+            <div className="space-y-2 max-h-64 overflow-y-auto border rounded-lg p-3">
+              {(properties as any[]).map((property: any) => (
                           <div key={property.id} className="text-sm">
-                            {property.name}
-                          </div>
-                        ))}
-                      </div>
+                    {property.name}
+                </div>
+              ))}
+            </div>
                     )
                   }
 
@@ -846,28 +860,28 @@ export function UserDetail() {
                               <div className="text-sm text-muted-foreground">No more properties to assign.</div>
                             ) : (
                               available.map((property: any) => (
-                                <Button
+            <Button
                                   key={property.id}
                                   type="button"
-                                  variant="outline"
+              variant="outline"
                                   className="w-full justify-start"
                                   onClick={() => handleAssignProperty(String(property.id))}
-                                  disabled={updateAssignedPropertiesMutation.isPending}
-                                >
+              disabled={updateAssignedPropertiesMutation.isPending}
+            >
                                   {property.name}
-                                </Button>
+            </Button>
                               ))
                             )}
                           </div>
                         </DialogContent>
                       </Dialog>
-                    </div>
+          </div>
                   )
                 })()}
               </>
             )}
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
       )}
 
       <Card className={`vibrant-card ${cardVariants[(colorSeed + 3) % cardVariants.length]}`}>
@@ -877,15 +891,20 @@ export function UserDetail() {
             <CardDescription>Manage access for this user</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={selectAllPermissions}>
+            <Button type="button" variant="outline" size="sm" onClick={selectAllPermissions} disabled={isSelf}>
               Select all
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={clearAllPermissions}>
+            <Button type="button" variant="outline" size="sm" onClick={clearAllPermissions} disabled={isSelf}>
               Clear all
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isSelf && (
+            <div className="text-sm text-muted-foreground">
+              You cannot edit your own permissions.
+            </div>
+          )}
           <div className="space-y-4">
             {permissionCategories.map((category) => {
               const categoryPermissionIds = category.permissions.map((permission) => permission.id)
@@ -899,6 +918,7 @@ export function UserDetail() {
                       <Checkbox
                         checked={categoryChecked}
                         onCheckedChange={() => toggleCategory(category.id)}
+                        disabled={isSelf}
                       />
                       <Label className="text-sm font-medium">{category.name}</Label>
                     </div>
@@ -917,6 +937,7 @@ export function UserDetail() {
                           <Checkbox
                             checked={selectedPermissions.includes(permission.id)}
                             onCheckedChange={() => togglePermission(permission.id)}
+                            disabled={isSelf}
                           />
                           <Label className="text-sm">{permission.name}</Label>
                         </div>
@@ -931,7 +952,7 @@ export function UserDetail() {
             <Button
               variant="outline"
               onClick={() => updatePermissionsMutation.mutate()}
-              disabled={updatePermissionsMutation.isPending}
+              disabled={updatePermissionsMutation.isPending || isSelf}
             >
               <Shield className="h-4 w-4 mr-2" />
               Save Permissions

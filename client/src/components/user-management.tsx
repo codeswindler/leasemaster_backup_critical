@@ -683,7 +683,6 @@ export function UserManagement() {
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="landlord">Landlord</SelectItem>
                         <SelectItem value="Manager">Manager</SelectItem>
                         <SelectItem value="Accountant">Accountant</SelectItem>
                         <SelectItem value="Support">Support</SelectItem>
@@ -899,7 +898,6 @@ export function UserManagement() {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="landlord">Landlord</SelectItem>
                           <SelectItem value="Manager">Manager</SelectItem>
                           <SelectItem value="Accountant">Accountant</SelectItem>
                           <SelectItem value="Support">Support</SelectItem>
