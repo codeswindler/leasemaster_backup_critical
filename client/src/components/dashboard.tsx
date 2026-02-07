@@ -774,6 +774,25 @@ export function Dashboard() {
 
   const financialMetrics = calculateFinancialMetrics()
 
+  const formatActivityUser = (activity: any) => {
+    return (
+      activity.user_name ||
+      activity.userName ||
+      activity.username ||
+      (activity.user_id_int ? `User #${activity.user_id_int}` : null) ||
+      (activity.user_id ? `User #${activity.user_id}` : null) ||
+      "System"
+    )
+  }
+
+  const formatActivityTime = (activity: any) => {
+    const value = activity.created_at || activity.createdAt
+    if (!value) return "—"
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return "—"
+    return parsed.toLocaleString()
+  }
+
   const recentActivity = filteredActivityLogs
     .slice(0, 6)
     .map((activity: any) => ({
@@ -781,9 +800,9 @@ export function Dashboard() {
       type: activity.type || "system",
       message: activity.action,
       amount: activity.amount ? `KSh ${parseFloat(activity.amount || 0).toLocaleString()}` : null,
-      time: activity.created_at ? new Date(activity.created_at).toLocaleString() : "—",
+      time: formatActivityTime(activity),
       status: activity.status || "success",
-      user: activity.user_name || "System"
+      user: formatActivityUser(activity)
     }))
 
   const hasOverdue = Array.isArray(overdueInvoices) && overdueInvoices.length > 0
