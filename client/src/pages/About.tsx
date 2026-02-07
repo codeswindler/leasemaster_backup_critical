@@ -306,23 +306,25 @@ export function About() {
               
               <div className={`space-y-6 text-lg leading-relaxed ${getTextContrastClass()}`}>
                 <p>
-                  <strong className="text-primary">LeaseMaster</strong> - Africa's Most Trusted Property Management System
-                </p>
-                
-                <p>
-                  LeaseMaster is a comprehensive property management platform designed specifically for the African market. 
-                  We provide property owners, managers, and tenants with powerful tools to streamline operations, 
-                  improve communication, and ensure efficient rent collection and management.
-                </p>
-                
-                <p>
-                  Our platform integrates seamlessly with local payment systems, offers multilingual support, 
-                  and is built to handle the unique challenges of property management across different African regions.
+                  <strong className="text-primary">LeaseMaster – Your Confidence in Property Management</strong>
                 </p>
 
                 <p>
-                  We also power an Agent Partner Program—giving trusted agents the ability to onboard landlords as clients,
-                  set up portfolios, and manage properties on their behalf from a single LeaseMaster workspace.
+                  LeaseMaster is the modern property management platform built for landlords, managers, and agents who
+                  demand control, clarity, and effortless oversight. Our tools streamline daily operations, enhance
+                  communication, and automate rent collection—all from one intuitive command center.
+                </p>
+
+                <p>
+                  Designed for real-world adaptability, the platform integrates seamlessly with local payment systems,
+                  offers multilingual support, and is tailored to meet the unique demands of property management in any
+                  market.
+                </p>
+
+                <p>
+                  Through our exclusive Agent Partner Program, property professionals can confidently expand their
+                  portfolios, manage multiple clients with ease, and deliver exceptional service—all from a single,
+                  powerful LeaseMaster workspace.
                 </p>
               </div>
             </CardContent>
