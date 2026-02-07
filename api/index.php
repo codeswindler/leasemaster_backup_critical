@@ -2238,7 +2238,7 @@ try {
                     'to' => $to,
                     'limit' => $limit
                 ];
-                $payments = $storage->getIncomingPaymentsByScope($filters);
+                $payments = $storage->getIncomingMpesaByScope($filters);
             } elseif (isLandlordRole($userRole)) {
                 $filters = [
                     'landlordId' => $user['id'] ?? null,
@@ -2247,10 +2247,10 @@ try {
                     'to' => $to,
                     'limit' => $limit
                 ];
-                $payments = $storage->getIncomingPaymentsByScope($filters);
+                $payments = $storage->getIncomingMpesaByScope($filters);
             } else {
                 $propertyIds = $storage->getUserPropertyIds($user['id']);
-                $payments = $storage->getIncomingPaymentsByPropertyIds($propertyIds, [
+                $payments = $storage->getIncomingMpesaByPropertyIds($propertyIds, [
                     'from' => $from,
                     'to' => $to,
                     'limit' => $limit

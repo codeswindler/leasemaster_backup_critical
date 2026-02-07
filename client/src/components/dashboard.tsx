@@ -1254,7 +1254,25 @@ export function Dashboard() {
                 <span className="ml-2">Loading incoming payments...</span>
               </div>
             ) : Array.isArray(incomingPayments) && incomingPayments.length > 0 ? (
-              incomingPayments.slice(0, 5).map((payment: any, index: number) => (
+              incomingPayments.slice(0, 5).map((payment: any, index: number) => {
+                const reference =
+                  payment.mpesa_receipt ||
+                  payment.mpesaReceipt ||
+                  payment.reference ||
+                  payment.account_number ||
+                  "Incoming payment"
+                const rawDate =
+                  payment.transaction_date ||
+                  payment.transactionDate ||
+                  payment.created_at ||
+                  payment.createdAt
+                const parsedDate = rawDate ? new Date(rawDate) : null
+                const dateLabel =
+                  parsedDate && !Number.isNaN(parsedDate.getTime())
+                    ? parsedDate.toLocaleString()
+                    : rawDate || "—"
+                const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
+                return (
                 <motion.div
                   key={payment.id}
                   initial={{ opacity: 0, x: 20 }}
@@ -1264,11 +1282,10 @@ export function Dashboard() {
                 >
                   <div>
                     <p className="font-medium">
-                      {payment.reference || payment.account_number || "Incoming payment"}
+                      {reference}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {payment.payment_method || "Integrated"} •{" "}
-                      {payment.created_at ? new Date(payment.created_at).toLocaleString() : "—"}
+                      {methodLabel} • {dateLabel}
                     </p>
                   </div>
                   <div className="text-right">
@@ -1280,7 +1297,7 @@ export function Dashboard() {
                     </Badge>
                   </div>
                 </motion.div>
-              ))
+              )})
             ) : (
               <p className="text-center text-muted-foreground py-4">No incoming payments</p>
             )}

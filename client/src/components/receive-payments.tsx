@@ -644,32 +644,46 @@ export function ReceivePayments() {
               </div>
             ) : (
               <div className="space-y-2">
-                {incomingPayments.slice(0, 6).map((payment: any) => (
-                  <div
-                    key={payment.id}
-                    className="flex items-center justify-between rounded-lg border bg-white/60 px-3 py-2 text-sm"
-                  >
-                    <div className="space-y-1">
-                      <div className="font-medium">
-                        {payment.reference || payment.account_number || "Incoming payment"}
+                {incomingPayments.slice(0, 6).map((payment: any) => {
+                  const reference =
+                    payment.mpesa_receipt ||
+                    payment.mpesaReceipt ||
+                    payment.reference ||
+                    payment.account_number ||
+                    "Incoming payment"
+                  const rawDate =
+                    payment.transaction_date ||
+                    payment.transactionDate ||
+                    payment.created_at ||
+                    payment.createdAt
+                  const parsedDate = rawDate ? new Date(rawDate) : null
+                  const dateLabel =
+                    parsedDate && !Number.isNaN(parsedDate.getTime())
+                      ? parsedDate.toLocaleString()
+                      : rawDate || "—"
+                  const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
+                  return (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between rounded-lg border bg-white/60 px-3 py-2 text-sm"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-medium">{reference}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {methodLabel} • {dateLabel}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {payment.payment_method || payment.paymentMethod || "Integrated"} •{" "}
-                        {payment.created_at
-                          ? new Date(payment.created_at).toLocaleString()
-                          : "—"}
+                      <div className="text-right">
+                        <div className="font-mono font-semibold">
+                          KSh {Number(payment.amount || 0).toLocaleString()}
+                        </div>
+                        <Badge variant="secondary" className="mt-1">
+                          {payment.status || payment.allocation_status || "received"}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-mono font-semibold">
-                        KSh {Number(payment.amount || 0).toLocaleString()}
-                      </div>
-                      <Badge variant="secondary" className="mt-1">
-                        {payment.status || payment.allocation_status || "received"}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>
