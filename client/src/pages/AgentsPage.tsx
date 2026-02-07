@@ -108,6 +108,8 @@ export function AgentsPage() {
     },
   });
 
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value));
+
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["/api/users", "agents"],
     queryFn: async () => {
@@ -117,6 +119,45 @@ export function AgentsPage() {
     staleTime: 0,
     refetchOnMount: true,
   });
+
+  const { data: landlordsForCount = [] } = useQuery({
+    queryKey: ["/api/landlords", "agents-summary"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/landlords");
+      return await response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: propertiesForCount = [] } = useQuery({
+    queryKey: ["/api/properties", "agents-summary"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/properties");
+      return await response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const propertyCountsByAgent = useMemo(() => {
+    const landlordToAgent = new Map<string, string>();
+    (Array.isArray(landlordsForCount) ? landlordsForCount : []).forEach((landlord: any) => {
+      const landlordId = normalizeId(landlord.id);
+      const agentId = normalizeId(landlord.admin_id ?? landlord.adminId);
+      if (landlordId && agentId) {
+        landlordToAgent.set(landlordId, agentId);
+      }
+    });
+
+    const counts = new Map<string, number>();
+    (Array.isArray(propertiesForCount) ? propertiesForCount : []).forEach((property: any) => {
+      const landlordId = normalizeId(property.landlord_id ?? property.landlordId);
+      if (!landlordId) return;
+      const agentId = landlordToAgent.get(landlordId);
+      if (!agentId) return;
+      counts.set(agentId, (counts.get(agentId) || 0) + 1);
+    });
+    return counts;
+  }, [landlordsForCount, propertiesForCount]);
 
   const filteredAgents = useMemo(() => {
     if (!Array.isArray(agents)) return [];
@@ -443,6 +484,8 @@ export function AgentsPage() {
                   String(agent.id ?? agent.username ?? "agent"),
                   sessionPaletteSeed
                 );
+                const propertyLimit = agent.property_limit ?? agent.propertyLimit ?? null;
+                const propertyCount = propertyCountsByAgent.get(String(agent.id)) || 0;
 
                 return (
                   <Card
@@ -478,6 +521,14 @@ export function AgentsPage() {
                         <div className="flex items-center gap-2">
                           <Phone className="h-4 w-4 text-muted-foreground" />
                           <span>{agent.phone || "N/A"}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>Properties</span>
+                          <span className="font-medium text-foreground">
+                            {propertyLimit !== null && propertyLimit !== undefined && propertyLimit !== ""
+                              ? `${propertyCount} / ${propertyLimit}`
+                              : `${propertyCount}`}
+                          </span>
                         </div>
                       </div>
 
