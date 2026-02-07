@@ -522,7 +522,7 @@ export function Invoices() {
     const isOverdue =
       !!dueDateValue &&
       !Number.isNaN(dueDateValue.getTime()) &&
-      dueDateValue.getTime() < new Date().setHours(0, 0, 0, 0) &&
+      dueDateValue.getTime() < Date.now() &&
       balance > 0
 
     return {
