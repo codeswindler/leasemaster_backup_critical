@@ -2897,24 +2897,72 @@ class Storage {
         $action = $data['action'] ?? 'Activity';
         $type = $data['type'] ?? 'system';
         try {
-        $stmt = $this->pdo->prepare("
-            INSERT INTO activity_logs (id, action, details, type, status, user_id, property_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
-        $stmt->execute([
-            $id,
-                $action,
-            $data['details'] ?? null,
-                $type,
-            $data['status'] ?? 'success',
-            $data['userId'] ?? null,
-            $data['propertyId'] ?? null
-        ]);
-        return $id;
+            $columns = ['id'];
+            $values = [$id];
+            if ($this->columnExists('activity_logs', 'action')) {
+                $columns[] = 'action';
+                $values[] = $action;
+            } elseif ($this->columnExists('activity_logs', 'action_type')) {
+                $columns[] = 'action_type';
+                $values[] = $action;
+            }
+            if ($this->columnExists('activity_logs', 'details')) {
+                $columns[] = 'details';
+                $values[] = $data['details'] ?? null;
+            }
+            if ($this->columnExists('activity_logs', 'type')) {
+                $columns[] = 'type';
+                $values[] = $type;
+            }
+            if ($this->columnExists('activity_logs', 'status')) {
+                $columns[] = 'status';
+                $values[] = $data['status'] ?? 'success';
+            }
+            if ($this->columnExists('activity_logs', 'user_id')) {
+                $columns[] = 'user_id';
+                $values[] = $data['userId'] ?? null;
+            }
+            if ($this->columnExists('activity_logs', 'property_id')) {
+                $columns[] = 'property_id';
+                $values[] = $data['propertyId'] ?? null;
+            }
+            $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+            $stmt = $this->pdo->prepare("INSERT INTO activity_logs (" . implode(', ', $columns) . ") VALUES ({$placeholders})");
+            $stmt->execute($values);
+            return $id;
         } catch (Exception $e) {
             error_log("Activity log insert failed: " . $e->getMessage());
             return null;
         }
+    }
+
+    // ========== INVOICE NOTES ==========
+    public function getInvoiceNotesByInvoice($invoiceId) {
+        if (!$this->tableExists('invoice_notes')) {
+            return [];
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT n.*, u.username, u.full_name
+            FROM invoice_notes n
+            LEFT JOIN users u ON n.created_by = u.id
+            WHERE n.invoice_id = ?
+            ORDER BY n.created_at DESC
+        ");
+        $stmt->execute([$invoiceId]);
+        return $stmt->fetchAll();
+    }
+
+    public function createInvoiceNote($invoiceId, $note, $userId = null) {
+        if (!$this->tableExists('invoice_notes')) {
+            throw new Exception("invoice_notes table not found");
+        }
+        $id = $this->generateUUID();
+        $stmt = $this->pdo->prepare("
+            INSERT INTO invoice_notes (id, invoice_id, note, created_by)
+            VALUES (?, ?, ?, ?)
+        ");
+        $stmt->execute([$id, $invoiceId, $note, $userId]);
+        return $this->getInvoiceNotesByInvoice($invoiceId);
     }
 
     public function getActivityLogs($filters = []) {
@@ -3712,7 +3760,8 @@ class Storage {
 
     public function saveInvoiceSettings($propertyId, $landlordId, $data) {
         return $this->upsertSettings('invoice_settings', $propertyId, $landlordId, $data, [
-            'company_name', 'company_phone', 'company_email', 'company_address', 'payment_options', 'logo_url', 'enabled'
+            'company_name', 'company_phone', 'company_email', 'company_address', 'payment_options', 'logo_url', 'enabled',
+            'timezone_offset'
         ]);
     }
 

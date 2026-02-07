@@ -178,6 +178,14 @@ const parseSchedule = (value?: string | null) => {
   }
 }
 
+const timezoneOffsets = [
+  "UTC-12:00", "UTC-11:00", "UTC-10:00", "UTC-09:00", "UTC-08:00", "UTC-07:00",
+  "UTC-06:00", "UTC-05:00", "UTC-04:00", "UTC-03:00", "UTC-02:00", "UTC-01:00",
+  "UTC+00:00", "UTC+01:00", "UTC+02:00", "UTC+03:00", "UTC+04:00", "UTC+05:00",
+  "UTC+05:30", "UTC+06:00", "UTC+07:00", "UTC+08:00", "UTC+09:00", "UTC+09:30",
+  "UTC+10:00", "UTC+11:00", "UTC+12:00", "UTC+13:00", "UTC+14:00"
+]
+
 export function Settings() {
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
@@ -273,7 +281,8 @@ export function Settings() {
     company_email: "",
     company_address: "",
     payment_options: "",
-    logo_url: ""
+    logo_url: "",
+    timezone_offset: "UTC+00:00"
   })
 
   const [alertRules, setAlertRules] = useState<AlertRule[]>(defaultAlertRules)
@@ -336,7 +345,8 @@ export function Settings() {
         company_email: invoiceData.company_email ?? "",
         company_address: invoiceData.company_address ?? "",
         payment_options: invoiceData.payment_options ?? "",
-        logo_url: invoiceData.logo_url ?? ""
+        logo_url: invoiceData.logo_url ?? "",
+        timezone_offset: invoiceData.timezone_offset ?? "UTC+00:00"
       })
     }
   }, [invoiceData])
@@ -893,6 +903,29 @@ export function Settings() {
                 <div>
                   <Label>Company Address</Label>
                   <Input value={invoiceSettings.company_address} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_address: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Account Timezone</Label>
+                  <Select
+                    value={invoiceSettings.timezone_offset}
+                    onValueChange={(value) => setInvoiceSettings(prev => ({ ...prev, timezone_offset: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select timezone offset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timezoneOffsets.map((offset) => (
+                        <SelectItem key={offset} value={offset}>
+                          {offset}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used to determine overdue invoices by local account time.
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">

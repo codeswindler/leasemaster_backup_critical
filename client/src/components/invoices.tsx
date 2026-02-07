@@ -74,6 +74,17 @@ const invoicesListVariants = [
   "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
 ]
 
+const parseUtcOffsetToMinutes = (offset?: string) => {
+  if (!offset) return 0
+  const match = offset.match(/^UTC([+-])(\d{2}):(\d{2})$/)
+  if (!match) return 0
+  const sign = match[1] === "-" ? -1 : 1
+  const hours = Number(match[2])
+  const minutes = Number(match[3])
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0
+  return sign * (hours * 60 + minutes)
+}
+
 export function Invoices() {
   const invoicesListSeed = useRef(Math.floor(Math.random() * invoicesListVariants.length))
   const [searchTerm, setSearchTerm] = useState("")
@@ -87,6 +98,9 @@ export function Invoices() {
   const [penaltyPromptOpen, setPenaltyPromptOpen] = useState(false)
   const [penaltyInvoiceIds, setPenaltyInvoiceIds] = useState<string[]>([])
   const [isApplyingPenalty, setIsApplyingPenalty] = useState(false)
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false)
+  const [noteInvoice, setNoteInvoice] = useState<any>(null)
+  const [noteText, setNoteText] = useState("")
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -276,6 +290,49 @@ export function Invoices() {
       const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
+    },
+  })
+  const timezoneOffset = invoiceSettingsQuery.data?.timezone_offset || "UTC+00:00"
+  const timezoneOffsetMinutes = parseUtcOffsetToMinutes(timezoneOffset)
+  const nowInAccountMs = Date.now() + timezoneOffsetMinutes * 60 * 1000
+
+  const invoiceNotesQuery = useQuery({
+    queryKey: ['/api/invoices', noteInvoice?.id, 'notes'],
+    queryFn: async () => {
+      if (!noteInvoice?.id) return []
+      const response = await apiRequest("GET", `/api/invoices/${noteInvoice.id}?action=notes`)
+      return await response.json()
+    },
+    enabled: noteDialogOpen && !!noteInvoice?.id,
+  })
+
+  const addInvoiceNoteMutation = useMutation({
+    mutationFn: async () => {
+      if (!noteInvoice?.id) {
+        throw new Error("Select an invoice first.")
+      }
+      if (!noteText.trim()) {
+        throw new Error("Note cannot be empty.")
+      }
+      const response = await apiRequest("POST", `/api/invoices/${noteInvoice.id}?action=notes`, {
+        note: noteText.trim(),
+      })
+      return await response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/invoices', noteInvoice?.id, 'notes'] })
+      setNoteText("")
+      toast({
+        title: "Note Saved",
+        description: "Invoice note saved successfully.",
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Note Failed",
+        description: error?.message || "Unable to save note.",
+        variant: "destructive",
+      })
     },
   })
 
@@ -518,11 +575,16 @@ export function Invoices() {
       : paidAmount > 0
         ? "partially_paid"
         : "pending"
-    const dueDateValue = invoice.dueDate ? new Date(invoice.dueDate) : null
+    const dueParts = String(invoice.dueDate || "").split("-")
+    const dueYear = Number(dueParts[0])
+    const dueMonth = Number(dueParts[1])
+    const dueDay = Number(dueParts[2])
+    const dueEndLocalMs = Number.isFinite(dueYear) && Number.isFinite(dueMonth) && Number.isFinite(dueDay)
+      ? Date.UTC(dueYear, dueMonth - 1, dueDay, 23, 59, 59) + timezoneOffsetMinutes * 60 * 1000
+      : null
     const isOverdue =
-      !!dueDateValue &&
-      !Number.isNaN(dueDateValue.getTime()) &&
-      dueDateValue.getTime() < Date.now() &&
+      !!dueEndLocalMs &&
+      dueEndLocalMs < nowInAccountMs &&
       balance > 0
 
     return {
@@ -1054,6 +1116,68 @@ export function Invoices() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={noteDialogOpen}
+        onOpenChange={(open) => {
+          setNoteDialogOpen(open)
+          if (!open) {
+            setNoteInvoice(null)
+            setNoteText("")
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Invoice Notes</DialogTitle>
+            <DialogDescription>
+              {noteInvoice?.invoiceNumber || noteInvoice?.id || "Selected invoice"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="max-h-48 overflow-auto rounded-md border p-3 text-sm">
+              {invoiceNotesQuery.isLoading && <div>Loading notes...</div>}
+              {!invoiceNotesQuery.isLoading && Array.isArray(invoiceNotesQuery.data) && invoiceNotesQuery.data.length === 0 && (
+                <div className="text-muted-foreground">No notes yet.</div>
+              )}
+              {!invoiceNotesQuery.isLoading && Array.isArray(invoiceNotesQuery.data) && invoiceNotesQuery.data.length > 0 && (
+                <div className="space-y-2">
+                  {invoiceNotesQuery.data.map((note: any) => (
+                    <div key={note.id} className="rounded-md border p-2">
+                      <div className="text-xs text-muted-foreground">
+                        {note.full_name || note.username || "User"} •{" "}
+                        {note.created_at ? new Date(note.created_at).toLocaleString() : "—"}
+                      </div>
+                      <div className="mt-1">{note.note}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="invoice-note">Add note</Label>
+              <Textarea
+                id="invoice-note"
+                rows={3}
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add a note for this invoice..."
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
+                Close
+              </Button>
+              <Button
+                onClick={() => addInvoiceNoteMutation.mutate()}
+                disabled={addInvoiceNoteMutation.isPending}
+              >
+                {addInvoiceNoteMutation.isPending ? "Saving..." : "Save Note"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold" data-testid="invoices-title">Invoices</h1>
@@ -1213,8 +1337,10 @@ export function Invoices() {
                   <TableCell>{invoice.unit}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{invoice.property}</TableCell>
                   <TableCell className="font-mono">KSh {invoice.amount.toLocaleString()}</TableCell>
-                  <TableCell className="font-mono">KSh {invoice.balance.toLocaleString()}</TableCell>
-                  <TableCell>
+                  <TableCell className={`font-mono ${invoice.isOverdue ? "text-red-600" : ""}`}>
+                    KSh {invoice.balance.toLocaleString()}
+                  </TableCell>
+                  <TableCell className={invoice.isOverdue ? "text-red-600" : ""}>
                     {invoice.dueDate && !Number.isNaN(new Date(invoice.dueDate).getTime())
                       ? new Date(invoice.dueDate).toLocaleDateString()
                       : "—"}
@@ -1268,7 +1394,19 @@ export function Invoices() {
                       </Button>
                     </div>
                   </TableCell>
-                  <TableCell>{getWorkflowBadge(invoice.workflowStatus)}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setNoteInvoice(invoice)
+                        setNoteDialogOpen(true)
+                      }}
+                      data-testid={`button-note-${invoice.id}`}
+                    >
+                      Notes
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

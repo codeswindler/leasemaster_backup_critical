@@ -1900,6 +1900,8 @@ try {
         if ($method === 'GET' && $id) {
             if ($action === 'items') {
                 sendJson($storage->getInvoiceItemsByInvoice($id));
+            } elseif ($action === 'notes') {
+                sendJson($storage->getInvoiceNotesByInvoice($id));
             } else {
                 $invoice = $storage->getInvoice($id);
                 sendJson($invoice ?: ['error' => 'Invoice not found'], $invoice ? 200 : 404);
@@ -1919,6 +1921,24 @@ try {
                     'userId' => $_SESSION['userId'] ?? null
                 ]);
                 sendJson(['message' => "Generated " . count($invoices) . " invoices for $month/$year", 'invoices' => $invoices]);
+            } elseif ($action === 'notes' && $id) {
+                try {
+                    $note = trim((string) ($body['note'] ?? ''));
+                    if ($note === '') {
+                        sendJson(['error' => 'Note is required'], 400);
+                    }
+                    $notes = $storage->createInvoiceNote($id, $note, $_SESSION['userId'] ?? null);
+                    $storage->logActivity([
+                        'action' => 'Invoice Note Added',
+                        'details' => "Note added to invoice {$id}",
+                        'type' => 'invoice',
+                        'status' => 'success',
+                        'userId' => $_SESSION['userId'] ?? null
+                    ]);
+                    sendJson($notes, 201);
+                } catch (Exception $e) {
+                    sendJson(['error' => $e->getMessage()], 400);
+                }
             } else {
                 $invoice = $storage->createInvoice($body);
                 $propertyId = getPropertyIdByLease($storage, $body['leaseId'] ?? null);
