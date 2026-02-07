@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import { 
@@ -45,6 +45,9 @@ export function Dashboard() {
   const [isConnected, setIsConnected] = useState(false)
   const [timeframe, setTimeframe] = useState("monthly")
   const mpesaPalette = getPaletteByName("emerald")
+  const activityPaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const activityPalette = getPaletteByIndex(activityPaletteSeed.current)
+  const overduePalette = getPaletteByName("rose")
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -915,7 +918,9 @@ export function Dashboard() {
         className="grid grid-cols-1 gap-6"
       >
         {/* Operational Log */}
-        <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
+        <Card
+          className={`hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${activityPalette.border} ${activityPalette.card} backdrop-blur-sm`}
+        >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -987,7 +992,9 @@ export function Dashboard() {
         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
       >
         {/* Tenant Satisfaction Analytics */}
-        <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
+        <Card
+          className={`hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${overduePalette.border} ${overduePalette.card} backdrop-blur-sm`}
+        >
         <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-rose-500" />
@@ -1236,7 +1243,7 @@ export function Dashboard() {
                 <span className="ml-2">Loading overdue invoices...</span>
               </div>
             ) : (overdueInvoices && Array.isArray(overdueInvoices) && overdueInvoices.length > 0) ? (
-              overdueInvoices.slice(0, 3).map((invoice: any, index: number) => (
+              overdueInvoices.slice(0, 5).map((invoice: any, index: number) => (
                 <motion.div
                   key={invoice.id}
                   initial={{ opacity: 0, x: 20 }}

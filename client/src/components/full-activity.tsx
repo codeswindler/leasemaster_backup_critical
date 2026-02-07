@@ -50,8 +50,15 @@ export function FullActivity() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [filterUser, setFilterUser] = useState("all")
-  const [startDate, setStartDate] = useState("2024-12-01")
-  const [endDate, setEndDate] = useState("2024-12-31")
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date()
+    const start = new Date(today)
+    start.setDate(start.getDate() - 30)
+    return start.toISOString().split("T")[0]
+  })
+  const [endDate, setEndDate] = useState(() => {
+    return new Date().toISOString().split("T")[0]
+  })
 
   const { data: activities = [], isLoading } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activity-logs', searchTerm, filterType, selectedPropertyId, startDate, endDate],
