@@ -52,6 +52,8 @@ const AgentLogin = lazy(() => import("@/pages/AgentLogin").then(m => ({ default:
 const ClientLogin = lazy(() => import("@/pages/ClientLogin").then(m => ({ default: m.ClientLogin })));
 const TenantLogin = lazy(() => import("@/pages/TenantLogin").then(m => ({ default: m.TenantLogin })));
 const AgentReset = lazy(() => import("@/pages/AgentReset").then(m => ({ default: m.AgentReset })));
+const ClientReset = lazy(() => import("@/pages/ClientReset").then(m => ({ default: m.ClientReset })));
+const TenantReset = lazy(() => import("@/pages/TenantReset").then(m => ({ default: m.TenantReset })));
 const AdminPortal = lazy(() => import("@/pages/AdminPortal").then(m => ({ default: m.AdminPortal })));
 const ClientPortal = lazy(() => import("@/pages/ClientPortal").then(m => ({ default: m.ClientPortal })));
 const ClientsPage = lazy(() => import("@/pages/ClientsPage").then(m => ({ default: m.ClientsPage })));
@@ -142,6 +144,8 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         <Route path="/portal/login" component={ClientLogin} />
         <Route path="/tenant/login" component={TenantLogin} />
         <Route path="/agent/reset" component={AgentReset} />
+        <Route path="/portal/reset" component={ClientReset} />
+        <Route path="/tenant/reset" component={TenantReset} />
         <Route path="/login">
           {() => {
             const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
