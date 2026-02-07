@@ -319,6 +319,11 @@ export function About() {
                   Our platform integrates seamlessly with local payment systems, offers multilingual support, 
                   and is built to handle the unique challenges of property management across different African regions.
                 </p>
+
+                <p>
+                  We also power an Agent Partner Program—giving trusted agents the ability to onboard landlords as clients,
+                  set up portfolios, and manage properties on their behalf from a single LeaseMaster workspace.
+                </p>
               </div>
             </CardContent>
           </Card>

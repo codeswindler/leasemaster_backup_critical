@@ -131,6 +131,62 @@ export function Landing() {
     return () => clearInterval(interval);
   }, [highlights.length]);
 
+  const heroMessages = [
+    {
+      titleLine1: "Manage Your Properties",
+      titleLine2: "Like a Pro",
+      pitch:
+        "Comprehensive rent management system with automated invoicing, payment tracking, and tenant communication all in one place.",
+    },
+    {
+      titleLine1: "Become An Agent",
+      titleLine2: "with Us",
+      pitch:
+        "Onboard landlords as clients, manage their portfolios, and run property operations end-to-end from one LeaseMaster dashboard.",
+    },
+  ];
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [typedTitleLine1, setTypedTitleLine1] = useState(heroMessages[0].titleLine1);
+  const [typedTitleLine2, setTypedTitleLine2] = useState(heroMessages[0].titleLine2);
+  const [typedPitch, setTypedPitch] = useState(heroMessages[0].pitch);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % heroMessages.length);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [heroMessages.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const { titleLine1, titleLine2, pitch } = heroMessages[heroIndex];
+
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const typeText = async (text: string, setter: (value: string) => void, delay = 28) => {
+      for (let i = 1; i <= text.length; i += 1) {
+        if (cancelled) return;
+        setter(text.slice(0, i));
+        await sleep(delay);
+      }
+    };
+
+    const run = async () => {
+      setTypedTitleLine1("");
+      setTypedTitleLine2("");
+      setTypedPitch("");
+      await typeText(titleLine1, setTypedTitleLine1);
+      await sleep(140);
+      await typeText(titleLine2, setTypedTitleLine2);
+      await sleep(220);
+      await typeText(pitch, setTypedPitch, 12);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [heroIndex]);
+
   useEffect(() => {
     let cancelled = false;
     const words = ["Your", "No. 1", "Trusted", "Solution"];
@@ -754,14 +810,15 @@ export function Landing() {
             </motion.div>
             
             <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
-              Manage Your Properties
+              {typedTitleLine1 || "\u00A0"}
               <br />
-              <span className="text-blue-500 dark:text-blue-300">Like a Pro</span>
+              <span className="inline-flex items-center justify-center px-4 py-1 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 min-h-[1.3em]">
+                {typedTitleLine2 || "\u00A0"}
+              </span>
             </h1>
             
             <p className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}>
-              Comprehensive rent management system with automated invoicing, 
-              payment tracking, and tenant communication all in one place.
+              {typedPitch || "\u00A0"}
             </p>
 
             <motion.div
@@ -818,6 +875,45 @@ export function Landing() {
           <p className={`text-xl ${getTextContrastClass()}`}>
             Powerful features to streamline your property management
           </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="max-w-5xl mx-auto mb-10"
+        >
+          <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <CardContent className="p-8">
+              <div className="grid md:grid-cols-[1.1fr_0.9fr] gap-6 items-center">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-4">
+                    Agent Partner Program
+                  </div>
+                  <h3 className={`text-3xl md:text-4xl font-bold mb-3 ${getTextContrastClass()}`}>
+                    Become An Agent with Us
+                  </h3>
+                  <p className={`text-lg ${getTextContrastClass()}`}>
+                    Agents can onboard landlords as clients, create their portfolios, and manage properties
+                    end-to-end while LeaseMaster handles billing, payments, and tenant communication.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    "Register landlords as clients and structure their portfolios",
+                    "Oversee invoices, collections, and automated reminders",
+                    "Deliver real-time reporting across every property you manage",
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3">
+                      <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                      <span className={`text-base ${getTextContrastClass()}`}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
