@@ -231,9 +231,38 @@ export function WaterUnits() {
       unitId: lease.unitId ?? lease.unit_id,
       tenantId: lease.tenantId ?? lease.tenant_id,
       waterRatePerUnit: lease.waterRatePerUnit ?? lease.water_rate_per_unit,
+      startDate: lease.startDate ?? lease.start_date,
+      endDate: lease.endDate ?? lease.end_date,
       status: lease.status,
     }))
   }, [leases])
+
+  const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
+
+  const toStartOfDay = (dateValue: any) => {
+    if (!dateValue) return null
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return null
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }
+
+  const toEndOfDay = (dateValue: any) => {
+    if (!dateValue) return null
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return null
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+  }
+
+  const isLeaseActive = (lease: any) => {
+    const normalizedStatus = String(lease.status || "").toLowerCase()
+    const isTerminated = ["terminated", "cancelled", "canceled", "inactive"].includes(normalizedStatus)
+    if (isTerminated) return false
+    const startDate = toStartOfDay(lease.startDate)
+    const endDate = lease.endDate ? toEndOfDay(lease.endDate) : null
+    const now = new Date()
+    const inRange = !!startDate && startDate <= now && (!endDate || endDate >= now)
+    return normalizedStatus === "active" || inRange
+  }
 
   const normalizedTenants = useMemo(() => {
     return tenants.map((tenant: any) => ({
@@ -310,35 +339,44 @@ export function WaterUnits() {
   const activeLeasesByUnit = useMemo(() => {
     const map = new Map<string, any>()
     normalizedLeases
-      .filter((lease: any) => {
-        const normalizedStatus = (lease.status || "").toLowerCase()
-        return normalizedStatus === "" || normalizedStatus === "active"
-      })
+      .filter(isLeaseActive)
       .forEach((lease: any) => {
-        map.set(lease.unitId, lease)
+        const unitKey = normalizeId(lease.unitId)
+        if (unitKey) {
+          map.set(unitKey, lease)
+        }
       })
     return map
   }, [normalizedLeases])
 
   const getWaterRateForUnit = (unitId: string) => {
-    const unit = normalizedUnits.find((u: any) => u.id === unitId)
+    const unitKey = normalizeId(unitId)
+    const unit = normalizedUnits.find((u: any) => normalizeId(u.id) === unitKey)
     if (unit?.waterRateAmount) return parseFloat(unit.waterRateAmount)
-    const lease = activeLeasesByUnit.get(unitId)
+    const lease = unitKey ? activeLeasesByUnit.get(unitKey) : null
     return lease ? parseFloat(lease.waterRatePerUnit) : 15.50 // fallback to default
   }
 
   // Filter units by selected property (header filter) and active leases
-  const filteredUnits = (globalSelectedPropertyId && globalSelectedPropertyId !== "all")
-    ? normalizedUnits.filter((unit) => unit.propertyId === globalSelectedPropertyId && activeLeasesByUnit.has(unit.id))
-    : normalizedUnits.filter((unit) => activeLeasesByUnit.has(unit.id))
+  const normalizedSelectedPropertyId = normalizeId(globalSelectedPropertyId)
+  const filteredUnits = (normalizedSelectedPropertyId && normalizedSelectedPropertyId !== "all")
+    ? normalizedUnits.filter((unit) => {
+        const unitKey = normalizeId(unit.id)
+        if (!unitKey) return false
+        return normalizeId(unit.propertyId) === normalizedSelectedPropertyId && activeLeasesByUnit.has(unitKey)
+      })
+    : normalizedUnits.filter((unit) => {
+        const unitKey = normalizeId(unit.id)
+        return unitKey ? activeLeasesByUnit.has(unitKey) : false
+      })
 
   // Get unit IDs for the selected property filter
-  const filteredUnitIds = new Set(filteredUnits.map(unit => unit.id))
+  const filteredUnitIds = new Set(filteredUnits.map(unit => normalizeId(unit.id)).filter(Boolean))
 
   // Filter water readings to match the filtered units
   const filteredWaterReadings = waterReadings.filter((reading: any) => {
-    const unitId = reading.unitId ?? reading.unit_id
-    if (!filteredUnitIds.has(unitId)) return false
+    const unitId = normalizeId(reading.unitId ?? reading.unit_id)
+    if (!unitId || !filteredUnitIds.has(unitId)) return false
     if (!consumptionMonth) return true
     const readingDate = new Date(reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at)
     const monthKey = `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, "0")}`
@@ -429,7 +467,7 @@ export function WaterUnits() {
   })
 
   // Count unique units with readings this month
-  const unitsWithReadingsThisMonth = new Set(readingsThisMonth.map((reading: any) => reading.unitId ?? reading.unit_id)).size
+  const unitsWithReadingsThisMonth = new Set(readingsThisMonth.map((reading: any) => normalizeId(reading.unitId ?? reading.unit_id))).size
 
   const latestReadingsThisMonth = Array.from(latestReadingByUnit.values())
   const readingsSummary = {

@@ -41,6 +41,17 @@ import {
 } from "@/lib/color-rules"
 
 export function Dashboard() {
+  const parseUtcOffsetToMinutes = (offset?: string) => {
+    if (!offset) return 0
+    const match = offset.match(/^UTC([+-])(\d{2}):(\d{2})$/)
+    if (!match) return 0
+    const sign = match[1] === "-" ? -1 : 1
+    const hours = Number(match[2])
+    const minutes = Number(match[3])
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0
+    return sign * (hours * 60 + minutes)
+  }
+
   const [mpesaBalance, setMpesaBalance] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const [timeframe, setTimeframe] = useState("monthly")
@@ -120,18 +131,20 @@ export function Dashboard() {
     staleTime: 1 * 60 * 1000, // Payments are dynamic, cache for 1 minute
   })
 
-  const { data: allOverdueInvoices, isLoading: overdueLoading } = useQuery({
-    queryKey: ["/api/invoices", selectedPropertyId, selectedLandlordId, "overdue"],
+  const invoiceSettingsQuery = useQuery({
+    queryKey: ["/api/settings/invoice", selectedLandlordId, selectedPropertyId],
     queryFn: async () => {
-      const params = new URLSearchParams("overdue=true")
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const params = new URLSearchParams()
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
-      const url = `/api/invoices?${params}`
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
     },
-    staleTime: 1 * 60 * 1000, // Overdue invoices are dynamic
   })
+  const timezoneOffset = invoiceSettingsQuery.data?.timezone_offset || "UTC+00:00"
+  const timezoneOffsetMinutes = parseUtcOffsetToMinutes(timezoneOffset)
+  const nowInAccountMs = Date.now() + timezoneOffsetMinutes * 60 * 1000
 
   const { data: incomingPayments = [], isLoading: incomingLoading } = useQuery({
     queryKey: ["/api/incoming-payments", selectedPropertyId, selectedLandlordId],
@@ -152,7 +165,7 @@ export function Dashboard() {
   let recentPayments: any[] = []
   let overdueInvoices: any[] = []
 
-  const { data: allInvoices } = useQuery({
+  const { data: allInvoices, isLoading: invoicesLoading } = useQuery({
     queryKey: ["/api/invoices", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -165,7 +178,7 @@ export function Dashboard() {
     staleTime: 5 * 60 * 1000, // Full invoices list cached longer
   })
 
-  const { data: allPayments } = useQuery({
+  const { data: allPayments, isLoading: allPaymentsLoading } = useQuery({
     queryKey: ["/api/payments", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -306,21 +319,12 @@ export function Dashboard() {
         status: (invoice.status || "").toLowerCase(),
       }))
     : []
-  const allOverdueInvoicesData = Array.isArray(allOverdueInvoices)
-    ? allOverdueInvoices.map((invoice: any) => ({
-        ...invoice,
-        id: invoice.id,
-        leaseId: invoice.leaseId ?? invoice.lease_id,
-        amount: invoice.amount,
-        dueDate: invoice.dueDate ?? invoice.due_date,
-        status: (invoice.status || "").toLowerCase(),
-      }))
-    : []
   const allPaymentsData = Array.isArray(allPayments)
     ? allPayments.map((payment: any) => ({
         ...payment,
         id: payment.id,
         leaseId: payment.leaseId ?? payment.lease_id,
+        invoiceId: payment.invoiceId ?? payment.invoice_id,
         amount: payment.amount,
         paymentDate: payment.paymentDate ?? payment.payment_date,
       }))
@@ -412,12 +416,6 @@ export function Dashboard() {
       return unit && normalizeId(unit.propertyId) === normalizedPropertyId
     }).slice(0, 5)
     
-    overdueInvoices = allOverdueInvoicesData.filter((i: any) => {
-      const lease = leasesMap[normalizeId(i.leaseId) as string]
-      if (!lease) return false
-      const unit = unitsMap[normalizeId(lease.unitId) as string]
-      return unit && normalizeId(unit.propertyId) === normalizedPropertyId
-    }).slice(0, 5)
   } else if (selectedLandlordId && selectedLandlordId !== "all") {
     // If only landlord is selected (no property), filter by landlord's properties
     const propertyIds = propertiesAfterLandlordFilter.map((p: any) => normalizeId(p.id)).filter(Boolean)
@@ -448,11 +446,6 @@ export function Dashboard() {
       return !!lease
     }).slice(0, 5)
     
-    overdueInvoices = allOverdueInvoicesData.filter((i: any) => {
-      const lease = leasesMap[normalizeId(i.leaseId) as string]
-      return !!lease
-    }).slice(0, 5)
-    
     // Also filter other data by landlord
     filteredLeases = allLeasesData.filter((l: any) => {
       const unit = unitsMap[normalizeId(l.unitId) as string]
@@ -478,8 +471,33 @@ export function Dashboard() {
   } else {
     // Show all data
     recentPayments = Array.isArray(allRecentPayments) ? allRecentPayments.slice(0, 5) : []
-    overdueInvoices = allOverdueInvoicesData.slice(0, 5)
   }
+
+  const paymentsByInvoice = filteredPayments.reduce((acc: Record<string, number>, payment: any) => {
+    const invoiceId = normalizeId(payment.invoiceId)
+    if (!invoiceId) return acc
+    acc[invoiceId] = (acc[invoiceId] || 0) + parseFloat(payment.amount || 0)
+    return acc
+  }, {})
+
+  const getDueEndLocalMs = (dueDateValue: any) => {
+    const dueParts = String(dueDateValue || "").split("-")
+    const dueYear = Number(dueParts[0])
+    const dueMonth = Number(dueParts[1])
+    const dueDay = Number(dueParts[2])
+    if (!Number.isFinite(dueYear) || !Number.isFinite(dueMonth) || !Number.isFinite(dueDay)) {
+      return null
+    }
+    return Date.UTC(dueYear, dueMonth - 1, dueDay, 23, 59, 59) + timezoneOffsetMinutes * 60 * 1000
+  }
+
+  overdueInvoices = filteredInvoices.filter((invoice: any) => {
+    const amount = parseFloat(invoice.amount || 0)
+    const paidAmount = paymentsByInvoice[normalizeId(invoice.id) as string] || 0
+    const balance = Math.max(0, amount - paidAmount)
+    const dueEndLocalMs = getDueEndLocalMs(invoice.dueDate)
+    return !!dueEndLocalMs && dueEndLocalMs < nowInAccountMs && balance > 0
+  })
 
   const filteredActivityLogs = (() => {
     if (selectedPropertyId && selectedPropertyId !== "all") {
@@ -826,6 +844,7 @@ export function Dashboard() {
   }).length
 
   // Loading and error states
+  const overdueLoading = invoicesLoading || allPaymentsLoading
   const isLoading = statsLoading || propertiesLoading || paymentsLoading || overdueLoading
   const showEmptyState = !isLoading && (!stats || !properties)
 
