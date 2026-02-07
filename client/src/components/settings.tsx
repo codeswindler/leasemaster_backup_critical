@@ -751,7 +751,7 @@ export function Settings() {
                   <Input value={smsSettings.balance_threshold} onChange={(e) => setSmsSettings(prev => ({ ...prev, balance_threshold: e.target.value }))} />
                 </div>
               </div>
-              <div className="flex items-center justify-between border rounded-lg p-3">
+              <div className={`flex items-center justify-between border rounded-lg p-3 ${tabsPalette.accentBg}`}>
                 <div>
                   <Label>Enable SMS</Label>
                   <p className="text-xs text-muted-foreground">Use this provider for alerts</p>
@@ -818,7 +818,7 @@ export function Settings() {
                   <Input value={emailSettings.credit_threshold} onChange={(e) => setEmailSettings(prev => ({ ...prev, credit_threshold: e.target.value }))} />
                 </div>
               </div>
-              <div className="flex items-center justify-between border rounded-lg p-3">
+              <div className={`flex items-center justify-between border rounded-lg p-3 ${tabsPalette.accentBg}`}>
                 <div>
                   <Label>Enable Email</Label>
                   <p className="text-xs text-muted-foreground">Use SMTP for alerts</p>
@@ -889,7 +889,7 @@ export function Settings() {
                 <Label>Security Credential</Label>
                 {renderSecretInput("mpesa_security_credential", mpesaSettings.security_credential, (value) => setMpesaSettings(prev => ({ ...prev, security_credential: value })))}
               </div>
-              <div className="flex items-center justify-between border rounded-lg p-3">
+              <div className={`flex items-center justify-between border rounded-lg p-3 ${tabsPalette.accentBg}`}>
                 <div>
                   <Label>Enable M-Pesa</Label>
                   <p className="text-xs text-muted-foreground">Enable STK push</p>
