@@ -1261,6 +1261,14 @@ export function Dashboard() {
                   payment.reference ||
                   payment.account_number ||
                   "Incoming payment"
+                const payerLabel =
+                  payment.tenant_name ||
+                  payment.tenantName ||
+                  "Unallocated payer"
+                const unitLabel =
+                  payment.unit_number ||
+                  payment.unitNumber ||
+                  "—"
                 const rawDate =
                   payment.transaction_date ||
                   payment.transactionDate ||
@@ -1281,9 +1289,9 @@ export function Dashboard() {
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors duration-200 cursor-pointer"
                 >
                   <div>
-                    <p className="font-medium">
-                      {reference}
-                    </p>
+                    <p className="font-medium">{payerLabel}</p>
+                    <p className="text-xs text-muted-foreground">{unitLabel}</p>
+                    <p className="text-xs text-muted-foreground">{reference}</p>
                     <p className="text-sm text-muted-foreground">
                       {methodLabel} • {dateLabel}
                     </p>

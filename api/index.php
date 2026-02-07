@@ -2149,6 +2149,11 @@ try {
         }
         
         if ($method === 'POST') {
+            if (isset($_SESSION['userId'])) {
+                $creator = $storage->getUser($_SESSION['userId']);
+                $body['createdByUserId'] = $creator['id'] ?? $_SESSION['userId'];
+                $body['createdByName'] = $creator['full_name'] ?? $creator['username'] ?? null;
+            }
             $payment = $storage->createPayment($body);
             $propertyId = getPropertyIdByLease($storage, $payment['lease_id'] ?? ($body['leaseId'] ?? null));
             $lease = $storage->getLease($payment['lease_id'] ?? ($body['leaseId'] ?? null));
@@ -2258,6 +2263,43 @@ try {
             }
 
             sendJson($payments ?? []);
+        }
+
+        if ($method === 'PUT' && $id && $action === 'allocate') {
+            $leaseId = $body['leaseId'] ?? null;
+            $invoiceId = $body['invoiceId'] ?? null;
+            if (!$leaseId) {
+                sendJson(['error' => 'leaseId is required'], 400);
+            }
+
+            $creator = null;
+            if (isset($_SESSION['userId'])) {
+                $creator = $storage->getUser($_SESSION['userId']);
+            }
+
+            try {
+                $incoming = $storage->allocateIncomingMpesa(
+                    $id,
+                    $leaseId,
+                    $invoiceId,
+                    $creator['id'] ?? ($_SESSION['userId'] ?? null),
+                    $creator['full_name'] ?? ($creator['username'] ?? null)
+                );
+                if ($incoming) {
+                    $propertyId = $incoming['property_id'] ?? getPropertyIdByLease($storage, $leaseId);
+                    $storage->logActivity([
+                        'action' => 'Incoming Payment Allocated',
+                        'details' => "Incoming payment allocated to lease {$leaseId}",
+                        'type' => 'payment',
+                        'status' => 'success',
+                        'userId' => $_SESSION['userId'] ?? null,
+                        'propertyId' => $propertyId
+                    ]);
+                }
+                sendJson($incoming ?: ['error' => 'Incoming payment not found'], $incoming ? 200 : 404);
+            } catch (Exception $e) {
+                sendJson(['error' => $e->getMessage()], 400);
+            }
         }
     }
 

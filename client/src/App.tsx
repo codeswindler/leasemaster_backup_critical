@@ -81,6 +81,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FilterProvider, useFilter } from "@/contexts/FilterContext";
 import { FilterSelectors } from "@/components/FilterSelectors";
 import { useToast } from "@/hooks/use-toast";
+import { getPaletteByIndex } from "@/lib/palette";
 
 function Router({ showLanding = false }: { showLanding?: boolean }) {
   // Show landing page routes when not on portal
@@ -295,6 +296,8 @@ function AppContent() {
   const prefetched = useRef(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const notificationsPaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const notificationsPalette = getPaletteByIndex(notificationsPaletteSeed.current)
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     username: string;
@@ -858,7 +861,11 @@ function AppContent() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align={align} forceMount>
+      <DropdownMenuContent
+        className={`w-80 border-2 ${notificationsPalette.border} ${notificationsPalette.card} text-foreground`}
+        align={align}
+        forceMount
+      >
         <DropdownMenuLabel className="font-normal flex items-center justify-between">
           Notifications
           {notificationItems.length > 0 && (
@@ -892,7 +899,7 @@ function AppContent() {
             <DropdownMenuItem
               key={item.id}
               onClick={() => setLocation(item.href)}
-              className="cursor-pointer"
+              className="cursor-pointer focus:bg-white/70 dark:focus:bg-slate-900/40"
             >
               <div className="flex items-start gap-2">
                 {getNotificationIcon(item.type)}

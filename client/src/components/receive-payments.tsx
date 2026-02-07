@@ -55,6 +55,11 @@ export function ReceivePayments() {
   const [notes, setNotes] = useState("")
   const [paymentSearch, setPaymentSearch] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [incomingDialogOpen, setIncomingDialogOpen] = useState(false)
+  const [incomingAllocation, setIncomingAllocation] = useState<any>(null)
+  const [allocationSearch, setAllocationSearch] = useState("")
+  const [allocationLeaseId, setAllocationLeaseId] = useState<string>("")
+  const [allocationInvoiceId, setAllocationInvoiceId] = useState<string>("")
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
 
@@ -201,7 +206,28 @@ export function ReceivePayments() {
         paymentMethod: payment.paymentMethod ?? payment.payment_method,
         reference: payment.reference ?? payment.reference_number,
         status: (payment.status ?? "verified").toLowerCase(),
+        createdByName:
+          payment.created_by_name ??
+          payment.createdByName ??
+          payment.created_by_username ??
+          payment.createdByUsername ??
+          null,
       }))
+    : []
+
+  const normalizedIncomingPayments = Array.isArray(incomingPayments)
+    ? incomingPayments.map((payment: any) => {
+        const allocationStatusRaw =
+          payment.allocation_status ??
+          payment.allocationStatus ??
+          (payment.payment_id || payment.paymentId ? "allocated" : "unallocated")
+        return {
+          ...payment,
+          allocationStatus: String(allocationStatusRaw || "").toLowerCase(),
+          tenantName: payment.tenant_name ?? payment.tenantName ?? null,
+          unitNumber: payment.unit_number ?? payment.unitNumber ?? null,
+        }
+      })
     : []
 
   const paymentsByInvoiceId = normalizedPayments.reduce<Record<string, number>>((acc, payment) => {
@@ -278,9 +304,54 @@ export function ReceivePayments() {
       paymentMethod: payment.paymentMethod || "Unknown",
       paymentDate: payment.paymentDate,
       status: payment.status || "verified",
+      createdByName: payment.createdByName || "System",
       tenantName: tenant?.fullName || "Direct Payment",
       unitLabel: unit?.unitNumber || "N/A",
     }
+  })
+
+  const allocationLeaseOptions = leaseOptions
+  const filteredAllocationOptions = allocationLeaseOptions.filter((option) => {
+    if (!allocationSearch.trim()) return true
+    const search = allocationSearch.toLowerCase()
+    return (
+      option.tenantName.toLowerCase().includes(search) ||
+      option.unitLabel.toLowerCase().includes(search) ||
+      option.phone.toLowerCase().includes(search)
+    )
+  })
+
+  const allocationInvoiceOptions = normalizedInvoices.filter((invoice: any) =>
+    allocationLeaseId ? String(invoice.leaseId) === allocationLeaseId : false
+  )
+
+  const allocateIncomingMutation = useMutation({
+    mutationFn: async ({ incomingId, leaseId, invoiceId }: { incomingId: string; leaseId: string; invoiceId?: string }) => {
+      return await apiRequest("PUT", `/api/incoming-payments/${incomingId}?action=allocate`, {
+        leaseId,
+        invoiceId: invoiceId || null,
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/incoming-payments'] })
+      await queryClient.invalidateQueries({ queryKey: ['/api/payments'] })
+      await queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+      toast({
+        title: "Incoming Payment Allocated",
+        description: "Payment allocated and receipted.",
+      })
+      setIncomingAllocation(null)
+      setAllocationLeaseId("")
+      setAllocationInvoiceId("")
+      setAllocationSearch("")
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Allocation Failed",
+        description: error?.message || "Unable to allocate incoming payment.",
+        variant: "destructive",
+      })
+    },
   })
 
   const recordPaymentMutation = useMutation({
@@ -607,6 +678,7 @@ export function ReceivePayments() {
                     <p className="text-xs text-muted-foreground">
                       {payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : "—"}
                     </p>
+                    <p className="text-xs text-muted-foreground">by {payment.createdByName}</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -630,7 +702,7 @@ export function ReceivePayments() {
                 <CardTitle>Incoming Payments</CardTitle>
                 <CardDescription>Integrated M-Pesa/bank transactions</CardDescription>
               </div>
-              <Badge variant="outline">{incomingPayments.length}</Badge>
+              <Badge variant="outline">{normalizedIncomingPayments.length}</Badge>
             </div>
           </CardHeader>
           <CardContent>
@@ -638,13 +710,13 @@ export function ReceivePayments() {
               <div className="flex items-center justify-center py-6 text-muted-foreground">
                 Loading incoming payments...
               </div>
-            ) : incomingPayments.length === 0 ? (
+            ) : normalizedIncomingPayments.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
                 No incoming payments yet.
               </div>
             ) : (
               <div className="space-y-2">
-                {incomingPayments.slice(0, 6).map((payment: any) => {
+                {normalizedIncomingPayments.slice(0, 6).map((payment: any) => {
                   const reference =
                     payment.mpesa_receipt ||
                     payment.mpesaReceipt ||
@@ -662,13 +734,16 @@ export function ReceivePayments() {
                       ? parsedDate.toLocaleString()
                       : rawDate || "—"
                   const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
+                  const payerLabel = payment.tenantName || "Unallocated payer"
                   return (
                     <div
                       key={payment.id}
                       className="flex items-center justify-between rounded-lg border bg-white/60 px-3 py-2 text-sm"
                     >
                       <div className="space-y-1">
-                        <div className="font-medium">{reference}</div>
+                        <div className="font-medium">{payerLabel}</div>
+                        <div className="text-xs text-muted-foreground">{payment.unitNumber || "—"}</div>
+                        <div className="text-xs text-muted-foreground">{reference}</div>
                         <div className="text-xs text-muted-foreground">
                           {methodLabel} • {dateLabel}
                         </div>
@@ -677,18 +752,208 @@ export function ReceivePayments() {
                         <div className="font-mono font-semibold">
                           KSh {Number(payment.amount || 0).toLocaleString()}
                         </div>
-                        <Badge variant="secondary" className="mt-1">
-                          {payment.status || payment.allocation_status || "received"}
-                        </Badge>
+                        <div className="flex items-center justify-end gap-2 mt-1">
+                          <Badge variant="secondary">
+                            {payment.status || "received"}
+                          </Badge>
+                          {payment.allocationStatus === "unallocated" && (
+                            <Badge variant="destructive">Unallocated</Badge>
+                          )}
+                        </div>
+                        {payment.allocationStatus === "unallocated" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={() => {
+                              setIncomingAllocation(payment)
+                              setAllocationLeaseId("")
+                              setAllocationInvoiceId("")
+                              setAllocationSearch("")
+                            }}
+                          >
+                            Allocate
+                          </Button>
+                        )}
                       </div>
                     </div>
                   )
                 })}
+                <Button variant="outline" className="w-full" onClick={() => setIncomingDialogOpen(true)}>
+                  View All Incoming Transactions
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={incomingDialogOpen} onOpenChange={setIncomingDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>All Incoming Transactions</DialogTitle>
+            <DialogDescription>Integrated M-Pesa/bank transactions.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-auto">
+            {normalizedIncomingPayments.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                No incoming payments yet.
+              </div>
+            ) : (
+              normalizedIncomingPayments.map((payment: any) => {
+                const reference =
+                  payment.mpesa_receipt ||
+                  payment.mpesaReceipt ||
+                  payment.reference ||
+                  payment.account_number ||
+                  "Incoming payment"
+                const rawDate =
+                  payment.transaction_date ||
+                  payment.transactionDate ||
+                  payment.created_at ||
+                  payment.createdAt
+                const parsedDate = rawDate ? new Date(rawDate) : null
+                const dateLabel =
+                  parsedDate && !Number.isNaN(parsedDate.getTime())
+                    ? parsedDate.toLocaleString()
+                    : rawDate || "—"
+                const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
+                const payerLabel = payment.tenantName || "Unallocated payer"
+                return (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between rounded-lg border bg-white/60 px-3 py-2 text-sm"
+                  >
+                    <div className="space-y-1">
+                      <div className="font-medium">{payerLabel}</div>
+                      <div className="text-xs text-muted-foreground">{payment.unitNumber || "—"}</div>
+                      <div className="text-xs text-muted-foreground">{reference}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {methodLabel} • {dateLabel}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-semibold">
+                        KSh {Number(payment.amount || 0).toLocaleString()}
+                      </div>
+                      <div className="flex items-center justify-end gap-2 mt-1">
+                        <Badge variant="secondary">
+                          {payment.status || "received"}
+                        </Badge>
+                        {payment.allocationStatus === "unallocated" && (
+                          <Badge variant="destructive">Unallocated</Badge>
+                        )}
+                      </div>
+                      {payment.allocationStatus === "unallocated" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() => {
+                            setIncomingAllocation(payment)
+                            setAllocationLeaseId("")
+                            setAllocationInvoiceId("")
+                            setAllocationSearch("")
+                          }}
+                        >
+                          Allocate
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!incomingAllocation} onOpenChange={(open) => !open && setIncomingAllocation(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Allocate Incoming Payment</DialogTitle>
+            <DialogDescription>
+              Search by tenant name or unit, then select an invoice if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="allocation-search">Search tenant/unit</Label>
+              <Input
+                id="allocation-search"
+                placeholder="Start typing tenant name or unit..."
+                value={allocationSearch}
+                onChange={(e) => setAllocationSearch(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Select Tenant/Unit</Label>
+              <div className="max-h-52 overflow-auto rounded-md border border-muted p-2 space-y-1">
+                {filteredAllocationOptions.map((option) => (
+                  <button
+                    key={option.leaseId}
+                    className={`w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted ${
+                      allocationLeaseId === String(option.leaseId) ? 'bg-muted' : ''
+                    }`}
+                    onClick={() => {
+                      setAllocationLeaseId(String(option.leaseId))
+                      setAllocationInvoiceId("")
+                    }}
+                  >
+                    {option.tenantName} • {option.unitLabel}
+                  </button>
+                ))}
+                {filteredAllocationOptions.length === 0 && (
+                  <div className="text-sm text-muted-foreground px-2 py-3">
+                    No matches found.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Invoice (optional)</Label>
+              <Select value={allocationInvoiceId} onValueChange={setAllocationInvoiceId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select invoice" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allocationInvoiceOptions.map((invoice: any) => (
+                    <SelectItem key={invoice.id} value={String(invoice.id)}>
+                      {invoice.invoiceNumber || invoice.id} • KSh {Number(invoice.amount ?? 0).toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIncomingAllocation(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!incomingAllocation) return
+                  if (!allocationLeaseId) {
+                    toast({
+                      title: "Select Tenant/Unit",
+                      description: "Choose a tenant or unit to allocate this payment.",
+                      variant: "destructive",
+                    })
+                    return
+                  }
+                  allocateIncomingMutation.mutate({
+                    incomingId: incomingAllocation.id,
+                    leaseId: allocationLeaseId,
+                    invoiceId: allocationInvoiceId || undefined,
+                  })
+                }}
+                disabled={allocateIncomingMutation.isPending}
+              >
+                Allocate & Receipt
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

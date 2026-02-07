@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { apiRequest } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
@@ -34,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getPaletteByIndex } from "@/lib/palette"
 
 type ActivityLog = {
   id?: string
@@ -47,6 +48,10 @@ type ActivityLog = {
 
 export function FullActivity() {
   const { selectedPropertyId } = useFilter()
+  const filtersPaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
+  const logPaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
+  const filtersPalette = getPaletteByIndex(filtersPaletteSeed)
+  const logPalette = getPaletteByIndex(logPaletteSeed)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [filterUser, setFilterUser] = useState("all")
@@ -209,7 +214,7 @@ export function FullActivity() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className={`vibrant-card border-2 ${filtersPalette.border} ${filtersPalette.card}`}>
         <CardHeader>
           <CardTitle>Filter Activity</CardTitle>
           <CardDescription>Search, filter, and audit user actions</CardDescription>
@@ -223,6 +228,7 @@ export function FullActivity() {
                 placeholder="Search activities..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-white/70 dark:bg-slate-900/40"
                 data-testid="input-search-activity"
               />
             </div>
@@ -230,7 +236,10 @@ export function FullActivity() {
             <div>
               <Label htmlFor="filter-type">Activity Type</Label>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger data-testid="select-filter-type">
+                <SelectTrigger
+                  data-testid="select-filter-type"
+                  className="bg-white/70 dark:bg-slate-900/40"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,7 +259,10 @@ export function FullActivity() {
             <div>
               <Label htmlFor="filter-user">User</Label>
               <Select value={filterUser} onValueChange={setFilterUser}>
-                <SelectTrigger data-testid="select-filter-user">
+                <SelectTrigger
+                  data-testid="select-filter-user"
+                  className="bg-white/70 dark:bg-slate-900/40"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -271,6 +283,7 @@ export function FullActivity() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                className="bg-white/70 dark:bg-slate-900/40"
                 data-testid="input-start-date"
               />
             </div>
@@ -282,6 +295,7 @@ export function FullActivity() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                className="bg-white/70 dark:bg-slate-900/40"
                 data-testid="input-end-date"
               />
             </div>
@@ -290,7 +304,7 @@ export function FullActivity() {
       </Card>
 
       {/* Activity Log */}
-      <Card>
+      <Card className={`vibrant-card border-2 ${logPalette.border} ${logPalette.card}`}>
         <CardHeader>
           <CardTitle>Operational Log</CardTitle>
           <CardDescription>

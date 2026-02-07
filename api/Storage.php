@@ -2021,9 +2021,17 @@ class Storage {
     public function getPaymentsByScope($filters = []) {
         $hasLandlordId = $this->columnExists('properties', 'landlord_id');
         $hasAdminId = $this->columnExists('users', 'admin_id');
+        $hasCreatedByUserId = $this->columnExists('payments', 'created_by_user_id');
+        $hasCreatedByName = $this->columnExists('payments', 'created_by_name');
+        $creatorSelect = null;
+        if ($hasCreatedByUserId) {
+            $creatorSelect = $hasCreatedByName
+                ? "COALESCE(pmt.created_by_name, creator.full_name, creator.username) AS created_by_name"
+                : "COALESCE(creator.full_name, creator.username) AS created_by_name";
+        }
 
         $sql = "
-            SELECT pmt.* 
+            SELECT pmt.*" . ($creatorSelect ? ", {$creatorSelect}" : "") . "
             FROM payments pmt
             LEFT JOIN leases l ON pmt.lease_id = l.id
             LEFT JOIN units u ON l.unit_id = u.id
@@ -2041,6 +2049,10 @@ class Storage {
             $sql .= " LEFT JOIN users landlord ON landlord.id = COALESCE(p.landlord_id, p_acc.landlord_id)";
             $where[] = "landlord.admin_id = ?";
             $params[] = $filters['adminId'];
+        }
+
+        if ($hasCreatedByUserId) {
+            $sql .= " LEFT JOIN users creator ON creator.id = pmt.created_by_user_id";
         }
 
         if (!empty($filters['landlordId']) && $hasLandlordId) {
@@ -2143,7 +2155,8 @@ class Storage {
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
+        return $this->enrichIncomingMpesaRows($rows);
     }
 
     public function getIncomingMpesaByPropertyIds($propertyIds = [], $filters = []) {
@@ -2178,14 +2191,81 @@ class Storage {
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        return $stmt->fetchAll();
+        $rows = $stmt->fetchAll();
+        return $this->enrichIncomingMpesaRows($rows);
+    }
+
+    private function enrichIncomingMpesaRows($rows) {
+        if (!is_array($rows) || empty($rows)) {
+            return $rows;
+        }
+        foreach ($rows as &$row) {
+            $paymentId = $row['payment_id'] ?? null;
+            $allocationStatus = strtolower((string) ($row['allocation_status'] ?? ''));
+            if ($allocationStatus === '') {
+                $allocationStatus = $paymentId ? 'allocated' : 'unallocated';
+            }
+            $row['allocation_status'] = $allocationStatus;
+
+            $lease = null;
+            if (!empty($row['invoice_id'])) {
+                $invoice = $this->getInvoice($row['invoice_id']);
+                if ($invoice && !empty($invoice['lease_id'])) {
+                    $lease = $this->getLease($invoice['lease_id']);
+                }
+            }
+
+            if (!$lease && !empty($row['tenant_id'])) {
+                $leases = $this->getLeasesByTenant($row['tenant_id']);
+                if (!empty($leases)) {
+                    foreach ($leases as $candidate) {
+                        if (($candidate['status'] ?? '') === 'active') {
+                            $lease = $candidate;
+                            break;
+                        }
+                    }
+                    $lease = $lease ?? $leases[0];
+                }
+            }
+
+            if (!$lease && !empty($row['account_number'])) {
+                $lease = $this->findLeaseByAccountNumber($row['account_number']);
+            }
+
+            if ($lease) {
+                $row['lease_id'] = $lease['id'] ?? null;
+                $unit = $this->getUnit($lease['unit_id'] ?? null);
+                $tenant = $this->getTenant($lease['tenant_id'] ?? null);
+                if ($tenant) {
+                    $row['tenant_name'] = $tenant['full_name'] ?? $tenant['username'] ?? $tenant['email'] ?? null;
+                }
+                if ($unit) {
+                    $row['unit_number'] = $unit['unit_number'] ?? null;
+                }
+            } elseif (!empty($row['tenant_id'])) {
+                $tenant = $this->getTenant($row['tenant_id']);
+                if ($tenant) {
+                    $row['tenant_name'] = $tenant['full_name'] ?? $tenant['username'] ?? $tenant['email'] ?? null;
+                }
+            }
+        }
+        return $rows;
     }
 
     public function getPaymentsByPropertyIds($propertyIds = [], $filters = []) {
         if (empty($propertyIds)) return [];
         $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        $hasCreatedByUserId = $this->columnExists('payments', 'created_by_user_id');
+        $hasCreatedByName = $this->columnExists('payments', 'created_by_name');
+        $creatorSelect = null;
+        if ($hasCreatedByUserId) {
+            $creatorSelect = $hasCreatedByName
+                ? "COALESCE(pmt.created_by_name, creator.full_name, creator.username) AS created_by_name"
+                : "COALESCE(creator.full_name, creator.username) AS created_by_name";
+        }
+        $creatorJoin = $hasCreatedByUserId ? "LEFT JOIN users creator ON creator.id = pmt.created_by_user_id" : "";
         $sql = "
-            SELECT pmt.* 
+            SELECT pmt.*" . ($creatorSelect ? ", {$creatorSelect}" : "") . "
             FROM payments pmt
             LEFT JOIN leases l ON pmt.lease_id = l.id
             LEFT JOIN units u ON l.unit_id = u.id
@@ -2195,6 +2275,7 @@ class Storage {
              AND p_acc.account_prefix IS NOT NULL
              AND p_acc.account_prefix != ''
              AND pmt.account_number LIKE CONCAT(p_acc.account_prefix, '%')
+            {$creatorJoin}
             WHERE (p.id IN ({$placeholders}) OR p_acc.id IN ({$placeholders}))
         ";
         $params = array_merge(array_values($propertyIds), array_values($propertyIds));
@@ -2326,6 +2407,8 @@ class Storage {
     public function createPayment($data) {
         $accountNumber = $data['accountNumber'] ?? $data['account_number'] ?? null;
         $allocationStatus = $data['allocationStatus'] ?? $data['allocation_status'] ?? null;
+        $createdByUserId = $data['createdByUserId'] ?? $data['created_by_user_id'] ?? null;
+        $createdByName = $data['createdByName'] ?? $data['created_by_name'] ?? null;
 
         if (empty($data['leaseId']) && $accountNumber) {
             $lease = $this->findLeaseByAccountNumber($accountNumber);
@@ -2367,41 +2450,48 @@ class Storage {
         $hasStatusColumn = $this->columnExists('payments', 'status');
         $hasAccountNumber = $this->columnExists('payments', 'account_number');
         $hasAllocationStatus = $this->columnExists('payments', 'allocation_status');
+        $hasCreatedByUserId = $this->columnExists('payments', 'created_by_user_id');
+        $hasCreatedByName = $this->columnExists('payments', 'created_by_name');
+
+        $columns = ['id', 'lease_id', 'invoice_id', 'amount', 'payment_date', 'payment_method'];
+        $values = [
+            $id,
+            $data['leaseId'] ?? null,
+            $data['invoiceId'] ?? null,
+            $data['amount'],
+            $data['paymentDate'],
+            $data['paymentMethod']
+        ];
 
         if ($hasStatusColumn) {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, status, account_number, allocation_status, reference, notes) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $id,
-                $data['leaseId'] ?? null,
-                $data['invoiceId'] ?? null,
-                $data['amount'],
-                $data['paymentDate'],
-                $data['paymentMethod'],
-                $status,
-                $hasAccountNumber ? $accountNumber : null,
-                $hasAllocationStatus ? $allocationStatus : null,
-                $data['reference'] ?? null,
-                $data['notes'] ?? null
-            ]);
-        } else {
-            $stmt = $this->pdo->prepare("
-                INSERT INTO payments (id, lease_id, invoice_id, amount, payment_date, payment_method, reference, notes) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
-                $id,
-                $data['leaseId'] ?? null,
-                $data['invoiceId'] ?? null,
-                $data['amount'],
-                $data['paymentDate'],
-                $data['paymentMethod'],
-                $data['reference'] ?? null,
-                $data['notes'] ?? null
-            ]);
+            $columns[] = 'status';
+            $values[] = $status;
         }
+        if ($hasAccountNumber) {
+            $columns[] = 'account_number';
+            $values[] = $accountNumber;
+        }
+        if ($hasAllocationStatus) {
+            $columns[] = 'allocation_status';
+            $values[] = $allocationStatus;
+        }
+        $columns[] = 'reference';
+        $values[] = $data['reference'] ?? null;
+        $columns[] = 'notes';
+        $values[] = $data['notes'] ?? null;
+        if ($hasCreatedByUserId) {
+            $columns[] = 'created_by_user_id';
+            $values[] = $createdByUserId;
+        }
+        if ($hasCreatedByName) {
+            $columns[] = 'created_by_name';
+            $values[] = $createdByName;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($columns), '?'));
+        $sql = "INSERT INTO payments (" . implode(',', $columns) . ") VALUES ({$placeholders})";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($values);
         
         // Update invoice status if payment is against an invoice
         if (!empty($data['invoiceId']) && $status === 'verified' && $allocationStatus === 'allocated') {
@@ -4196,6 +4286,88 @@ class Storage {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
         return $stmt->rowCount() > 0;
+    }
+
+    public function getMpesaStkRequest($id) {
+        if (!$this->tableExists('mpesa_stk_requests')) {
+            return null;
+        }
+        $stmt = $this->pdo->prepare("SELECT * FROM mpesa_stk_requests WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function updateMpesaStkRequest($id, $data) {
+        if (!$this->tableExists('mpesa_stk_requests')) {
+            return null;
+        }
+        $fields = [];
+        $values = [];
+        $mapping = [
+            'status' => 'status',
+            'allocationStatus' => 'allocation_status',
+            'allocation_status' => 'allocation_status',
+            'paymentId' => 'payment_id',
+            'payment_id' => 'payment_id',
+            'allocatedAt' => 'allocated_at',
+            'allocated_at' => 'allocated_at'
+        ];
+        foreach ($mapping as $key => $field) {
+            if (array_key_exists($key, $data)) {
+                $fields[] = "{$field} = ?";
+                $values[] = $data[$key];
+            }
+        }
+        if (empty($fields)) return null;
+        $values[] = $id;
+        $sql = "UPDATE mpesa_stk_requests SET " . implode(', ', $fields) . " WHERE id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($values);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function allocateIncomingMpesa($incomingId, $leaseId, $invoiceId = null, $createdByUserId = null, $createdByName = null) {
+        $incoming = $this->getMpesaStkRequest($incomingId);
+        if (!$incoming) return null;
+        if (!empty($incoming['payment_id'])) {
+            return $incoming;
+        }
+
+        $transactionDate = $incoming['transaction_date'] ?? null;
+        $paymentDate = null;
+        if ($transactionDate && preg_match('/^\d{14}$/', $transactionDate)) {
+            $paymentDate = substr($transactionDate, 0, 4) . '-' . substr($transactionDate, 4, 2) . '-' . substr($transactionDate, 6, 2);
+        }
+        if (!$paymentDate) {
+            $createdAt = $incoming['created_at'] ?? null;
+            $paymentDate = $createdAt ? date('Y-m-d', strtotime($createdAt)) : date('Y-m-d');
+        }
+
+        $paymentPayload = [
+            'amount' => $incoming['amount'] ?? 0,
+            'paymentDate' => $paymentDate,
+            'paymentMethod' => 'M-Pesa',
+            'reference' => $incoming['mpesa_receipt'] ?? ($incoming['checkout_request_id'] ?? null),
+            'notes' => 'Integrated M-Pesa payment',
+            'status' => 'verified',
+            'allocationStatus' => 'allocated',
+            'accountNumber' => $incoming['account_number'] ?? null,
+            'leaseId' => $leaseId,
+            'invoiceId' => $invoiceId,
+            'createdByUserId' => $createdByUserId,
+            'createdByName' => $createdByName
+        ];
+
+        $payment = $this->createPayment($paymentPayload);
+        if ($payment) {
+            $this->updateMpesaStkRequest($incomingId, [
+                'allocation_status' => 'allocated',
+                'payment_id' => $payment['id'] ?? null,
+                'allocated_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+
+        return $this->getMpesaStkRequest($incomingId);
     }
 
     public function getMpesaStkRequestByCheckout($checkoutRequestId) {

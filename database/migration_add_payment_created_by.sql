@@ -1,0 +1,5 @@
+ALTER TABLE payments
+  ADD COLUMN IF NOT EXISTS created_by_user_id VARCHAR(36) NULL;
+
+ALTER TABLE payments
+  ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(255) NULL;
