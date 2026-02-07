@@ -87,7 +87,7 @@ export function ClientsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
-  const dialogPaletteSeed = useMemo(() => getSessionSeed("client-dialogs"), []);
+  const dialogPaletteSeed = useMemo(() => Math.floor(Math.random() * 1_000_000), []);
   const createDialogPalette = useMemo(
     () => getPaletteByKey("create-client-dialog", dialogPaletteSeed),
     [dialogPaletteSeed]
