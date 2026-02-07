@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useLocation } from "wouter"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
@@ -54,6 +54,7 @@ const bulkInvoiceVariants = [
 ]
 
 export function BulkInvoicing() {
+  const waterPromptSeed = useRef(Math.floor(Math.random() * bulkInvoiceVariants.length))
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const bulkInvoiceSeed = useMemo(
@@ -553,7 +554,9 @@ export function BulkInvoicing() {
   return (
     <div className="p-6 space-y-6">
       <Dialog open={isWaterPromptOpen} onOpenChange={setIsWaterPromptOpen}>
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent
+          className={`sm:max-w-[520px] vibrant-card ${bulkInvoiceVariants[waterPromptSeed.current % bulkInvoiceVariants.length]}`}
+        >
           <DialogHeader>
             <DialogTitle>Missing Water Readings</DialogTitle>
             <DialogDescription>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useLocation } from "wouter"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { Search, Receipt, Building2 } from "lucide-react"
@@ -42,6 +42,7 @@ const singleInvoiceVariants = [
 ]
 
 export function SingleInvoicing() {
+  const waterPromptSeed = useRef(Math.floor(Math.random() * singleInvoiceVariants.length))
   const [selectedProperty, setSelectedProperty] = useState("")
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const [invoiceDate, setInvoiceDate] = useState("")
@@ -439,7 +440,9 @@ export function SingleInvoicing() {
   return (
     <div className="p-6 space-y-6">
       <Dialog open={isWaterPromptOpen} onOpenChange={setIsWaterPromptOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent
+          className={`sm:max-w-[480px] vibrant-card ${singleInvoiceVariants[waterPromptSeed.current % singleInvoiceVariants.length]}`}
+        >
           <DialogHeader>
             <DialogTitle>Missing Water Reading</DialogTitle>
             <DialogDescription>
