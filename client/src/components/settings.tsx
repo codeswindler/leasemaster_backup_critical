@@ -662,35 +662,35 @@ export function Settings() {
 
       <Tabs defaultValue="sms" className="space-y-6">
         <TabsList
-          className={`grid w-full grid-cols-5 border-2 ${tabsPalette.border} ${tabsPalette.card}`}
+          className={`grid w-full grid-cols-5 border-2 ${tabsPalette.border} ${tabsPalette.card} text-foreground/90`}
         >
           <TabsTrigger
             value="sms"
-            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
           >
             SMS
           </TabsTrigger>
           <TabsTrigger
             value="email"
-            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
           >
             Email
           </TabsTrigger>
           <TabsTrigger
             value="mpesa"
-            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
           >
             M-Pesa
           </TabsTrigger>
           <TabsTrigger
             value="invoice"
-            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
           >
             Invoice
           </TabsTrigger>
           <TabsTrigger
             value="alerts"
-            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
           >
             Alerts
           </TabsTrigger>
