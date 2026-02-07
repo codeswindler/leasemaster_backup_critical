@@ -51,14 +51,14 @@ const propertyLimitSchema = z.preprocess(
     const parsed = Number(value);
     return Number.isNaN(parsed) ? undefined : parsed;
   },
-  z.number().int().min(0, "Property limit must be 0 or higher").optional()
+  z.number().int().min(0, "Property limit must be 0 or higher")
 );
 
 const createLandlordSchema = z.object({
   username: z.string().email("Must be a valid email address"),
   fullName: z.string().min(1, "Full name is required"),
   phone: z.string().min(1, "Phone number is required"),
-  idNumber: z.string().optional(),
+  idNumber: z.string().min(1, "Identification number is required"),
   propertyLimit: propertyLimitSchema,
 });
 
@@ -68,7 +68,7 @@ const editLandlordSchema = z.object({
   username: z.string().email("Must be a valid email address"),
   fullName: z.string().min(1, "Full name is required"),
   phone: z.string().min(1, "Phone number is required"),
-  idNumber: z.string().optional(),
+  idNumber: z.string().min(1, "Identification number is required"),
   propertyLimit: propertyLimitSchema,
 });
 
@@ -87,6 +87,15 @@ export function ClientsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
+  const dialogPaletteSeed = useMemo(() => getSessionSeed("client-dialogs"), []);
+  const createDialogPalette = useMemo(
+    () => getPaletteByKey("create-client-dialog", dialogPaletteSeed),
+    [dialogPaletteSeed]
+  );
+  const editDialogPalette = useMemo(
+    () => getPaletteByKey("edit-client-dialog", dialogPaletteSeed),
+    [dialogPaletteSeed]
+  );
   const { scheduleDelete } = useUndoDelete();
 
   // Fetch all landlords (users with role 'landlord')
@@ -470,7 +479,7 @@ export function ClientsPage() {
                   Add New Customer
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className={`vibrant-card ${createDialogPalette.card} ${createDialogPalette.border}`}>
                 <DialogHeader>
                   <DialogTitle>Add New Customer</DialogTitle>
                   <DialogDescription>
@@ -528,7 +537,7 @@ export function ClientsPage() {
                       name="propertyLimit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Property Limit (Optional)</FormLabel>
+                          <FormLabel>Property Limit <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -548,7 +557,7 @@ export function ClientsPage() {
                       name="idNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Identification Number (Optional)</FormLabel>
+                          <FormLabel>Identification Number <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
                             <Input placeholder="ID Number" {...field} />
                           </FormControl>
@@ -804,7 +813,7 @@ export function ClientsPage() {
 
       {/* Edit Customer Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+      <DialogContent className={`vibrant-card ${editDialogPalette.card} ${editDialogPalette.border}`}>
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
             <DialogDescription>
@@ -864,7 +873,7 @@ export function ClientsPage() {
                 name="propertyLimit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Property Limit (Optional)</FormLabel>
+                  <FormLabel>Property Limit <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -884,7 +893,7 @@ export function ClientsPage() {
                 name="idNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Identification Number (Optional)</FormLabel>
+                  <FormLabel>Identification Number <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input placeholder="ID Number" {...field} />
                     </FormControl>
