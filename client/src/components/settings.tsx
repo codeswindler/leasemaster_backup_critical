@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
@@ -29,6 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getPaletteByIndex } from "@/lib/palette"
 
 interface AlertRule {
   key: string
@@ -188,6 +189,8 @@ const timezoneOffsets = [
 
 export function Settings() {
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const tabsSeed = useRef(Math.floor(Math.random() * 6))
+  const tabsPalette = getPaletteByIndex(tabsSeed.current)
   const { toast } = useToast()
   const [showFields, setShowFields] = useState<Record<string, boolean>>({})
   const settingsDisabled = !selectedPropertyId || selectedPropertyId === "all"
@@ -649,12 +652,39 @@ export function Settings() {
       </div>
 
       <Tabs defaultValue="sms" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="sms">SMS</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
-          <TabsTrigger value="mpesa">M-Pesa</TabsTrigger>
-          <TabsTrigger value="invoice">Invoice</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts</TabsTrigger>
+        <TabsList
+          className={`grid w-full grid-cols-5 border-2 ${tabsPalette.border} ${tabsPalette.card}`}
+        >
+          <TabsTrigger
+            value="sms"
+            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+          >
+            SMS
+          </TabsTrigger>
+          <TabsTrigger
+            value="email"
+            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+          >
+            Email
+          </TabsTrigger>
+          <TabsTrigger
+            value="mpesa"
+            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+          >
+            M-Pesa
+          </TabsTrigger>
+          <TabsTrigger
+            value="invoice"
+            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+          >
+            Invoice
+          </TabsTrigger>
+          <TabsTrigger
+            value="alerts"
+            className={`data-[state=active]:shadow-sm data-[state=active]:bg-white/70`}
+          >
+            Alerts
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="sms">

@@ -123,6 +123,21 @@ export function ReceivePayments() {
     enabled: isLandlordSelected,
   })
 
+  const { data: incomingPayments = [], isLoading: incomingLoading } = useQuery({
+    queryKey: ['/api/incoming-payments', selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      params.append("limit", "10")
+      const url = `/api/incoming-payments?${params.toString()}`
+      const response = await apiRequest("GET", url)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    },
+    enabled: isLandlordSelected,
+  })
+
   // Fetch real payment data from API
   const { data: recentPayments = [] } = useQuery({ 
     queryKey: ['/api/payments', selectedPropertyId, selectedLandlordId],
@@ -602,6 +617,61 @@ export function ReceivePayments() {
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card
+          id="incoming-payments"
+          className={`vibrant-card ${paymentsCardVariants[(paymentsCardSeed + 3) % paymentsCardVariants.length]}`}
+        >
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Incoming Payments</CardTitle>
+                <CardDescription>Integrated M-Pesa/bank transactions</CardDescription>
+              </div>
+              <Badge variant="outline">{incomingPayments.length}</Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {incomingLoading ? (
+              <div className="flex items-center justify-center py-6 text-muted-foreground">
+                Loading incoming payments...
+              </div>
+            ) : incomingPayments.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                No incoming payments yet.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {incomingPayments.slice(0, 6).map((payment: any) => (
+                  <div
+                    key={payment.id}
+                    className="flex items-center justify-between rounded-lg border bg-white/60 px-3 py-2 text-sm"
+                  >
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        {payment.reference || payment.account_number || "Incoming payment"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {payment.payment_method || payment.paymentMethod || "Integrated"} •{" "}
+                        {payment.created_at
+                          ? new Date(payment.created_at).toLocaleString()
+                          : "—"}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono font-semibold">
+                        KSh {Number(payment.amount || 0).toLocaleString()}
+                      </div>
+                      <Badge variant="secondary" className="mt-1">
+                        {payment.status || payment.allocation_status || "received"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

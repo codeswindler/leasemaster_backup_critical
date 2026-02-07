@@ -65,7 +65,7 @@ const LoadingSpinner = () => (
     </div>
   </div>
 );
-import { AlertTriangle, Bell, CreditCard, LogOut, ArrowLeft, Mail, MessageSquare, User, UserPlus } from "lucide-react";
+import { AlertTriangle, Bell, CreditCard, LogOut, ArrowLeft, Mail, MessageSquare, Receipt, User, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -285,6 +285,8 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
 function AppContent() {
   const [smsBalance, setSmsBalance] = useState(0)
   const [emailBalance, setEmailBalance] = useState(0)
+  const [notificationsReadAt, setNotificationsReadAt] = useState<number | null>(null)
+  const [notificationsClearedAt, setNotificationsClearedAt] = useState<number | null>(null)
   const [paymentNotifications, setPaymentNotifications] = useState(0)
   const [recentPayment, setRecentPayment] = useState<any>(null)
   const [location, setLocation] = useLocation()
@@ -646,6 +648,32 @@ function AppContent() {
     refetchInterval: 30000,
   });
 
+  const { data: invoicesForNotifications = [] } = useQuery({
+    queryKey: ["/api/invoices", "notifications", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId);
+      const response = await apiRequest("GET", `/api/invoices?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 60000,
+  });
+
+  const { data: leasesForNotifications = [] } = useQuery({
+    queryKey: ["/api/leases", "notifications", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId);
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId);
+      const response = await apiRequest("GET", `/api/leases?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 60000,
+  });
+
   const { data: paymentLogs = [] } = useQuery({
     queryKey: ["/api/activity-logs", "payment", selectedPropertyId],
     queryFn: async () => {
@@ -684,6 +712,32 @@ function AppContent() {
       ? maintenanceRequests.filter((req: any) => req.title !== "Tenant Portal Access Request")
       : [];
     const payments = Array.isArray(paymentLogs) ? paymentLogs : [];
+    const invoices = Array.isArray(invoicesForNotifications) ? invoicesForNotifications : [];
+    const leases = Array.isArray(leasesForNotifications) ? leasesForNotifications : [];
+    const now = new Date();
+    const dueCutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    const overdueInvoices = invoices.filter((inv: any) => {
+      const dueDate = inv.dueDate ?? inv.due_date;
+      if (!dueDate) return false;
+      const parsed = new Date(dueDate);
+      if (Number.isNaN(parsed.getTime())) return false;
+      const status = String(inv.status || "").toLowerCase();
+      return parsed.getTime() <= dueCutoff.getTime() && status !== "paid";
+    });
+    const leaseExpiryWindow = new Date();
+    leaseExpiryWindow.setDate(leaseExpiryWindow.getDate() + 30);
+    const expiringLeases = leases.filter((lease: any) => {
+      const endDate = lease.endDate ?? lease.end_date;
+      if (!endDate) return false;
+      const parsed = new Date(endDate);
+      if (Number.isNaN(parsed.getTime())) return false;
+      const status = String(lease.status || "active").toLowerCase();
+      return parsed >= now && parsed <= leaseExpiryWindow && status === "active";
+    });
+    const smsThreshold = smsSettingsData?.balance_threshold;
+    const emailThreshold = emailSettingsData?.credit_threshold;
+    const smsLow = smsThreshold !== undefined && smsThreshold !== null && Number(smsBalance) <= Number(smsThreshold);
+    const emailLow = emailThreshold !== undefined && emailThreshold !== null && Number(emailBalance) <= Number(emailThreshold);
 
     const items = [
       ...accessRequests.map((req: any) => ({
@@ -708,18 +762,70 @@ function AppContent() {
         title: log.action || "Payment Received",
         detail: log.details || "",
         createdAt: log.createdAt || log.created_at,
-        href: "/payments",
+        href: "/accounting/receive-payments#incoming-payments",
+      })),
+      ...overdueInvoices.slice(0, 5).map((inv: any) => ({
+        id: `overdue-${inv.id}`,
+        type: "overdue",
+        title: "Overdue Invoice",
+        detail: inv.description || inv.invoiceNumber || inv.invoice_number || "Invoice overdue",
+        createdAt: inv.dueDate || inv.due_date,
+        href: "/accounting/invoices",
+      })),
+      ...(smsLow ? [{
+        id: "sms-low",
+        type: "balance",
+        title: "SMS balance low",
+        detail: `Balance ${smsBalance} below threshold ${smsThreshold}`,
+        createdAt: new Date().toISOString(),
+        href: "/settings",
+      }] : []),
+      ...(emailLow ? [{
+        id: "email-low",
+        type: "balance",
+        title: "Email balance low",
+        detail: `Balance ${emailBalance} below threshold ${emailThreshold}`,
+        createdAt: new Date().toISOString(),
+        href: "/settings",
+      }] : []),
+      ...expiringLeases.slice(0, 5).map((lease: any) => ({
+        id: `lease-expiry-${lease.id}`,
+        type: "lease",
+        title: "Lease expiring soon",
+        detail: lease.unitNumber || lease.unit_number || "Lease ending",
+        createdAt: lease.endDate || lease.end_date,
+        href: "/leases",
       })),
     ];
 
-    return items.sort((a, b) => {
+    const filtered = items.filter((item) => {
+      if (!notificationsClearedAt) return true;
+      const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+      return createdAt > notificationsClearedAt;
+    });
+
+    return filtered.sort((a, b) => {
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
     });
-  }, [maintenanceRequests, paymentLogs]);
+  }, [
+    maintenanceRequests,
+    paymentLogs,
+    invoicesForNotifications,
+    leasesForNotifications,
+    smsBalance,
+    emailBalance,
+    smsSettingsData,
+    emailSettingsData,
+    notificationsClearedAt,
+  ]);
 
-  const notificationCount = notificationItems.length;
+  const notificationCount = notificationItems.filter((item) => {
+    if (!notificationsReadAt) return true;
+    const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : 0;
+    return createdAt > notificationsReadAt;
+  }).length;
 
   const getNotificationIcon = (type: string) => {
     if (type === "access") {
@@ -727,6 +833,15 @@ function AppContent() {
     }
     if (type === "maintenance") {
       return <AlertTriangle className="h-4 w-4 text-amber-600" />;
+    }
+    if (type === "overdue") {
+      return <AlertTriangle className="h-4 w-4 text-red-600" />;
+    }
+    if (type === "balance") {
+      return <AlertTriangle className="h-4 w-4 text-orange-600" />;
+    }
+    if (type === "lease") {
+      return <Receipt className="h-4 w-4 text-indigo-600" />;
     }
     return <CreditCard className="h-4 w-4 text-emerald-600" />;
   };
@@ -744,7 +859,31 @@ function AppContent() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80" align={align} forceMount>
-        <DropdownMenuLabel className="font-normal">Notifications</DropdownMenuLabel>
+        <DropdownMenuLabel className="font-normal flex items-center justify-between">
+          Notifications
+          {notificationItems.length > 0 && (
+            <div className="flex gap-2 text-xs">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setNotificationsReadAt(Date.now())}
+              >
+                Read all
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  const now = Date.now();
+                  setNotificationsReadAt(now);
+                  setNotificationsClearedAt(now);
+                }}
+              >
+                Clear all
+              </Button>
+            </div>
+          )}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {notificationItems.length === 0 ? (
           <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>

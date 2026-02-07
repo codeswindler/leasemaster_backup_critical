@@ -46,8 +46,9 @@ export function Dashboard() {
   const [timeframe, setTimeframe] = useState("monthly")
   const mpesaPalette = getPaletteByName("emerald")
   const activityPaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const incomingPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const activityPalette = getPaletteByIndex(activityPaletteSeed.current)
-  const overduePalette = getPaletteByName("rose")
+  const incomingPalette = getPaletteByIndex(incomingPaletteSeed.current)
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -129,6 +130,21 @@ export function Dashboard() {
       return await response.json()
     },
     staleTime: 1 * 60 * 1000, // Overdue invoices are dynamic
+  })
+
+  const { data: incomingPayments = [], isLoading: incomingLoading } = useQuery({
+    queryKey: ["/api/incoming-payments", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      params.append("limit", "6")
+      const url = `/api/incoming-payments?${params.toString()}`
+      const response = await apiRequest("GET", url)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    },
+    staleTime: 1 * 60 * 1000,
   })
   
   // Filter recent payments and overdue invoices (will be set after filtering logic)
@@ -770,6 +786,9 @@ export function Dashboard() {
       user: activity.user_name || "System"
     }))
 
+  const hasOverdue = Array.isArray(overdueInvoices) && overdueInvoices.length > 0
+  const overduePalette = getPaletteByName(hasOverdue ? "rose" : "emerald")
+
   const activityLast24h = filteredActivityLogs.filter((activity: any) => {
     if (!activity.created_at) return false
     const createdAt = new Date(activity.created_at)
@@ -1160,6 +1179,61 @@ export function Dashboard() {
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Incoming Payments */}
+        <Card
+          className={`hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${incomingPalette.border} ${incomingPalette.card} backdrop-blur-sm`}
+        >
+          <CardHeader>
+            <CardTitle>Incoming Payments</CardTitle>
+            <CardDescription>Integrated M-Pesa/bank transactions</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {incomingLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="ml-2">Loading incoming payments...</span>
+              </div>
+            ) : Array.isArray(incomingPayments) && incomingPayments.length > 0 ? (
+              incomingPayments.slice(0, 5).map((payment: any, index: number) => (
+                <motion.div
+                  key={payment.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.6 + index * 0.1 }}
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors duration-200 cursor-pointer"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {payment.reference || payment.account_number || "Incoming payment"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {payment.payment_method || "Integrated"} •{" "}
+                      {payment.created_at ? new Date(payment.created_at).toLocaleString() : "—"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium font-mono">
+                      KSh {parseFloat(payment.amount || 0).toLocaleString()}
+                    </p>
+                    <Badge variant="secondary" className="mt-1">
+                      {payment.status || payment.allocation_status || "received"}
+                    </Badge>
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">No incoming payments</p>
+            )}
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => setLocation("/accounting/receive-payments#incoming-payments")}
+            >
+              View Incoming Payments
+            </Button>
           </CardContent>
         </Card>
       </motion.div>

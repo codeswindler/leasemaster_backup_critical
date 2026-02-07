@@ -2076,6 +2076,117 @@ class Storage {
         return $stmt->fetchAll();
     }
 
+    public function getIncomingPaymentsByScope($filters = []) {
+        $hasLandlordId = $this->columnExists('properties', 'landlord_id');
+        $hasAdminId = $this->columnExists('users', 'admin_id');
+        $methods = ['m-pesa', 'mpesa', 'bank'];
+
+        $sql = "
+            SELECT pmt.* 
+            FROM payments pmt
+            LEFT JOIN leases l ON pmt.lease_id = l.id
+            LEFT JOIN units u ON l.unit_id = u.id
+            LEFT JOIN properties p ON u.property_id = p.id
+            LEFT JOIN properties p_acc
+              ON pmt.account_number IS NOT NULL
+             AND p_acc.account_prefix IS NOT NULL
+             AND p_acc.account_prefix != ''
+             AND pmt.account_number LIKE CONCAT(p_acc.account_prefix, '%')
+        ";
+        $params = [];
+        $where = [];
+
+        if (!empty($filters['adminId']) && $hasAdminId && $hasLandlordId) {
+            $sql .= " LEFT JOIN users landlord ON landlord.id = COALESCE(p.landlord_id, p_acc.landlord_id)";
+            $where[] = "landlord.admin_id = ?";
+            $params[] = $filters['adminId'];
+        }
+
+        if (!empty($filters['landlordId']) && $hasLandlordId) {
+            $where[] = "(p.landlord_id = ? OR p_acc.landlord_id = ?)";
+            $params[] = $filters['landlordId'];
+            $params[] = $filters['landlordId'];
+        }
+
+        if (!empty($filters['propertyId'])) {
+            $where[] = "(p.id = ? OR p_acc.id = ?)";
+            $params[] = $filters['propertyId'];
+            $params[] = $filters['propertyId'];
+        }
+
+        if (!empty($filters['from'])) {
+            $where[] = "pmt.created_at >= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['from'], false);
+        }
+
+        if (!empty($filters['to'])) {
+            $where[] = "pmt.created_at <= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['to'], true);
+        }
+
+        $methodPlaceholders = implode(',', array_fill(0, count($methods), '?'));
+        $where[] = "LOWER(pmt.payment_method) IN ({$methodPlaceholders})";
+        $params = array_merge($params, $methods);
+
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(" AND ", $where);
+        }
+
+        $sql .= " ORDER BY pmt.created_at DESC";
+
+        if (!empty($filters['limit'])) {
+            $limit = max(1, (int)$filters['limit']);
+            $sql .= " LIMIT " . $limit;
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public function getIncomingPaymentsByPropertyIds($propertyIds = [], $filters = []) {
+        if (empty($propertyIds)) return [];
+        $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
+        $methods = ['m-pesa', 'mpesa', 'bank'];
+        $methodPlaceholders = implode(',', array_fill(0, count($methods), '?'));
+
+        $sql = "
+            SELECT pmt.* 
+            FROM payments pmt
+            LEFT JOIN leases l ON pmt.lease_id = l.id
+            LEFT JOIN units u ON l.unit_id = u.id
+            LEFT JOIN properties p ON u.property_id = p.id
+            LEFT JOIN properties p_acc
+              ON pmt.account_number IS NOT NULL
+             AND p_acc.account_prefix IS NOT NULL
+             AND p_acc.account_prefix != ''
+             AND pmt.account_number LIKE CONCAT(p_acc.account_prefix, '%')
+            WHERE (p.id IN ({$placeholders}) OR p_acc.id IN ({$placeholders}))
+              AND LOWER(pmt.payment_method) IN ({$methodPlaceholders})
+        ";
+        $params = array_merge(array_values($propertyIds), array_values($propertyIds), $methods);
+        $where = [];
+        if (!empty($filters['from'])) {
+            $where[] = "pmt.created_at >= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['from'], false);
+        }
+        if (!empty($filters['to'])) {
+            $where[] = "pmt.created_at <= ?";
+            $params[] = $this->normalizeDateTimeInput($filters['to'], true);
+        }
+        if (!empty($where)) {
+            $sql .= " AND " . implode(" AND ", $where);
+        }
+        $sql .= " ORDER BY pmt.created_at DESC";
+        if (!empty($filters['limit'])) {
+            $limit = max(1, (int)$filters['limit']);
+            $sql .= " LIMIT " . $limit;
+        }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
     public function getPaymentsByPropertyIds($propertyIds = [], $filters = []) {
         if (empty($propertyIds)) return [];
         $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));

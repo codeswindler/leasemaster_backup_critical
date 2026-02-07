@@ -15,6 +15,11 @@ LEFT JOIN users u ON u.id = al.user_id_int
 SET al.user_name = COALESCE(u.full_name, u.username)
 WHERE (al.user_name IS NULL OR al.user_name = '') AND u.id IS NOT NULL;
 
+-- Ensure created_at is populated for legacy rows (fallback to current timestamp)
+UPDATE activity_logs
+SET created_at = CURRENT_TIMESTAMP
+WHERE created_at IS NULL;
+
 -- Ensure user_permissions table exists
 CREATE TABLE IF NOT EXISTS user_permissions (
   id VARCHAR(36) NOT NULL PRIMARY KEY,

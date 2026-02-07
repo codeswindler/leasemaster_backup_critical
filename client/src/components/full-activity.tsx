@@ -92,6 +92,31 @@ export function FullActivity() {
     return matchesSearch && matchesType && matchesUser
   })
 
+  const formatTimestamp = (value?: string) => {
+    if (!value) return "—"
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return "—"
+    return parsed.toLocaleString()
+  }
+
+  const getDisplayUser = (activity: any) => {
+    return (
+      activity.user_name ||
+      activity.userName ||
+      activity.username ||
+      (activity.user_id_int ? `User #${activity.user_id_int}` : null) ||
+      (activity.user_id ? `User #${activity.user_id}` : null) ||
+      "System"
+    )
+  }
+
+  const extractAmountFromDetails = (details?: string) => {
+    if (!details) return null
+    const match = details.match(/KSh\s*([0-9,]+(?:\.[0-9]+)?)/i)
+    if (!match) return null
+    return match[1]
+  }
+
   const getActivityIcon = (type: string) => {
     switch (type) {
       case "payment":
@@ -304,16 +329,20 @@ export function FullActivity() {
                   <TableCell>{getTypeBadge(activity.type)}</TableCell>
                   <TableCell className="max-w-md">
                     <p className="text-sm text-muted-foreground truncate">
-                      {activity.details}
+                      {activity.details || "—"}
                     </p>
                   </TableCell>
-                  <TableCell>{activity.user_name || "System"}</TableCell>
+                  <TableCell>{getDisplayUser(activity)}</TableCell>
                   <TableCell className="font-mono text-sm">
-                    {activity.created_at ? new Date(activity.created_at).toLocaleString() : "N/A"}
+                    {formatTimestamp(activity.created_at || activity.createdAt)}
                   </TableCell>
                   <TableCell>
-                    {activity.amount && (
+                    {activity.amount ? (
                       <span className="font-mono text-sm">{activity.amount}</span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">
+                        {extractAmountFromDetails(activity.details) || "—"}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>

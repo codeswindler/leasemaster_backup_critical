@@ -2068,7 +2068,7 @@ try {
             sendJson([], $success ? 204 : 404);
         }
     }
-
+    
     // ========== PAYMENTS ==========
     elseif ($endpoint === 'payments') {
         if ($method === 'GET' && !$id) {
@@ -2206,6 +2206,58 @@ try {
                 ]);
             }
             sendJson([], $success ? 204 : 404);
+        }
+    }
+
+    // ========== INCOMING PAYMENTS ==========
+    elseif ($endpoint === 'incoming-payments') {
+        if ($method === 'GET' && !$id) {
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
+            $from = getQuery('from');
+            $to = getQuery('to');
+            $limit = getQuery('limit');
+            $user = null;
+            $userRole = null;
+
+            if (isset($_SESSION['userId'])) {
+                $user = $storage->getUser($_SESSION['userId']);
+                $userRole = $user['role'] ?? 'landlord';
+            }
+
+            if (!$user) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+
+            if ($userRole === 'admin' || $userRole === 'super_admin') {
+                $filters = [
+                    'adminId' => $user['id'] ?? null,
+                    'landlordId' => $landlordId,
+                    'propertyId' => $propertyId,
+                    'from' => $from,
+                    'to' => $to,
+                    'limit' => $limit
+                ];
+                $payments = $storage->getIncomingPaymentsByScope($filters);
+            } elseif (isLandlordRole($userRole)) {
+                $filters = [
+                    'landlordId' => $user['id'] ?? null,
+                    'propertyId' => $propertyId,
+                    'from' => $from,
+                    'to' => $to,
+                    'limit' => $limit
+                ];
+                $payments = $storage->getIncomingPaymentsByScope($filters);
+            } else {
+                $propertyIds = $storage->getUserPropertyIds($user['id']);
+                $payments = $storage->getIncomingPaymentsByPropertyIds($propertyIds, [
+                    'from' => $from,
+                    'to' => $to,
+                    'limit' => $limit
+                ]);
+            }
+
+            sendJson($payments ?? []);
         }
     }
 
