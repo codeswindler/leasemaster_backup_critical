@@ -376,7 +376,10 @@ export function Dashboard() {
     // Create leaseId → lease mapping for filtering invoices/payments
     const leasesMap: Record<string, any> = {}
     filteredLeases.forEach((l: any) => {
-      leasesMap[l.id] = l
+      const leaseKey = normalizeId(l.id)
+      if (leaseKey) {
+        leasesMap[leaseKey] = l
+      }
     })
     
     // Filter tenants (via leases)
@@ -403,68 +406,73 @@ export function Dashboard() {
     const allRecentPaymentsData = Array.isArray(allRecentPayments) ? allRecentPayments : []
     
     recentPayments = allRecentPaymentsData.filter((p: any) => {
-      const lease = leasesMap[p.leaseId]
+      const lease = leasesMap[normalizeId(p.leaseId) as string]
       if (!lease) return false
-      const unit = unitsMap[lease.unitId]
-      return unit && unit.propertyId === selectedPropertyId
+      const unit = unitsMap[normalizeId(lease.unitId) as string]
+      return unit && normalizeId(unit.propertyId) === normalizedPropertyId
     }).slice(0, 5)
     
     overdueInvoices = allOverdueInvoicesData.filter((i: any) => {
-      const lease = leasesMap[i.leaseId]
+      const lease = leasesMap[normalizeId(i.leaseId) as string]
       if (!lease) return false
-      const unit = unitsMap[lease.unitId]
-      return unit && unit.propertyId === selectedPropertyId
+      const unit = unitsMap[normalizeId(lease.unitId) as string]
+      return unit && normalizeId(unit.propertyId) === normalizedPropertyId
     }).slice(0, 5)
   } else if (selectedLandlordId && selectedLandlordId !== "all") {
     // If only landlord is selected (no property), filter by landlord's properties
-    const propertyIds = propertiesAfterLandlordFilter.map((p: any) => p.id)
+    const propertyIds = propertiesAfterLandlordFilter.map((p: any) => normalizeId(p.id)).filter(Boolean)
     const unitsMap: Record<string, any> = {}
     allUnitsData.forEach((u: any) => {
-      if (propertyIds.includes(u.propertyId)) {
-        unitsMap[u.id] = u
+      const unitPropertyId = normalizeId(u.propertyId)
+      const unitId = normalizeId(u.id)
+      if (unitId && unitPropertyId && propertyIds.includes(unitPropertyId)) {
+        unitsMap[unitId] = u
       }
     })
     
     const leasesMap: Record<string, any> = {}
     allLeasesData.forEach((l: any) => {
-      const unit = unitsMap[l.unitId]
+      const unit = unitsMap[normalizeId(l.unitId) as string]
       if (unit) {
-        leasesMap[l.id] = l
+        const leaseKey = normalizeId(l.id)
+        if (leaseKey) {
+          leasesMap[leaseKey] = l
+        }
       }
     })
     
     const allRecentPaymentsData = Array.isArray(allRecentPayments) ? allRecentPayments : []
     
     recentPayments = allRecentPaymentsData.filter((p: any) => {
-      const lease = leasesMap[p.leaseId]
+      const lease = leasesMap[normalizeId(p.leaseId) as string]
       return !!lease
     }).slice(0, 5)
     
     overdueInvoices = allOverdueInvoicesData.filter((i: any) => {
-      const lease = leasesMap[i.leaseId]
+      const lease = leasesMap[normalizeId(i.leaseId) as string]
       return !!lease
     }).slice(0, 5)
     
     // Also filter other data by landlord
     filteredLeases = allLeasesData.filter((l: any) => {
-      const unit = unitsMap[l.unitId]
+      const unit = unitsMap[normalizeId(l.unitId) as string]
       return !!unit
     })
     
-    const filteredLeaseIds = new Set(filteredLeases.map((l: any) => l.tenantId))
-    filteredTenants = allTenantsData.filter((t: any) => filteredLeaseIds.has(t.id))
+    const filteredLeaseIds = new Set(filteredLeases.map((l: any) => normalizeId(l.tenantId)))
+    filteredTenants = allTenantsData.filter((t: any) => filteredLeaseIds.has(normalizeId(t.id)))
     
     filteredInvoices = allInvoicesData.filter((i: any) => {
-      const lease = leasesMap[i.leaseId]
+      const lease = leasesMap[normalizeId(i.leaseId) as string]
       return !!lease
     })
     
     filteredPayments = allPaymentsData.filter((p: any) => {
-      const lease = leasesMap[p.leaseId]
+      const lease = leasesMap[normalizeId(p.leaseId) as string]
       return !!lease
     })
     
-    filteredUnits = allUnitsData.filter((u: any) => propertyIds.includes(u.propertyId))
+    filteredUnits = allUnitsData.filter((u: any) => propertyIds.includes(normalizeId(u.propertyId)))
     
     console.log("Dashboard - Filtered by landlord only:", selectedLandlordId, "Payments:", recentPayments.length, "Invoices:", overdueInvoices.length, "Properties:", propertiesAfterLandlordFilter.length)
   } else {

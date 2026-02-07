@@ -310,7 +310,10 @@ export function WaterUnits() {
   const activeLeasesByUnit = useMemo(() => {
     const map = new Map<string, any>()
     normalizedLeases
-      .filter((lease: any) => lease.status === "active")
+      .filter((lease: any) => {
+        const normalizedStatus = (lease.status || "").toLowerCase()
+        return normalizedStatus === "" || normalizedStatus === "active"
+      })
       .forEach((lease: any) => {
         map.set(lease.unitId, lease)
       })

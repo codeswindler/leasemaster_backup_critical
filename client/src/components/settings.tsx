@@ -666,31 +666,31 @@ export function Settings() {
         >
           <TabsTrigger
             value="sms"
-            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            className="text-foreground/80 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-foreground/40"
           >
             SMS
           </TabsTrigger>
           <TabsTrigger
             value="email"
-            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            className="text-foreground/80 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-foreground/40"
           >
             Email
           </TabsTrigger>
           <TabsTrigger
             value="mpesa"
-            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            className="text-foreground/80 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-foreground/40"
           >
             M-Pesa
           </TabsTrigger>
           <TabsTrigger
             value="invoice"
-            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            className="text-foreground/80 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-foreground/40"
           >
             Invoice
           </TabsTrigger>
           <TabsTrigger
             value="alerts"
-            className="text-foreground data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            className="text-foreground/80 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-foreground/40"
           >
             Alerts
           </TabsTrigger>
