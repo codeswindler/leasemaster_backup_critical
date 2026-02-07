@@ -59,6 +59,7 @@ export function Dashboard() {
   const activityPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const incomingPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const revenuePaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const recentActivityPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const activityPalette = getPaletteByIndex(activityPaletteSeed.current)
   const incomingPalette = getPaletteByIndex(incomingPaletteSeed.current)
   const { toast } = useToast()
@@ -1302,7 +1303,7 @@ export function Dashboard() {
       >
         {/* Recent Activity */}
         <Card
-          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${overduePalette.border} ${overduePalette.card} backdrop-blur-sm`}
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${getPaletteByIndex(recentActivityPaletteSeed.current).border} ${getPaletteByIndex(recentActivityPaletteSeed.current).card} backdrop-blur-sm`}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div>

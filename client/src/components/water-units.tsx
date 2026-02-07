@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
+import { getPaletteByIndex } from "@/lib/palette"
 import { Plus, Save, Eye, FileText, Calculator, Droplets } from "lucide-react"
 import {
   CartesianGrid,
@@ -26,6 +27,9 @@ import type { Unit, WaterReading } from "@shared/schema"
 export function WaterUnits() {
   const { toast } = useToast()
   const { selectedPropertyId: globalSelectedPropertyId, selectedLandlordId } = useFilter()
+  const summaryPaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const listPaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const analysisPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const [consumptionMonth, setConsumptionMonth] = useState<string>(() => {
     const now = new Date()
     const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
@@ -687,7 +691,7 @@ export function WaterUnits() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="vibrant-card">
+        <Card className={`vibrant-card border-2 ${getPaletteByIndex(summaryPaletteSeed.current).border} ${getPaletteByIndex(summaryPaletteSeed.current).card}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Units</CardTitle>
             <Droplets className="h-4 w-4 text-muted-foreground" />
@@ -698,7 +702,7 @@ export function WaterUnits() {
           </CardContent>
         </Card>
 
-        <Card className="vibrant-card">
+        <Card className={`vibrant-card border-2 ${getPaletteByIndex((summaryPaletteSeed.current + 1) % 6).border} ${getPaletteByIndex((summaryPaletteSeed.current + 1) % 6).card}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Consumption Month</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
@@ -711,7 +715,7 @@ export function WaterUnits() {
           </CardContent>
         </Card>
 
-        <Card className="vibrant-card">
+        <Card className={`vibrant-card border-2 ${getPaletteByIndex((summaryPaletteSeed.current + 2) % 6).border} ${getPaletteByIndex((summaryPaletteSeed.current + 2) % 6).card}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Consumption</CardTitle>
             <Calculator className="h-4 w-4 text-muted-foreground" />
@@ -722,7 +726,7 @@ export function WaterUnits() {
           </CardContent>
         </Card>
 
-        <Card className="vibrant-card">
+        <Card className={`vibrant-card border-2 ${getPaletteByIndex((summaryPaletteSeed.current + 3) % 6).border} ${getPaletteByIndex((summaryPaletteSeed.current + 3) % 6).card}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Amount Consumed</CardTitle>
             <Calculator className="h-4 w-4 text-muted-foreground" />
@@ -735,7 +739,7 @@ export function WaterUnits() {
       </div>
 
       <Tabs defaultValue="bulk-entry" className="space-y-6">
-        <TabsList>
+        <TabsList className={`border-2 ${getPaletteByIndex(listPaletteSeed.current).border} ${getPaletteByIndex(listPaletteSeed.current).card}`}>
           <TabsTrigger value="bulk-entry">Bulk Entry</TabsTrigger>
           <TabsTrigger value="consumption-analysis">Consumption Analysis</TabsTrigger>
         </TabsList>
@@ -825,7 +829,7 @@ export function WaterUnits() {
         </TabsContent>
 
         <TabsContent value="bulk-entry" className="space-y-6">
-          <Card>
+          <Card className={`vibrant-card border-2 ${getPaletteByIndex(listPaletteSeed.current).border} ${getPaletteByIndex(listPaletteSeed.current).card}`}>
             <CardHeader>
               <CardTitle>Bulk Water Reading Entry</CardTitle>
               <CardDescription>
@@ -1012,7 +1016,7 @@ export function WaterUnits() {
         </TabsContent>
 
         <TabsContent value="consumption-analysis" className="space-y-6">
-          <Card>
+          <Card className={`vibrant-card border-2 ${getPaletteByIndex(analysisPaletteSeed.current).border} ${getPaletteByIndex(analysisPaletteSeed.current).card}`}>
             <CardHeader>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
