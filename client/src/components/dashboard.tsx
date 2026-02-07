@@ -47,6 +47,7 @@ export function Dashboard() {
   const mpesaPalette = getPaletteByName("emerald")
   const activityPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const incomingPaletteSeed = useRef(Math.floor(Math.random() * 6))
+  const revenuePaletteSeed = useRef(Math.floor(Math.random() * 6))
   const activityPalette = getPaletteByIndex(activityPaletteSeed.current)
   const incomingPalette = getPaletteByIndex(incomingPaletteSeed.current)
   const { toast } = useToast()
@@ -957,7 +958,7 @@ export function Dashboard() {
       >
         {/* Operational Log */}
         <Card
-          className={`hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${activityPalette.border} ${activityPalette.card} backdrop-blur-sm`}
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${activityPalette.border} ${activityPalette.card} backdrop-blur-sm`}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1031,7 +1032,7 @@ export function Dashboard() {
       >
         {/* Tenant Satisfaction Analytics */}
         <Card
-          className={`hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${overduePalette.border} ${overduePalette.card} backdrop-blur-sm`}
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${overduePalette.border} ${overduePalette.card} backdrop-blur-sm`}
         >
         <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1377,7 +1378,9 @@ export function Dashboard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.7 }}
       >
-        <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
+        <Card
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${getPaletteByIndex(revenuePaletteSeed.current).border} ${getPaletteByIndex(revenuePaletteSeed.current).card} backdrop-blur-sm`}
+        >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <CardTitle className="flex items-center gap-2">
