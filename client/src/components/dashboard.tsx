@@ -1230,7 +1230,7 @@ export function Dashboard() {
             <Button
               className="w-full"
               variant="outline"
-              onClick={() => setLocation("/accounting/receive-payments#incoming-payments")}
+              onClick={() => setLocation("/accounting/payments#incoming-payments")}
             >
               View Incoming Payments
             </Button>

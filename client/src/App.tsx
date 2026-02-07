@@ -762,7 +762,7 @@ function AppContent() {
         title: log.action || "Payment Received",
         detail: log.details || "",
         createdAt: log.createdAt || log.created_at,
-        href: "/accounting/receive-payments#incoming-payments",
+        href: "/accounting/payments#incoming-payments",
       })),
       ...overdueInvoices.slice(0, 5).map((inv: any) => ({
         id: `overdue-${inv.id}`,
