@@ -284,6 +284,52 @@ class Storage {
         return true;
     }
 
+    private function normalizePermissionsList($permissionsRaw) {
+        if (empty($permissionsRaw)) {
+            return [];
+        }
+        if (is_array($permissionsRaw)) {
+            return array_values(array_filter($permissionsRaw, static function ($value) {
+                return $value !== null && trim((string)$value) !== '';
+            }));
+        }
+        if (is_string($permissionsRaw)) {
+            $trimmed = trim($permissionsRaw);
+            if ($trimmed === '') {
+                return [];
+            }
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return array_values(array_filter($decoded, static function ($value) {
+                    return $value !== null && trim((string)$value) !== '';
+                }));
+            }
+            return array_values(array_filter(array_map('trim', explode(',', $trimmed))));
+        }
+        return [];
+    }
+
+    private function syncUserPermissions($userId, $permissionsRaw) {
+        if (!$this->tableExists('user_permissions')) {
+            return;
+        }
+        $permissions = $this->normalizePermissionsList($permissionsRaw);
+        $userKey = (string)$userId;
+        $stmt = $this->pdo->prepare("DELETE FROM user_permissions WHERE user_id = ?");
+        $stmt->execute([$userKey]);
+        if (empty($permissions)) {
+            return;
+        }
+        $insert = $this->pdo->prepare("INSERT INTO user_permissions (id, user_id, permission) VALUES (?, ?, ?)");
+        foreach ($permissions as $permission) {
+            $permissionValue = trim((string)$permission);
+            if ($permissionValue === '') {
+                continue;
+            }
+            $insert->execute([$this->generateUUID(), $userKey, $permissionValue]);
+        }
+    }
+
     public function createUser($data) {
         $role = $data['role'] ?? 'landlord';  // Default role is 'landlord'
         $status = 4;  // Initial status (user hasn't logged in yet)
@@ -363,6 +409,9 @@ class Storage {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
         $id = $this->pdo->lastInsertId();
+        if (isset($data['permissions'])) {
+            $this->syncUserPermissions($id, $data['permissions']);
+        }
         return $this->getUser($id);
     }
 
@@ -449,6 +498,9 @@ class Storage {
         $sql = "UPDATE users SET " . implode(', ', $fields) . " WHERE id = ?";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($values);
+        if (array_key_exists('permissions', $data)) {
+            $this->syncUserPermissions($id, $data['permissions']);
+        }
         return $this->getUser($id);
     }
 
@@ -2897,12 +2949,19 @@ class Storage {
         $action = $data['action'] ?? 'Activity';
         $type = $data['type'] ?? 'system';
         $userName = null;
-        if (!empty($data['userId'])) {
-            $user = $this->getUser($data['userId']);
+        $userId = $data['userId'] ?? null;
+        $userIdInt = is_numeric($userId) ? (int)$userId : null;
+        if (!empty($userId)) {
+            $user = $this->getUser($userId);
             if ($user) {
                 $userName = $user['full_name'] ?? $user['fullName'] ?? $user['username'] ?? null;
+                if ($userIdInt === null && isset($user['id']) && is_numeric($user['id'])) {
+                    $userIdInt = (int)$user['id'];
+                }
             }
         }
+        $propertyId = $data['propertyId'] ?? null;
+        $propertyIdInt = is_numeric($propertyId) ? (int)$propertyId : null;
         try {
             $columns = ['id'];
             $values = [$id];
@@ -2927,7 +2986,11 @@ class Storage {
             }
             if ($this->columnExists('activity_logs', 'user_id')) {
                 $columns[] = 'user_id';
-                $values[] = $data['userId'] ?? null;
+                $values[] = $userId !== null ? (string)$userId : null;
+            }
+            if ($this->columnExists('activity_logs', 'user_id_int')) {
+                $columns[] = 'user_id_int';
+                $values[] = $userIdInt;
             }
             if ($this->columnExists('activity_logs', 'user_name')) {
                 $columns[] = 'user_name';
@@ -2939,7 +3002,11 @@ class Storage {
             }
             if ($this->columnExists('activity_logs', 'property_id')) {
                 $columns[] = 'property_id';
-                $values[] = $data['propertyId'] ?? null;
+                $values[] = $propertyId !== null ? (string)$propertyId : null;
+            }
+            if ($this->columnExists('activity_logs', 'property_id_int')) {
+                $columns[] = 'property_id_int';
+                $values[] = $propertyIdInt;
             }
             $placeholders = implode(', ', array_fill(0, count($columns), '?'));
             $stmt = $this->pdo->prepare("INSERT INTO activity_logs (" . implode(', ', $columns) . ") VALUES ({$placeholders})");
@@ -2987,6 +3054,8 @@ class Storage {
         $hasFullName = $this->columnExists('users', 'full_name');
         $hasUserNameColumn = $this->columnExists('activity_logs', 'user_name');
         $hasUsernameColumn = $this->columnExists('activity_logs', 'username');
+        $hasUserIdInt = $this->columnExists('activity_logs', 'user_id_int');
+        $hasPropertyIdInt = $this->columnExists('activity_logs', 'property_id_int');
         $fallbacks = [];
         if ($hasUserNameColumn) {
             $fallbacks[] = 'al.user_name';
@@ -3009,9 +3078,18 @@ class Storage {
         }
 
         try {
+            $userJoin = "LEFT JOIN users u ON (";
+            $joinParts = [];
+            if ($hasUserIdInt) {
+                $joinParts[] = "al.user_id_int IS NOT NULL AND u.id = al.user_id_int";
+            }
+            $joinParts[] = "u.id = al.user_id";
+            $joinParts[] = "u.legacy_id = al.user_id";
+            $userJoin .= implode(" OR ", $joinParts) . ")";
+
             $sql = "SELECT al.*, {$userNameSelect}
                 FROM activity_logs al
-                LEFT JOIN users u ON al.user_id = u.id
+                {$userJoin}
                 WHERE 1=1";
         $params = [];
             $limit = null;
@@ -3025,22 +3103,38 @@ class Storage {
             $params[] = $filters['userId'];
         }
         if (!empty($filters['propertyId'])) {
-            $sql .= " AND al.property_id = ?";
-            $params[] = $filters['propertyId'];
+            if ($hasPropertyIdInt) {
+                $sql .= " AND (al.property_id_int = ? OR al.property_id = ?)";
+                $params[] = $filters['propertyId'];
+                $params[] = $filters['propertyId'];
+            } else {
+                $sql .= " AND al.property_id = ?";
+                $params[] = $filters['propertyId'];
+            }
         }
         if (!empty($filters['search'])) {
             $searchParam = '%' . $filters['search'] . '%';
                 if ($hasFullName) {
-                    $sql .= " AND (al.action LIKE ? OR al.details LIKE ? OR u.username LIKE ? OR u.full_name LIKE ?)";
+                    $sql .= " AND (al.action LIKE ? OR al.details LIKE ? OR u.username LIKE ? OR u.full_name LIKE ?";
             $params[] = $searchParam;
             $params[] = $searchParam;
             $params[] = $searchParam;
             $params[] = $searchParam;
+                    if ($hasUserNameColumn) {
+                        $sql .= " OR al.user_name LIKE ?";
+                        $params[] = $searchParam;
+                    }
+                    $sql .= ")";
                 } else {
-                    $sql .= " AND (al.action LIKE ? OR al.details LIKE ? OR u.username LIKE ?)";
+                    $sql .= " AND (al.action LIKE ? OR al.details LIKE ? OR u.username LIKE ?";
                     $params[] = $searchParam;
                     $params[] = $searchParam;
                     $params[] = $searchParam;
+                    if ($hasUserNameColumn) {
+                        $sql .= " OR al.user_name LIKE ?";
+                        $params[] = $searchParam;
+                    }
+                    $sql .= ")";
                 }
         }
         if (!empty($filters['dateFrom'])) {
@@ -4011,5 +4105,7 @@ class Storage {
 
 // Create global storage instance
 $storage = new Storage();
+
+
 
 
