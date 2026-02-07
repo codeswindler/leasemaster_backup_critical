@@ -235,6 +235,7 @@ export function SingleInvoicing() {
 
   const chargeOptions = [
     { id: "rent", name: "Rent" },
+    { id: "deposit", name: "Deposit" },
     { id: "water", name: "Water (Metered)" },
     ...propertyChargeCodes,
   ]
