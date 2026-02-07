@@ -5,6 +5,7 @@ interface FilterContextType {
   selectedLandlordId: string | null;
   selectedPropertyId: string | null;
   setSelectedAgentId: (id: string | null) => void;
+  setSelectedAgentIdSilently: (id: string | null) => void;
   setSelectedLandlordId: (id: string | null) => void;
   setSelectedPropertyId: (id: string | null) => void;
   clearFilters: () => void;
@@ -93,6 +94,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Set agent without clearing dependent filters (used for auto-sync)
+  const setSelectedAgentIdSilently = (id: string | null) => {
+    setSelectedAgentIdState(id);
+  };
+
   const setSelectedPropertyId = (id: string | null) => {
     setSelectedPropertyIdState(id);
   };
@@ -104,6 +110,7 @@ export function FilterProvider({ children }: { children: ReactNode }) {
         selectedLandlordId,
         selectedPropertyId,
         setSelectedAgentId,
+        setSelectedAgentIdSilently,
         setSelectedLandlordId,
         setSelectedPropertyId,
         clearFilters,

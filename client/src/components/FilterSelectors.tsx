@@ -15,6 +15,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
     selectedPropertyId,
     selectedLandlordId,
     setSelectedAgentId,
+    setSelectedAgentIdSilently,
     setSelectedPropertyId,
     setSelectedLandlordId,
   } = useFilter();
@@ -76,7 +77,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
       setSelectedLandlordId(ownerId);
     }
     if (propertyAgentId && propertyAgentId !== normalizedAgentId) {
-      setSelectedAgentId(propertyAgentId);
+      setSelectedAgentIdSilently(propertyAgentId);
     }
     queryClient.invalidateQueries();
   }, [
@@ -85,7 +86,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
     normalizedLandlordId,
     normalizedAgentId,
     setSelectedLandlordId,
-    setSelectedAgentId,
+    setSelectedAgentIdSilently,
   ]);
 
   useEffect(() => {
@@ -96,7 +97,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
       );
       const landlordAgentId = normalizeId(getLandlordAgentId(matchLandlord));
       if (landlordAgentId && landlordAgentId !== normalizedAgentId) {
-        setSelectedAgentId(landlordAgentId);
+        setSelectedAgentIdSilently(landlordAgentId);
       }
     }
     const ownedProperties = (properties as any[]).filter((property: any) => normalizeId(getPropertyLandlordId(property)) === normalizedLandlordId);
@@ -120,7 +121,7 @@ export function FilterSelectors({ currentUser }: FilterSelectorsProps) {
     landlords,
     isSuperAdmin,
     setSelectedPropertyId,
-    setSelectedAgentId,
+    setSelectedAgentIdSilently,
   ]);
 
   useEffect(() => {
