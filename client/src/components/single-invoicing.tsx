@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
+import { useLocation } from "wouter"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { Search, Receipt, Building2 } from "lucide-react"
 import { apiRequest, queryClient } from "@/lib/queryClient"
@@ -17,6 +18,13 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type PropertySummary = {
   id: string
@@ -43,6 +51,8 @@ export function SingleInvoicing() {
   const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
   const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const { toast } = useToast()
+  const [, setLocation] = useLocation()
+  const [isWaterPromptOpen, setIsWaterPromptOpen] = useState(false)
   const singleInvoiceSeed = useMemo(
     () => Math.floor(Math.random() * singleInvoiceVariants.length),
     []
@@ -270,20 +280,23 @@ export function SingleInvoicing() {
   }, [selectedPropertyId, chargeOptions.length])
 
   // Create real units with tenant information
-  const realUnits = normalizedUnits.map((unit: any) => {
+  const realUnits = normalizedUnits.flatMap((unit: any) => {
     const activeLease = normalizedLeases.find((lease: any) => lease.unitId === unit.id && lease.status === "active")
     const tenant = activeLease ? normalizedTenants.find((t: any) => t.id === activeLease.tenantId) : null
+    if (!activeLease || !tenant) {
+      return []
+    }
 
-    return {
+    return [{
       id: unit.id,
       unit: unit.unitNumber,
-      tenant: tenant ? tenant.fullName : "Vacant",
-      rent: activeLease ? parseAmount(activeLease.rentAmount) : 0,
+      tenant: tenant.fullName,
+      rent: parseAmount(activeLease.rentAmount),
       lease: activeLease,
       chargeAmounts: unit.chargeAmounts,
       status: unit.status,
       type: unit.type ?? unit.houseType ?? unit.house_type ?? "—",
-    }
+    }]
   })
 
   const filteredUnits = realUnits.filter((unit: any) => 
@@ -412,11 +425,49 @@ export function SingleInvoicing() {
       })
       return
     }
+    if (selectedChargeCodes.includes("water") && !latestReading) {
+      setIsWaterPromptOpen(true)
+      return
+    }
     createSingleInvoice.mutate()
   }
 
   return (
     <div className="p-6 space-y-6">
+      <Dialog open={isWaterPromptOpen} onOpenChange={setIsWaterPromptOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Missing Water Reading</DialogTitle>
+            <DialogDescription>
+              This unit does not have an updated water reading for the billing period.
+              Would you like to update readings or proceed without water charges?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              onClick={() => {
+                setIsWaterPromptOpen(false)
+                if (selectedPropertyId) {
+                  setLocation(`/accounting/water-units?property=${selectedPropertyId}`)
+                } else {
+                  setLocation("/accounting/water-units")
+                }
+              }}
+            >
+              Update Water Readings
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsWaterPromptOpen(false)
+                createSingleInvoice.mutate()
+              }}
+            >
+              Proceed Without Reading
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div>
         <h1 className="text-3xl font-bold" data-testid="single-invoicing-title">Single Invoicing</h1>
         <p className="text-muted-foreground">Create individual invoices for specific tenants</p>

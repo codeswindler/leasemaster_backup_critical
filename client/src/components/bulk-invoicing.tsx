@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
+import { useLocation } from "wouter"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
@@ -17,6 +18,13 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 type TenantAccount = {
   id: string
@@ -56,8 +64,11 @@ export function BulkInvoicing() {
   const [tenantAccounts, setTenantAccounts] = useState<TenantAccount[]>([])
   const [showAccounts, setShowAccounts] = useState(false)
   const [editingCharges, setEditingCharges] = useState<{[key: string]: {[key: string]: number}}>({})
+  const [missingWaterAccounts, setMissingWaterAccounts] = useState<TenantAccount[]>([])
+  const [isWaterPromptOpen, setIsWaterPromptOpen] = useState(false)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
+  const [, setLocation] = useLocation()
 
   useEffect(() => {
     if (selectedPropertyId) {
@@ -294,10 +305,12 @@ export function BulkInvoicing() {
     const propertyUnits = normalizedUnits.filter((unit) => unit.propertyId === selectedPropertyId)
     const activeLeases = normalizedLeases.filter((lease) => lease.status === "active")
 
-    return propertyUnits.map((unit) => {
+    return propertyUnits.flatMap((unit) => {
       const unitLease = activeLeases.find((lease) => lease.unitId === unit.id)
       const tenant = unitLease ? normalizedTenants.find((t) => t.id === unitLease.tenantId) : null
-      const isVacant = !unitLease || !tenant
+      if (!unitLease || !tenant) {
+        return []
+      }
 
       const latestReading = latestWaterByUnit.get(unit.id)
       const consumption = latestReading ? getReadingConsumption(latestReading) : 0
@@ -318,12 +331,12 @@ export function BulkInvoicing() {
         baseCharges[chargeId] = unitLease ? parseAmount(unit.chargeAmounts?.[chargeId] ?? 0) : 0
       })
 
-      return {
+      return [{
         id: unit.id,
         unit: unit.unitNumber,
-        tenant: tenant?.fullName || "Vacant",
+        tenant: tenant?.fullName || "Unknown tenant",
         lease: unitLease,
-        isVacant,
+        isVacant: false,
         waterUnits,
         waterRate,
         lastReadingDate: latestReading?.readingDate ?? latestReading?.reading_date ?? latestReading?.createdAt ?? latestReading?.created_at,
@@ -331,7 +344,7 @@ export function BulkInvoicing() {
           ...baseCharges,
           ...editingCharges[unit.id],
         },
-      }
+      }]
     })
   }
 
@@ -412,9 +425,10 @@ export function BulkInvoicing() {
   // Bulk invoice creation mutation
   const createBulkInvoices = useMutation({
     mutationFn: async (invoiceData: any) => {
+      const targetAccounts: TenantAccount[] = invoiceData.accounts ?? tenantAccounts
       const results = []
       
-      for (const account of tenantAccounts) {
+      for (const account of targetAccounts) {
         if (!account.lease) continue
 
         // Calculate total amount
@@ -510,6 +524,18 @@ export function BulkInvoicing() {
       return
     }
 
+    const needsWater = selectedChargeCodes.includes("water")
+    if (needsWater) {
+      const missing = tenantAccounts.filter(
+        (account) => account.lease && !latestWaterByUnit.get(account.id)
+      )
+      if (missing.length > 0) {
+        setMissingWaterAccounts(missing)
+        setIsWaterPromptOpen(true)
+        return
+      }
+    }
+
     createBulkInvoices.mutate({
       issueDate: invoiceDate,
       dueDate
@@ -522,6 +548,68 @@ export function BulkInvoicing() {
 
   return (
     <div className="p-6 space-y-6">
+      <Dialog open={isWaterPromptOpen} onOpenChange={setIsWaterPromptOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Missing Water Readings</DialogTitle>
+            <DialogDescription>
+              {missingWaterAccounts.length} accounts do not have updated water readings for this billing period.
+              Choose how to proceed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            {missingWaterAccounts.slice(0, 5).map((account) => (
+              <div key={account.id}>
+                {account.unit} • {account.tenant}
+              </div>
+            ))}
+            {missingWaterAccounts.length > 5 && (
+              <div>+ {missingWaterAccounts.length - 5} more</div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsWaterPromptOpen(false)
+                const excludedIds = new Set(missingWaterAccounts.map((account) => account.id))
+                const filteredAccounts = tenantAccounts.filter((account) => !excludedIds.has(account.id))
+                createBulkInvoices.mutate({
+                  issueDate: invoiceDate,
+                  dueDate,
+                  accounts: filteredAccounts
+                })
+              }}
+            >
+              Exclude Accounts Without Readings
+            </Button>
+            <Button
+              onClick={() => {
+                setIsWaterPromptOpen(false)
+                if (selectedPropertyId) {
+                  setLocation(`/accounting/water-units?property=${selectedPropertyId}`)
+                } else {
+                  setLocation("/accounting/water-units")
+                }
+              }}
+            >
+              Update Water Readings
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsWaterPromptOpen(false)
+                createBulkInvoices.mutate({
+                  issueDate: invoiceDate,
+                  dueDate
+                })
+              }}
+            >
+              Proceed Without Readings
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <div>
         <h1 className="text-3xl font-bold" data-testid="bulk-invoicing-title">Bulk Invoicing</h1>
         <p className="text-muted-foreground">Create invoices for all tenants in a property</p>
