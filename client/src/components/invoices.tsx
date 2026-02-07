@@ -1316,7 +1316,7 @@ export function Invoices() {
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
-                <TableHead>Note</TableHead>
+                <TableHead>Notes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1396,6 +1396,7 @@ export function Invoices() {
                   </TableCell>
                   <TableCell>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => {
@@ -1404,6 +1405,7 @@ export function Invoices() {
                       }}
                       data-testid={`button-note-${invoice.id}`}
                     >
+                      <FileText className="mr-1 h-4 w-4" />
                       Notes
                     </Button>
                   </TableCell>
