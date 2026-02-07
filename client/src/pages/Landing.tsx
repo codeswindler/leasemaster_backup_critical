@@ -142,7 +142,7 @@ export function Landing() {
       titleLine1: "Become An Agent",
       titleLine2: "with Us",
       pitch:
-        "Onboard landlords as clients, manage their portfolios, and run property operations end-to-end from one LeaseMaster dashboard.",
+        "Transform your service and exponentially scale your business. Command every landlord relationship and property detail from your unified, powerful dashboard—your central hub for growth, control, and unparalleled client service.",
     },
   ];
   const [heroIndex, setHeroIndex] = useState(0);
@@ -879,18 +879,18 @@ export function Landing() {
                     Agent Partner Program
                   </div>
                   <h3 className={`text-3xl md:text-4xl font-bold mb-3 ${getTextContrastClass()}`}>
-                    Become An Agent with Us
+                    Your Command Center for Growth
                   </h3>
                   <p className={`text-lg ${getTextContrastClass()}`}>
-                    Agents can onboard landlords as clients, create their portfolios, and manage properties
-                    end-to-end while LeaseMaster handles billing, payments, and tenant communication.
+                    LeaseMaster puts the power of a full-scale property management operation at your fingertips.
+                    Focus on growth, strategy, and client relationships while wielding a platform built to scale your business with ease.
                   </p>
                 </div>
                 <div className="space-y-3">
                   {[
-                    "Register landlords as clients and structure their portfolios",
-                    "Oversee invoices, collections, and automated reminders",
-                    "Deliver real-time reporting across every property you manage",
+                    "Command Your Portfolio: Seamlessly onboard landlords and structure their property holdings from a single dashboard.",
+                    "Control the Finances: Oversee all invoices, collections, and automated payment reminders with total transparency.",
+                    "Communicate with Confidence: Deliver real-time reporting and insights that demonstrate exceptional value to every client.",
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3">
                       <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
