@@ -63,8 +63,6 @@ export function UserManagement() {
     phone: "",
     permissions: [] as string[],
     propertyIds: [] as string[],
-    region: "Africa/Nairobi", // Default to Nairobi, Kenya
-    timezone: "Africa/Nairobi"
   })
   const landlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const propertySelected = !!selectedPropertyId && selectedPropertyId !== "all"
@@ -196,6 +194,19 @@ export function UserManagement() {
   if (!showLandlordsOnly && landlordIdToUse) {
     visibleUsers = ensureUserIncluded(visibleUsers, landlordUser || null)
   }
+
+  const formVariants = useMemo(
+    () => [
+      "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
+      "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
+      "bg-gradient-to-br from-rose-50 via-pink-50 to-purple-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-rose-900/50",
+      "bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-amber-900/50",
+      "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
+      "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
+    ],
+    []
+  )
+  const formSeed = useMemo(() => Math.floor(Math.random() * formVariants.length), [])
 
   const permissionCategories = [
     {
@@ -438,8 +449,6 @@ export function UserManagement() {
         permissions: newUser.permissions,
         propertyIds: newUser.propertyIds,
         landlordId: landlordIdToUse,
-        region: newUser.region,
-        timezone: newUser.timezone,
       })
       return await response.json()
     },
@@ -459,8 +468,6 @@ export function UserManagement() {
         phone: "",
         permissions: [],
         propertyIds: [],
-        region: "Africa/Nairobi",
-        timezone: "Africa/Nairobi",
       })
       setIsAddDialogOpen(false)
     },
@@ -638,109 +645,62 @@ export function UserManagement() {
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className={`sm:max-w-[1100px] max-h-[85vh] overflow-y-auto vibrant-card ${formVariants[formSeed % formVariants.length]}`}>
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
                 Create a new system user and assign permissions
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    placeholder="John Doe"
-                    value={newUser.name}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                    data-testid="input-user-name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="john@example.com"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
-                    data-testid="input-user-email"
-                  />
-                </div>
-              </div>
-              
-                <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={newUser.role} onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}>
-                    <SelectTrigger data-testid="select-user-role">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="landlord">Landlord</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Accountant">Accountant</SelectItem>
-                      <SelectItem value="Support">Support</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                    data-testid="input-user-password"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="region">Region / Timezone</Label>
-                  <Select 
-                    value={newUser.region} 
-                    onValueChange={(value) => {
-                      // Map region to timezone
-                      const regionToTimezone: Record<string, string> = {
-                        "East Africa": "Africa/Nairobi",
-                        "West Africa": "Africa/Lagos",
-                        "Southern Africa": "Africa/Johannesburg",
-                        "North Africa": "Africa/Cairo",
-                        "Central Africa": "Africa/Kinshasa",
-                        "Europe": "Europe/London",
-                        "Asia": "Asia/Dubai",
-                        "Americas": "America/New_York",
-                      };
-                      setNewUser(prev => ({ 
-                        ...prev, 
-                        region: value,
-                        timezone: regionToTimezone[value] || "Africa/Nairobi"
-                      }));
-                    }}
-                  >
-                    <SelectTrigger data-testid="select-user-region">
-                      <SelectValue placeholder="Select region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="East Africa">East Africa (Africa/Nairobi - EAT)</SelectItem>
-                      <SelectItem value="West Africa">West Africa (Africa/Lagos - WAT)</SelectItem>
-                      <SelectItem value="Southern Africa">Southern Africa (Africa/Johannesburg - SAST)</SelectItem>
-                      <SelectItem value="North Africa">North Africa (Africa/Cairo - EET)</SelectItem>
-                      <SelectItem value="Central Africa">Central Africa (Africa/Kinshasa - WAT)</SelectItem>
-                      <SelectItem value="Europe">Europe (Europe/London - GMT/BST)</SelectItem>
-                      <SelectItem value="Asia">Asia (Asia/Dubai - GST)</SelectItem>
-                      <SelectItem value="Americas">Americas (America/New_York - EST/EDT)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Determines timezone for records and reports. Default: Nairobi, Kenya (EAT)
-                  </p>
-                </div>
-                <div className="space-y-4">
+            <div className="grid gap-6 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      placeholder="John Doe"
+                      value={newUser.name}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
+                      data-testid="input-user-name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="john@example.com"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                      data-testid="input-user-email"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="role">Role</Label>
+                    <Select value={newUser.role} onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}>
+                      <SelectTrigger data-testid="select-user-role">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="landlord">Landlord</SelectItem>
+                        <SelectItem value="Manager">Manager</SelectItem>
+                        <SelectItem value="Accountant">Accountant</SelectItem>
+                        <SelectItem value="Support">Support</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Enter password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                      data-testid="input-user-password"
+                    />
+                  </div>
                   <div>
                     <Label htmlFor="phone">Mobile</Label>
                     <Input
@@ -751,52 +711,43 @@ export function UserManagement() {
                       data-testid="input-user-phone"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="timezone-display">Selected Timezone</Label>
-                    <Input
-                      id="timezone-display"
-                      value={newUser.timezone}
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-base font-medium mb-3 block">Assigned Properties</Label>
+                  {!landlordSelected ? (
+                    <p className="text-sm text-muted-foreground">
+                      Select a landlord to load available properties.
+                    </p>
+                  ) : availableProperties.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No properties available for assignment.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                      {availableProperties.map((property: any) => (
+                        <div key={property.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`property-${property.id}`}
+                            checked={newUser.propertyIds.includes(String(property.id))}
+                            onCheckedChange={() => handleToggleProperty(String(property.id))}
+                            data-testid={`checkbox-property-${property.id}`}
+                          />
+                          <Label htmlFor={`property-${property.id}`} className="text-sm">
+                            {property.name}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    At least one property must be assigned.
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <Label className="text-base font-medium mb-3 block">Assigned Properties</Label>
-                {!landlordSelected ? (
-                  <p className="text-sm text-muted-foreground">
-                    Select a landlord to load available properties.
-                  </p>
-                ) : availableProperties.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No properties available for assignment.
-                  </p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-                    {availableProperties.map((property: any) => (
-                      <div key={property.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`property-${property.id}`}
-                          checked={newUser.propertyIds.includes(String(property.id))}
-                          onCheckedChange={() => handleToggleProperty(String(property.id))}
-                          data-testid={`checkbox-property-${property.id}`}
-                        />
-                        <Label htmlFor={`property-${property.id}`} className="text-sm">
-                          {property.name}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  At least one property must be assigned.
-                </p>
-              </div>
-
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label className="text-base font-medium">Permissions</Label>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={handleSelectAllPermissions}>
@@ -807,7 +758,7 @@ export function UserManagement() {
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
+                <div className="space-y-3 max-h-[70vh] overflow-y-auto border rounded-lg p-3">
                   {permissionCategories.map((category) => {
                     const permissionIds = category.permissions.map((permission) => permission.id)
                     const categoryChecked = permissionIds.every((permissionId) =>
