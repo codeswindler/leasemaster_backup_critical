@@ -806,7 +806,8 @@ export function Dashboard() {
       user: formatActivityUser(activity)
     }))
 
-  const hasOverdue = Array.isArray(overdueInvoices) && overdueInvoices.length > 0
+  const overdueCount = Array.isArray(overdueInvoices) ? overdueInvoices.length : 0
+  const hasOverdue = overdueCount > 0
   const overduePalette = getPaletteByName(hasOverdue ? "rose" : "emerald")
 
   const activityLast24h = filteredActivityLogs.filter((activity: any) => {
@@ -987,8 +988,14 @@ export function Dashboard() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Overdue Invoices</span>
-                  <span className="text-lg font-bold text-orange-600 dark:text-orange-400">
-                    {overdueInvoices && Array.isArray(overdueInvoices) ? overdueInvoices.length : 0}
+                  <span
+                    className={`text-lg font-bold ${
+                      overdueCount > 0
+                        ? "text-orange-600 dark:text-orange-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
+                    {overdueCount}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
