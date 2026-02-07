@@ -1316,7 +1316,7 @@ export function Invoices() {
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
-                <TableHead>Notes</TableHead>
+                <TableHead>Approval</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1395,19 +1395,7 @@ export function Invoices() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setNoteInvoice(invoice)
-                        setNoteDialogOpen(true)
-                      }}
-                      data-testid={`button-note-${invoice.id}`}
-                    >
-                      <FileText className="mr-1 h-4 w-4" />
-                      Notes
-                    </Button>
+                    {getWorkflowBadge(invoice.workflowStatus) || "—"}
                   </TableCell>
                 </TableRow>
               ))}
