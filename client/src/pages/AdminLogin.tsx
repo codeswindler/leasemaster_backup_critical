@@ -632,7 +632,7 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
     );
   }) : [];
 
-  const handleQuickActionClick = (action: 'clients' | 'enquiries') => {
+  const handleQuickActionClick = (action: 'clients' | 'enquiries' | 'agents') => {
     if (!isAuthenticated) {
       // Shake animation for unauthorized access
       setShakeQuickAction(action);
@@ -653,6 +653,14 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
       } else {
         const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
         window.location.href = `${protocol}//${portalSubdomain}.${rootDomain}/clients`;
+      }
+    } else if (action === 'agents') {
+      // Navigate to agents page - admin-only
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        window.location.href = '/agents';
+      } else {
+        const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
+        window.location.href = `${protocol}//admin.${rootDomain}/agents`;
       }
     } else {
       // Navigate to enquiries page - use path-based routing under admin subdomain
@@ -1130,7 +1138,7 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
                   rotate: [0, -5, 5, -5, 5, 0]
                 } : {}}
                 transition={{ duration: 0.5 }}
-                onClick={() => handleQuickActionClick('clients')}
+                onClick={() => handleQuickActionClick(loginType === "agent" ? "clients" : "agents")}
                 className="cursor-pointer"
               >
                 <Button
@@ -1140,7 +1148,7 @@ export function AdminLogin({ loginType = "admin", hideEnquiries = false, portalL
                   className={`w-full h-16 text-lg gap-3 border-2 hover:border-primary/50 hover:bg-primary/5 backdrop-blur-sm bg-background/20 dark:bg-background/20 transition-all ${!isAuthenticated ? 'opacity-60' : ''}`}
                 >
                   <AnimatedEye />
-                  <span className="font-medium">View Clients</span>
+                  <span className="font-medium">{loginType === "agent" ? "View Clients" : "View Agents"}</span>
                   {!isAuthenticated && (
                     <Badge variant="destructive" className="ml-auto">
                       Login Required
