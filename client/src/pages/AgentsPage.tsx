@@ -36,18 +36,28 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Users, Search, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, LogIn, Shield } from "lucide-react";
+import { Users, Search, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, LogIn, Shield, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { getPaletteByKey, getSessionSeed } from "@/lib/palette";
 import { useFilter } from "@/contexts/FilterContext";
 
+const propertyLimitSchema = z.preprocess(
+  (value) => {
+    if (value === "" || value === null || value === undefined) return undefined;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  },
+  z.number().int().min(0, "Property limit must be 0 or higher")
+);
+
 const agentSchema = z.object({
   username: z.string().email("Must be a valid email address"),
   fullName: z.string().min(1, "Full name is required"),
   phone: z.string().min(1, "Phone number is required"),
-  idNumber: z.string().optional(),
+  idNumber: z.string().min(1, "Identification number is required"),
+  propertyLimit: propertyLimitSchema,
 });
 
 type AgentFormData = z.infer<typeof agentSchema>;
@@ -66,6 +76,15 @@ export function AgentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("agent-cards"), []);
+  const dialogPaletteSeed = useMemo(() => Math.floor(Math.random() * 1_000_000), []);
+  const createDialogPalette = useMemo(
+    () => getPaletteByKey("create-agent-dialog", dialogPaletteSeed),
+    [dialogPaletteSeed]
+  );
+  const editDialogPalette = useMemo(
+    () => getPaletteByKey("edit-agent-dialog", dialogPaletteSeed),
+    [dialogPaletteSeed]
+  );
 
   const createForm = useForm<AgentFormData>({
     resolver: zodResolver(agentSchema),
@@ -74,6 +93,7 @@ export function AgentsPage() {
       fullName: "",
       phone: "",
       idNumber: "",
+      propertyLimit: undefined,
     },
   });
 
@@ -84,6 +104,7 @@ export function AgentsPage() {
       fullName: "",
       phone: "",
       idNumber: "",
+      propertyLimit: undefined,
     },
   });
 
@@ -118,6 +139,7 @@ export function AgentsPage() {
         fullName: data.fullName,
         phone: data.phone,
         idNumber: data.idNumber || null,
+        propertyLimit: data.propertyLimit ?? null,
         role: "agent",
       });
       return await response.json();
@@ -149,6 +171,7 @@ export function AgentsPage() {
         fullName: payload.data.fullName,
         phone: payload.data.phone,
         idNumber: payload.data.idNumber || null,
+        propertyLimit: payload.data.propertyLimit ?? null,
       });
       return await response.json();
     },
@@ -224,6 +247,7 @@ export function AgentsPage() {
       fullName: agent.full_name || agent.fullName || "",
       phone: agent.phone || "",
       idNumber: agent.id_number || agent.idNumber || "",
+      propertyLimit: agent.propertyLimit ?? agent.property_limit ?? undefined,
     });
     setIsEditDialogOpen(true);
   };
@@ -275,10 +299,12 @@ export function AgentsPage() {
                   Add New Agent
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className={`vibrant-card ${createDialogPalette.card} ${createDialogPalette.border}`}>
                 <DialogHeader>
-                  <DialogTitle>Create Agent</DialogTitle>
-                  <DialogDescription>Set up a new agent account.</DialogDescription>
+                  <DialogTitle>Add New Agent</DialogTitle>
+                  <DialogDescription>
+                    Create a new agent account. Login credentials will be sent automatically.
+                  </DialogDescription>
                 </DialogHeader>
                 <Form {...createForm}>
                   <form
@@ -287,12 +313,12 @@ export function AgentsPage() {
                   >
                     <FormField
                       control={createForm.control}
-                      name="fullName"
+                      name="username"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Full Name</FormLabel>
+                          <FormLabel>Username (Email) <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
-                            <Input placeholder="Jane Doe" {...field} />
+                            <Input type="email" placeholder="agent@email.com" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -300,12 +326,12 @@ export function AgentsPage() {
                     />
                     <FormField
                       control={createForm.control}
-                      name="username"
+                      name="fullName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
-                            <Input placeholder="agent@email.com" {...field} />
+                            <Input placeholder="Agent Full Name" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -316,9 +342,29 @@ export function AgentsPage() {
                       name="phone"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Phone</FormLabel>
+                          <FormLabel>Phone <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
-                            <Input placeholder="2547..." {...field} />
+                            <Input type="tel" placeholder="+254 7XX XXX XXX" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="propertyLimit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Property Limit <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              placeholder="e.g. 10"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -329,7 +375,7 @@ export function AgentsPage() {
                       name="idNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>ID Number (optional)</FormLabel>
+                          <FormLabel>Identification Number <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
                             <Input placeholder="ID Number" {...field} />
                           </FormControl>
@@ -338,8 +384,25 @@ export function AgentsPage() {
                       )}
                     />
                     <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsCreateDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
                       <Button type="submit" disabled={createAgentMutation.isPending}>
-                        {createAgentMutation.isPending ? "Creating..." : "Create Agent"}
+                        {createAgentMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            Create Agent
+                          </>
+                        )}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -469,7 +532,7 @@ export function AgentsPage() {
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className={`vibrant-card ${editDialogPalette.card} ${editDialogPalette.border}`}>
           <DialogHeader>
             <DialogTitle>Edit Agent</DialogTitle>
             <DialogDescription>Update agent details.</DialogDescription>
@@ -483,12 +546,12 @@ export function AgentsPage() {
             >
               <FormField
                 control={editForm.control}
-                name="fullName"
+                name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full Name</FormLabel>
+                    <FormLabel>Username (Email) <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input placeholder="Jane Doe" {...field} />
+                      <Input type="email" placeholder="agent@email.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -496,12 +559,12 @@ export function AgentsPage() {
               />
               <FormField
                 control={editForm.control}
-                name="username"
+                name="fullName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input placeholder="agent@email.com" {...field} />
+                      <Input placeholder="Agent Full Name" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -512,9 +575,29 @@ export function AgentsPage() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone</FormLabel>
+                    <FormLabel>Phone <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input placeholder="2547..." {...field} />
+                      <Input type="tel" placeholder="+254 7XX XXX XXX" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="propertyLimit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Property Limit <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        placeholder="e.g. 10"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -525,7 +608,7 @@ export function AgentsPage() {
                 name="idNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ID Number (optional)</FormLabel>
+                    <FormLabel>Identification Number <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input placeholder="ID Number" {...field} />
                     </FormControl>
@@ -534,8 +617,25 @@ export function AgentsPage() {
                 )}
               />
               <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
                 <Button type="submit" disabled={updateAgentMutation.isPending}>
-                  {updateAgentMutation.isPending ? "Saving..." : "Save Changes"}
+                  {updateAgentMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>
