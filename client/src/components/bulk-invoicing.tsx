@@ -36,6 +36,7 @@ type TenantAccount = {
   waterUnits?: number
   waterRate?: number
   lastReadingDate?: string | null
+  missingWaterReading?: boolean
 }
 
 type PropertySummary = {
@@ -340,6 +341,7 @@ export function BulkInvoicing() {
         waterUnits,
         waterRate,
         lastReadingDate: latestReading?.readingDate ?? latestReading?.reading_date ?? latestReading?.createdAt ?? latestReading?.created_at,
+        missingWaterReading: !latestReading,
         charges: {
           ...baseCharges,
           ...editingCharges[unit.id],
@@ -526,9 +528,7 @@ export function BulkInvoicing() {
 
     const needsWater = selectedChargeCodes.includes("water")
     if (needsWater) {
-      const missing = tenantAccounts.filter(
-        (account) => account.lease && !latestWaterByUnit.get(account.id)
-      )
+      const missing = tenantAccounts.filter((account) => account.missingWaterReading)
       if (missing.length > 0) {
         setMissingWaterAccounts(missing)
         setIsWaterPromptOpen(true)
@@ -731,9 +731,9 @@ export function BulkInvoicing() {
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="font-medium">{account.unit} - {account.tenant}</h4>
-                          {account.isVacant && (
-                            <div className="text-xs text-muted-foreground">Vacant unit (no invoice will be created)</div>
-                          )}
+                      {account.missingWaterReading && selectedChargeCodes.includes("water") && (
+                        <div className="text-xs text-amber-600">Missing water reading for this period</div>
+                      )}
                         </div>
                         <Badge variant="outline" className="font-mono">
                           Total: KSh {getTotalAmount(account).toLocaleString()}
