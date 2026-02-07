@@ -1363,7 +1363,9 @@ export function Dashboard() {
         </Card>
 
         {/* Overdue Invoices */}
-        <Card className="hover:shadow-lg transition-all duration-300 hover:scale-[1.01] bg-card/50 backdrop-blur-sm">
+        <Card
+          className={`vibrant-card hover:shadow-lg transition-all duration-300 hover:scale-[1.01] border-2 ${overduePalette.border} ${overduePalette.card} backdrop-blur-sm`}
+        >
           <CardHeader>
             <CardTitle>Overdue Invoices</CardTitle>
             <CardDescription>Invoices requiring immediate attention</CardDescription>
