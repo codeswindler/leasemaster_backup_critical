@@ -885,7 +885,7 @@ export function Invoices() {
     switch (action) {
       case "apply-penalty":
         setPenaltyDialogOpen(true)
-        break
+        return
       case "approve":
         Promise.resolve().then(async () => {
           const invoicesToApprove = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id) && inv.status !== "approved")
