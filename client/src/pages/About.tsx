@@ -306,7 +306,7 @@ export function About() {
               
               <div className={`space-y-6 text-lg leading-relaxed ${getTextContrastClass()}`}>
                 <p>
-                  <strong className="text-primary">LeaseMaster – Your Confidence in Property Management</strong>
+                  <strong className="text-primary">LeaseMaster – Redefining Property Management Efficiency.</strong>
                 </p>
 
                 <p>
