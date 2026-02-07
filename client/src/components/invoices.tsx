@@ -21,6 +21,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { 
   Select,
   SelectContent,
@@ -72,6 +82,11 @@ export function Invoices() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [sendDialogOpen, setSendDialogOpen] = useState(false)
+  const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false)
+  const [penaltyPercent, setPenaltyPercent] = useState("")
+  const [penaltyPromptOpen, setPenaltyPromptOpen] = useState(false)
+  const [penaltyInvoiceIds, setPenaltyInvoiceIds] = useState<string[]>([])
+  const [isApplyingPenalty, setIsApplyingPenalty] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
   const { toast } = useToast()
   const { selectedPropertyId, selectedLandlordId } = useFilter()
@@ -503,6 +518,12 @@ export function Invoices() {
       : paidAmount > 0
         ? "partially_paid"
         : "pending"
+    const dueDateValue = invoice.dueDate ? new Date(invoice.dueDate) : null
+    const isOverdue =
+      !!dueDateValue &&
+      !Number.isNaN(dueDateValue.getTime()) &&
+      dueDateValue.getTime() < new Date().setHours(0, 0, 0, 0) &&
+      balance > 0
 
     return {
       ...invoice,
@@ -517,6 +538,7 @@ export function Invoices() {
       paidAmount,
       balance,
       paymentStatus,
+      isOverdue,
       workflowStatus: invoice.status,
       charges: charges.map((charge: any) => ({
         name: charge.description,
@@ -528,13 +550,19 @@ export function Invoices() {
   const filteredInvoices = enrichedInvoices.filter((invoice: any) => {
     const searchLower = searchTerm.toLowerCase()
     const matchesSearch = !searchTerm || (
-      (invoice.id || '').toLowerCase().includes(searchLower) ||
+      String(invoice.id || '').toLowerCase().includes(searchLower) ||
+      String(invoice.invoiceNumber || '').toLowerCase().includes(searchLower) ||
       (invoice.tenant || '').toLowerCase().includes(searchLower) ||
       (invoice.unit || '').toLowerCase().includes(searchLower) ||
       (invoice.property || '').toLowerCase().includes(searchLower)
     )
     
-    const matchesStatus = statusFilter === "all" || invoice.paymentStatus === statusFilter
+    const matchesStatus =
+      statusFilter === "all"
+        ? true
+        : statusFilter === "overdue"
+          ? invoice.isOverdue
+          : invoice.paymentStatus === statusFilter
     
     return matchesSearch && matchesStatus
   })
@@ -662,6 +690,86 @@ export function Invoices() {
     }
   }
 
+  const applyPenaltyInvoices = async () => {
+    const percent = Number(penaltyPercent)
+    if (!Number.isFinite(percent) || percent <= 0) {
+      toast({
+        title: "Invalid Percentage",
+        description: "Enter a valid penalty percentage greater than 0.",
+        variant: "destructive",
+      })
+      return
+    }
+    const overdueInvoices = enrichedInvoices.filter(
+      (inv: any) => selectedInvoices.includes(inv.id) && inv.isOverdue
+    )
+    if (overdueInvoices.length === 0) {
+      toast({
+        title: "No Overdue Invoices",
+        description: "Select overdue invoices to apply penalties.",
+      })
+      return
+    }
+    setIsApplyingPenalty(true)
+    try {
+      const createdInvoiceIds: string[] = []
+      for (const invoice of overdueInvoices) {
+        const rentAmount = Number(invoice.leaseData?.rentAmount ?? 0)
+        if (!Number.isFinite(rentAmount) || rentAmount <= 0) continue
+        const penaltyAmount = Math.round((rentAmount * percent) / 100)
+        if (penaltyAmount <= 0) continue
+
+        const description = `Penalty (${percent}% of rent) for invoice ${invoice.invoiceNumber || invoice.id}`
+        const today = new Date().toISOString().slice(0, 10)
+        const invoiceResponse = await apiRequest("POST", "/api/invoices", {
+          leaseId: invoice.leaseId,
+          description,
+          amount: penaltyAmount.toString(),
+          dueDate: today,
+          issueDate: today,
+          status: "approved",
+        })
+        const createdInvoice = await invoiceResponse.json()
+        if (createdInvoice?.id) {
+          createdInvoiceIds.push(createdInvoice.id)
+          await apiRequest("POST", "/api/invoice-items", {
+            invoiceId: createdInvoice.id,
+            chargeCode: "penalty",
+            description: `Penalty (${percent}% of rent)`,
+            quantity: "1",
+            unitPrice: penaltyAmount.toString(),
+          })
+        }
+      }
+
+      if (createdInvoiceIds.length === 0) {
+        toast({
+          title: "No Penalties Applied",
+          description: "No penalty invoices were created. Check rent amounts.",
+        })
+        return
+      }
+
+      setPenaltyInvoiceIds(createdInvoiceIds)
+      setPenaltyDialogOpen(false)
+      setPenaltyPromptOpen(true)
+      toast({
+        title: "Penalties Applied",
+        description: `Created ${createdInvoiceIds.length} penalty invoice(s).`,
+      })
+      queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['/api/invoice-items'] })
+    } catch (error) {
+      toast({
+        title: "Penalty Failed",
+        description: "Unable to apply penalties. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsApplyingPenalty(false)
+    }
+  }
+
   const handleSendEmail = async (invoice: any) => {
     sendEmailMutation.mutate(invoice.id)
   }
@@ -713,6 +821,9 @@ export function Invoices() {
   const handleBulkAction = (action: string) => {
     console.log(`Performing ${action} on invoices:`, selectedInvoices)
     switch (action) {
+      case "apply-penalty":
+        setPenaltyDialogOpen(true)
+        break
       case "approve":
         Promise.resolve().then(async () => {
           const invoicesToApprove = filteredInvoices.filter(inv => selectedInvoices.includes(inv.id) && inv.status !== "approved")
@@ -863,17 +974,86 @@ export function Invoices() {
     all: enrichedInvoices.length,
     pending: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "pending").length,
     partially_paid: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "partially_paid").length,
-    paid: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "paid").length
+    paid: enrichedInvoices.filter((inv: any) => inv.paymentStatus === "paid").length,
+    overdue: enrichedInvoices.filter((inv: any) => inv.isOverdue).length
   }
 
   const formatStatusLabel = (status: string) => {
     if (status === "all") return "Total"
     if (status === "partially_paid") return "Partially Paid"
+    if (status === "overdue") return "Overdue"
     return status.charAt(0).toUpperCase() + status.slice(1)
   }
 
   return (
     <div className="p-6 space-y-6">
+      <Dialog open={penaltyDialogOpen} onOpenChange={setPenaltyDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Apply Penalty</DialogTitle>
+            <DialogDescription>
+              Set a penalty percentage based on the tenant's rent amount (not the full invoice).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="penalty-percent">Penalty Percentage</Label>
+            <Input
+              id="penalty-percent"
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="e.g. 10"
+              value={penaltyPercent}
+              onChange={(e) => setPenaltyPercent(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Percentage is applied to each tenant's rent amount.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPenaltyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={applyPenaltyInvoices} disabled={isApplyingPenalty}>
+              {isApplyingPenalty ? "Applying..." : "Apply Penalty"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={penaltyPromptOpen} onOpenChange={setPenaltyPromptOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Penalty Notification?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Do you want to send penalty notifications by email and SMS now?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, not now</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (penaltyInvoiceIds.length === 0) return
+                const emailResults = await Promise.allSettled(
+                  penaltyInvoiceIds.map((id) => apiRequest('POST', `/api/invoices/${id}/send-email`))
+                )
+                const smsResults = await Promise.allSettled(
+                  penaltyInvoiceIds.map((id) => apiRequest('POST', `/api/invoices/${id}/send-sms`))
+                )
+                const emailSuccess = emailResults.filter(r => r.status === "fulfilled").length
+                const smsSuccess = smsResults.filter(r => r.status === "fulfilled").length
+                toast({
+                  title: "Penalty Notifications Sent",
+                  description: `Emails: ${emailSuccess}/${penaltyInvoiceIds.length}, SMS: ${smsSuccess}/${penaltyInvoiceIds.length}`,
+                })
+                queryClient.invalidateQueries({ queryKey: ['/api/invoices'] })
+              }}
+            >
+              Yes, send
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold" data-testid="invoices-title">Invoices</h1>
@@ -884,6 +1064,16 @@ export function Invoices() {
         </div>
         {selectedInvoices.length > 0 && (
           <div className="flex gap-2">
+            {enrichedInvoices.some((inv: any) => selectedInvoices.includes(inv.id) && inv.isOverdue) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleBulkAction("apply-penalty")}
+                data-testid="button-bulk-penalty"
+              >
+                Apply Penalty
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -965,6 +1155,7 @@ export function Invoices() {
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="partially_paid">Partially Paid</SelectItem>
             <SelectItem value="paid">Paid</SelectItem>
+            <SelectItem value="overdue">Overdue</SelectItem>
           </SelectContent>
         </Select>
       </div>
