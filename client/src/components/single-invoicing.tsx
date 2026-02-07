@@ -71,12 +71,17 @@ export function SingleInvoicing() {
 
   useEffect(() => {
     if (!invoiceDate) {
-      setDueDate("")
+      const today = new Date()
+      const todayValue = today.toISOString().split("T")[0]
+      setInvoiceDate(todayValue)
+      const defaultDue = new Date(today)
+      defaultDue.setDate(defaultDue.getDate() + 4)
+      setDueDate(defaultDue.toISOString().split("T")[0])
       return
     }
     if (!dueDate) {
       const nextDue = new Date(invoiceDate)
-      nextDue.setMonth(nextDue.getMonth() + 1)
+      nextDue.setDate(nextDue.getDate() + 4)
       setDueDate(nextDue.toISOString().split("T")[0])
     }
   }, [invoiceDate, dueDate])
@@ -385,7 +390,7 @@ export function SingleInvoicing() {
       queryClient.invalidateQueries({ queryKey: ["/api/invoice-items"] })
       queryClient.invalidateQueries({ queryKey: ["/api/stats"] })
       setSelectedUnit("")
-      setSelectedChargeCodes([])
+      setUnitSearch("")
       setChargeAmounts({})
     },
     onError: (error: any) => {
