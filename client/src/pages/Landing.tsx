@@ -146,9 +146,6 @@ export function Landing() {
     },
   ];
   const [heroIndex, setHeroIndex] = useState(0);
-  const [typedTitleLine1, setTypedTitleLine1] = useState(heroMessages[0].titleLine1);
-  const [typedTitleLine2, setTypedTitleLine2] = useState(heroMessages[0].titleLine2);
-  const [typedPitch, setTypedPitch] = useState(heroMessages[0].pitch);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -157,35 +154,6 @@ export function Landing() {
     return () => clearInterval(interval);
   }, [heroMessages.length]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const { titleLine1, titleLine2, pitch } = heroMessages[heroIndex];
-
-    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-    const typeText = async (text: string, setter: (value: string) => void, delay = 28) => {
-      for (let i = 1; i <= text.length; i += 1) {
-        if (cancelled) return;
-        setter(text.slice(0, i));
-        await sleep(delay);
-      }
-    };
-
-    const run = async () => {
-      setTypedTitleLine1("");
-      setTypedTitleLine2("");
-      setTypedPitch("");
-      await typeText(titleLine1, setTypedTitleLine1);
-      await sleep(140);
-      await typeText(titleLine2, setTypedTitleLine2);
-      await sleep(220);
-      await typeText(pitch, setTypedPitch, 12);
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [heroIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -809,17 +777,36 @@ export function Landing() {
               </div>
             </motion.div>
             
-            <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
-              {typedTitleLine1 || "\u00A0"}
-              <br />
-              <span className="inline-flex items-center justify-center px-4 py-1 rounded-full backdrop-blur-sm bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 min-h-[1.3em]">
-                {typedTitleLine2 || "\u00A0"}
-              </span>
-            </h1>
-            
-            <p className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}>
-              {typedPitch || "\u00A0"}
-            </p>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+              >
+                <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
+                  {heroMessages[heroIndex].titleLine1}
+                  <br />
+                  <span className="text-blue-500 dark:text-blue-300">
+                    {heroMessages[heroIndex].titleLine2}
+                  </span>
+                </h1>
+              </motion.div>
+            </AnimatePresence>
+
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={heroMessages[heroIndex].pitch}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
+                className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
+              >
+                {heroMessages[heroIndex].pitch}
+              </motion.p>
+            </AnimatePresence>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
