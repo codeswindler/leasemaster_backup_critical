@@ -36,9 +36,10 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Users, Search, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, LogIn } from "lucide-react";
+import { Users, Search, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, LogIn, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 import { getPaletteByKey, getSessionSeed } from "@/lib/palette";
 import { useFilter } from "@/contexts/FilterContext";
 
@@ -243,7 +244,28 @@ export function AgentsPage() {
             <p className="text-muted-foreground">Create and manage agent accounts</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setLocation("/portal")}>
+            <Button
+              variant="outline"
+              onClick={() => setLocation("/portal")}
+              className="flex items-center gap-2"
+            >
+              <motion.div
+                animate={{
+                  scale: [1, 1.1, 1, 1.1, 1],
+                }}
+                transition={{
+                  scale: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                }}
+              >
+                <motion.div
+                  animate={{ rotate: [0, 0, 0, 0, 360] }}
+                  transition={{
+                    rotate: { duration: 5, repeat: Infinity, ease: "easeInOut", times: [0, 0.8, 0.85, 0.9, 1] },
+                  }}
+                >
+                  <Shield className="h-5 w-5 text-primary" />
+                </motion.div>
+              </motion.div>
               Admin Dashboard
             </Button>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
