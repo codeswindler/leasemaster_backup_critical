@@ -139,10 +139,10 @@ export function Landing() {
         "Comprehensive rent management system with automated invoicing, payment tracking, and tenant communication all in one place.",
     },
     {
-      titleLine1: "Become An Agent",
-      titleLine2: "with Us",
+      titleLine1: "Become An Agent Partner",
+      titleLine2: "Grow with Us",
       pitch:
-        "Transform your service and exponentially scale your business. Command every landlord relationship and property detail from your unified, powerful dashboard—your central hub for growth, control, and unparalleled client service.",
+        "Transform your service and exponentially scale your business. Command every landlord relationship and property detail from your unified, powerful dashboard — your central hub for growth, control, and unparalleled client service.",
     },
   ];
   const [heroIndex, setHeroIndex] = useState(0);
