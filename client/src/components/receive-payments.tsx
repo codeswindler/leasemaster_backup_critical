@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
+import { useLocation } from "wouter"
 import { 
   Wallet, 
   Search, 
@@ -55,13 +56,13 @@ export function ReceivePayments() {
   const [notes, setNotes] = useState("")
   const [paymentSearch, setPaymentSearch] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [incomingDialogOpen, setIncomingDialogOpen] = useState(false)
   const [incomingAllocation, setIncomingAllocation] = useState<any>(null)
   const [allocationSearch, setAllocationSearch] = useState("")
   const [allocationLeaseId, setAllocationLeaseId] = useState<string>("")
   const [allocationInvoiceId, setAllocationInvoiceId] = useState<string>("")
   const { selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
+  const [, setLocation] = useLocation()
 
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
@@ -781,92 +782,16 @@ export function ReceivePayments() {
                 })}
               </div>
             )}
-            <Button variant="outline" className="w-full mt-3" onClick={() => setIncomingDialogOpen(true)}>
+            <Button
+              variant="outline"
+              className="w-full mt-3"
+              onClick={() => setLocation("/accounting/incoming-payments")}
+            >
               View All Incoming Transactions
             </Button>
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={incomingDialogOpen} onOpenChange={setIncomingDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>All Incoming Transactions</DialogTitle>
-            <DialogDescription>Integrated M-Pesa/bank transactions.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 max-h-[60vh] overflow-auto">
-            {normalizedIncomingPayments.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">
-                No incoming payments yet.
-              </div>
-            ) : (
-              normalizedIncomingPayments.map((payment: any) => {
-                const reference =
-                  payment.mpesa_receipt ||
-                  payment.mpesaReceipt ||
-                  payment.reference ||
-                  payment.account_number ||
-                  "Incoming payment"
-                const rawDate =
-                  payment.transaction_date ||
-                  payment.transactionDate ||
-                  payment.created_at ||
-                  payment.createdAt
-                const parsedDate = rawDate ? new Date(rawDate) : null
-                const dateLabel =
-                  parsedDate && !Number.isNaN(parsedDate.getTime())
-                    ? parsedDate.toLocaleString()
-                    : rawDate || "—"
-                const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
-                const payerLabel = payment.tenantName || "Unallocated payer"
-                return (
-                  <div
-                    key={payment.id}
-                    className="flex items-center justify-between rounded-lg border bg-white/60 px-3 py-2 text-sm"
-                  >
-                    <div className="space-y-1">
-                      <div className="font-medium">{payerLabel}</div>
-                      <div className="text-xs text-muted-foreground">{payment.unitNumber || "—"}</div>
-                      <div className="text-xs text-muted-foreground">{reference}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {methodLabel} • {dateLabel}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono font-semibold">
-                        KSh {Number(payment.amount || 0).toLocaleString()}
-                      </div>
-                      <div className="flex items-center justify-end gap-2 mt-1">
-                        <Badge variant="secondary">
-                          {payment.status || "received"}
-                        </Badge>
-                        {payment.allocationStatus === "unallocated" && (
-                          <Badge variant="destructive">Unallocated</Badge>
-                        )}
-                      </div>
-                      {payment.allocationStatus === "unallocated" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-2"
-                          onClick={() => {
-                            setIncomingAllocation(payment)
-                            setAllocationLeaseId("")
-                            setAllocationInvoiceId("")
-                            setAllocationSearch("")
-                          }}
-                        >
-                          Allocate
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!incomingAllocation} onOpenChange={(open) => !open && setIncomingAllocation(null)}>
         <DialogContent className="max-w-lg">

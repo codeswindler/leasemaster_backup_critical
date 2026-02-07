@@ -1312,7 +1312,7 @@ export function Dashboard() {
             <Button
               className="w-full"
               variant="outline"
-              onClick={() => setLocation("/accounting/payments#incoming-payments")}
+              onClick={() => setLocation("/accounting/incoming-payments")}
             >
               View Incoming Payments
             </Button>

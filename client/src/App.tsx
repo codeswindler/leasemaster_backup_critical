@@ -26,6 +26,7 @@ const SingleInvoicing = lazy(() => import("@/components/single-invoicing").then(
 const Invoices = lazy(() => import("@/components/invoices").then(m => ({ default: m.Invoices })));
 const Receipts = lazy(() => import("@/components/receipts").then(m => ({ default: m.Receipts })));
 const ReceivePayments = lazy(() => import("@/components/receive-payments").then(m => ({ default: m.ReceivePayments })));
+const IncomingPayments = lazy(() => import("@/components/incoming-payments").then(m => ({ default: m.IncomingPayments })));
 const Bills = lazy(() => import("@/components/bills").then(m => ({ default: m.Bills })));
 const PaymentTransactions = lazy(() => import("@/components/payment-transactions").then(m => ({ default: m.PaymentTransactions })));
 const MaintenanceRequests = lazy(() => import("@/components/maintenance-requests").then(m => ({ default: m.MaintenanceRequests })));
@@ -189,6 +190,9 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         </Route>
         <Route path="/accounting/payments">
           {() => <ReceivePayments />}
+        </Route>
+        <Route path="/accounting/incoming-payments">
+          {() => <IncomingPayments />}
         </Route>
         <Route path="/accounting/bills">
           {() => <Bills />}
@@ -765,7 +769,7 @@ function AppContent() {
         title: log.action || "Payment Received",
         detail: log.details || "",
         createdAt: log.createdAt || log.created_at,
-        href: "/accounting/payments#incoming-payments",
+        href: "/accounting/incoming-payments",
       })),
       ...overdueInvoices.slice(0, 5).map((inv: any) => ({
         id: `overdue-${inv.id}`,
