@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { apiRequest } from "@/lib/queryClient"
+import { formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { useFilter } from "@/contexts/FilterContext"
 import { 
   Activity, 
@@ -55,6 +56,7 @@ export function FullActivity() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [filterUser, setFilterUser] = useState("all")
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const [startDate, setStartDate] = useState(() => {
     const today = new Date()
     const start = new Date(today)
@@ -98,12 +100,7 @@ export function FullActivity() {
     return matchesSearch && matchesType && matchesUser
   })
 
-  const formatTimestamp = (value?: string) => {
-    if (!value) return "—"
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return "—"
-    return parsed.toLocaleString()
-  }
+  const formatTimestamp = (value?: string) => formatWithOffset(value, timezoneOffsetMinutes)
 
   const getDisplayUser = (activity: any) => {
     return (

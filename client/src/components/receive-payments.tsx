@@ -4,6 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
 import { useLocation } from "wouter"
+import { formatDateWithOffset, formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { 
   Wallet, 
   Search, 
@@ -63,6 +64,7 @@ export function ReceivePayments() {
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
   const [, setLocation] = useLocation()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
 
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
@@ -684,7 +686,7 @@ export function ReceivePayments() {
                     <p className="font-medium">{payment.tenantName}</p>
                     <p className="text-sm text-muted-foreground">{payment.unitLabel}</p>
                     <p className="text-xs text-muted-foreground">
-                      {payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : "—"}
+                      {payment.paymentDate ? formatDateWithOffset(payment.paymentDate, timezoneOffsetMinutes) : "—"}
                     </p>
                     <p className="text-xs text-muted-foreground">by {payment.createdByName}</p>
                   </div>
@@ -739,7 +741,7 @@ export function ReceivePayments() {
                   const parsedDate = rawDate ? new Date(rawDate) : null
                   const dateLabel =
                     parsedDate && !Number.isNaN(parsedDate.getTime())
-                      ? parsedDate.toLocaleString()
+                      ? formatWithOffset(parsedDate, timezoneOffsetMinutes)
                       : rawDate || "—"
                   const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
                   const payerLabel = payment.tenantName || "Unallocated payer"

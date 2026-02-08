@@ -5,6 +5,7 @@ import { Search, Receipt, Building2 } from "lucide-react"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
+import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +53,7 @@ export function SingleInvoicing() {
   const [chargeAmounts, setChargeAmounts] = useState<Record<string, number>>({})
   const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const { toast } = useToast()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const [, setLocation] = useLocation()
   const [isWaterPromptOpen, setIsWaterPromptOpen] = useState(false)
   const singleInvoiceSeed = useMemo(
@@ -655,7 +657,7 @@ export function SingleInvoicing() {
                       <Label className="text-xs">Last Reading</Label>
                       <p className="font-mono">
                         {latestReading?.readingDate || latestReading?.reading_date
-                          ? new Date(latestReading?.readingDate ?? latestReading?.reading_date).toLocaleDateString()
+                          ? formatDateWithOffset(latestReading?.readingDate ?? latestReading?.reading_date, timezoneOffsetMinutes)
                           : "—"}
                       </p>
                     </div>

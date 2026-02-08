@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
+import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 
 export function TerminatedLeases() {
   const terminatedLeaseVariants = [
@@ -23,6 +24,7 @@ export function TerminatedLeases() {
   ]
   const terminatedLeaseSeed = useRef(Math.floor(Math.random() * terminatedLeaseVariants.length))
   const { selectedPropertyId, selectedLandlordId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const { toast } = useToast()
   const actionsDisabled = !selectedPropertyId
   const effectivePropertyId = selectedPropertyId && selectedPropertyId !== "all" ? selectedPropertyId : null
@@ -192,7 +194,7 @@ export function TerminatedLeases() {
                     <TableCell className="font-medium">{tenant?.fullName || "Unknown"}</TableCell>
                     <TableCell>{unit?.unitNumber || "Unknown"}</TableCell>
                     <TableCell>{property?.name || "Unknown"}</TableCell>
-                    <TableCell>{lease.endDate ? new Date(lease.endDate).toLocaleDateString() : "—"}</TableCell>
+                    <TableCell>{lease.endDate ? formatDateWithOffset(lease.endDate, timezoneOffsetMinutes) : "—"}</TableCell>
                     <TableCell>
                       <Badge variant="destructive">terminated</Badge>
                     </TableCell>

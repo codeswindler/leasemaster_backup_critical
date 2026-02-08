@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useLocation } from "wouter"
 import { useFilter } from "@/contexts/FilterContext"
 import { getPaletteByIndex, getPaletteByKey, getPaletteByName } from "@/lib/palette"
+import { formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import {
   THRESHOLDS,
   getThresholdLevel,
@@ -41,17 +42,6 @@ import {
 } from "@/lib/color-rules"
 
 export function Dashboard() {
-  const parseUtcOffsetToMinutes = (offset?: string) => {
-    if (!offset) return 0
-    const match = offset.match(/^UTC([+-])(\d{2}):(\d{2})$/)
-    if (!match) return 0
-    const sign = match[1] === "-" ? -1 : 1
-    const hours = Number(match[2])
-    const minutes = Number(match[3])
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0
-    return sign * (hours * 60 + minutes)
-  }
-
   const [mpesaBalance, setMpesaBalance] = useState(0)
   const [isConnected, setIsConnected] = useState(false)
   const [timeframe, setTimeframe] = useState("monthly")
@@ -65,6 +55,7 @@ export function Dashboard() {
   const { toast } = useToast()
   const [, setLocation] = useLocation()
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   
   // Debug logging
   console.log("Dashboard filtering - selectedLandlordId:", selectedLandlordId, "selectedPropertyId:", selectedPropertyId)
@@ -134,20 +125,6 @@ export function Dashboard() {
     staleTime: 1 * 60 * 1000, // Payments are dynamic, cache for 1 minute
   })
 
-  const invoiceSettingsQuery = useQuery({
-    queryKey: ["/api/settings/invoice", selectedLandlordId, selectedPropertyId, selectedAgentId],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (selectedAgentId) params.append("agentId", selectedAgentId)
-      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-      const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
-      const response = await apiRequest("GET", url)
-      return await response.json()
-    },
-  })
-  const timezoneOffset = invoiceSettingsQuery.data?.timezone_offset || "UTC+00:00"
-  const timezoneOffsetMinutes = parseUtcOffsetToMinutes(timezoneOffset)
   const nowInAccountMs = Date.now() + timezoneOffsetMinutes * 60 * 1000
 
   const { data: incomingPayments = [], isLoading: incomingLoading } = useQuery({
@@ -825,10 +802,7 @@ export function Dashboard() {
 
   const formatActivityTime = (activity: any) => {
     const value = activity.created_at || activity.createdAt
-    if (!value) return "—"
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) return "—"
-    return parsed.toLocaleString()
+    return formatWithOffset(value, timezoneOffsetMinutes)
   }
 
   const recentActivity = filteredActivityLogs
@@ -1285,11 +1259,7 @@ export function Dashboard() {
                   payment.transactionDate ||
                   payment.created_at ||
                   payment.createdAt
-                const parsedDate = rawDate ? new Date(rawDate) : null
-                const dateLabel =
-                  parsedDate && !Number.isNaN(parsedDate.getTime())
-                    ? parsedDate.toLocaleString()
-                    : rawDate || "—"
+                const dateLabel = formatWithOffset(rawDate, timezoneOffsetMinutes)
                 const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
                 return (
                 <motion.div
@@ -1424,7 +1394,7 @@ export function Dashboard() {
                 >
                   <div>
                     <p className="font-medium">{invoice.description || 'Monthly Rent'}</p>
-                    <p className="text-sm text-muted-foreground">Due: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+                    <p className="text-sm text-muted-foreground">Due: {formatWithOffset(invoice.dueDate, timezoneOffsetMinutes, { year: "numeric", month: "short", day: "numeric" })}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium font-mono">KSh {parseFloat(invoice.amount).toLocaleString()}</p>

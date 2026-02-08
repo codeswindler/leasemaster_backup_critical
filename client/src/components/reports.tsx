@@ -30,6 +30,7 @@ import autoTable from 'jspdf-autotable'
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
+import { formatDateWithOffset, formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { THRESHOLDS, getSharePercent, getThresholdPalette } from "@/lib/color-rules"
 import { Button } from "@/components/ui/button"
@@ -70,6 +71,7 @@ export function Reports() {
   const [selectedChargeCodes, setSelectedChargeCodes] = useState<string[]>([])
   const [selectedTenants, setSelectedTenants] = useState<string[]>([])
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const parseNumericValue = (value: string) => {
     const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
     return Number.isFinite(parsed) ? parsed : 0;
@@ -486,7 +488,7 @@ export function Reports() {
     const ws = workbook.addWorksheet("Report")
 
     ws.addRow([`${reportType} Report`])
-    ws.addRow([`Generated: ${new Date().toLocaleDateString()}`])
+    ws.addRow([`Generated: ${formatDateWithOffset(new Date(), timezoneOffsetMinutes)}`])
     ws.addRow([`Period: ${startDate} to ${endDate}`])
     ws.addRow([`Property: ${properties.find(p => p.id === selectedProperty)?.name || 'All Properties'}`])
     ws.addRow([])
@@ -524,7 +526,7 @@ export function Reports() {
     
     // Add metadata
     doc.setFontSize(12)
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 50)
+    doc.text(`Generated: ${formatDateWithOffset(new Date(), timezoneOffsetMinutes)}`, 20, 50)
     doc.text(`Period: ${startDate} to ${endDate}`, 20, 60)
     doc.text(`Property: ${properties.find(p => p.id === selectedProperty)?.name || 'All Properties'}`, 20, 70)
     
@@ -613,7 +615,7 @@ export function Reports() {
           'Payment Methods': tenantPayments.map((p: any) => p.paymentMethod).join(', ') || 'None',
           'Emergency Contact': tenant.emergencyContact,
           'Emergency Phone': tenant.emergencyPhone,
-          'Lease Start': new Date(tenantLease.startDate).toLocaleDateString(),
+        'Lease Start': formatDateWithOffset(tenantLease.startDate, timezoneOffsetMinutes),
           'Lease Status': tenantLease.status
         })
       })
@@ -639,7 +641,7 @@ export function Reports() {
       // Add report metadata at the top
       tenantPaymentData.unshift({
         'Tenant Name': `${reportType} Report`,
-        'Email': `Generated: ${new Date().toLocaleString()}`,
+        'Email': `Generated: ${formatWithOffset(new Date(), timezoneOffsetMinutes)}`,
         'Phone': `Period: ${startDate} to ${endDate}`,
         'ID Number': `Property: ${selectedProperty === "all" ? "All Properties" : properties.find((p: any) => p.id === selectedProperty)?.name}`,
         'Property': `Total Tenants: ${tenants.length}`,

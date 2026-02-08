@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { Smartphone, CheckCircle, Clock, AlertCircle, RefreshCw, Filter } from "lucide-react"
 import { apiRequest } from "@/lib/queryClient"
+import { formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { useFilter } from "@/contexts/FilterContext"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +29,7 @@ import { Label } from "@/components/ui/label"
 export function MessagingSmsOutbox() {
   const { selectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const hasPropertyFilter = !!selectedPropertyId && selectedPropertyId !== "all"
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState("")
@@ -327,7 +329,7 @@ export function MessagingSmsOutbox() {
                             </p>
                           </td>
                       <td className="p-2 text-sm text-muted-foreground">
-                        {sentAt ? new Date(sentAt).toLocaleString() : ""}
+                        {sentAt ? formatWithOffset(sentAt, timezoneOffsetMinutes) : ""}
                       </td>
                         </tr>
                       )

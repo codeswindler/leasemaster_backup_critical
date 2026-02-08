@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useFilter } from "@/contexts/FilterContext"
+import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { 
   FileText, 
   Plus, 
@@ -76,6 +77,7 @@ export function Bills() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
@@ -609,7 +611,7 @@ export function Bills() {
                   <TableCell>{bill.property}</TableCell>
                   <TableCell>{bill.category}</TableCell>
                   <TableCell className="font-mono">KSh {bill.amount.toLocaleString()}</TableCell>
-                  <TableCell>{new Date(bill.dueDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{formatDateWithOffset(bill.dueDate, timezoneOffsetMinutes)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {getStatusIcon(bill.status)}

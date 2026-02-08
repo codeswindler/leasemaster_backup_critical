@@ -4,6 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useFilter } from "@/contexts/FilterContext"
+import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { Calendar, Building2, Receipt, Send } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -69,6 +70,7 @@ export function BulkInvoicing() {
   const [missingWaterAccounts, setMissingWaterAccounts] = useState<TenantAccount[]>([])
   const [isWaterPromptOpen, setIsWaterPromptOpen] = useState(false)
   const { toast } = useToast()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
   const [, setLocation] = useLocation()
 
@@ -768,7 +770,7 @@ export function BulkInvoicing() {
                           <div>
                             <Label className="text-xs">Last Reading</Label>
                             <p className="font-mono">
-                              {account.lastReadingDate ? new Date(account.lastReadingDate).toLocaleDateString() : "—"}
+                              {account.lastReadingDate ? formatDateWithOffset(account.lastReadingDate, timezoneOffsetMinutes) : "—"}
                             </p>
                           </div>
                           <div>

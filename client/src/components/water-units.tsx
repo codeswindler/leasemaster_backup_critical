@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { getPaletteByIndex, getPaletteByKey } from "@/lib/palette"
+import { formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { Plus, Save, Eye, FileText, Calculator, Droplets } from "lucide-react"
 import {
   CartesianGrid,
@@ -76,6 +77,7 @@ export function WaterUnits() {
   })
   const [showTrendBreakdown, setShowTrendBreakdown] = useState(false)
   // Removed unitSaveTimes - now using database timestamps from water readings
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
 
   // Fetch units for dropdown
   const { data: units = [], isLoading: isLoadingUnits } = useQuery<Unit[]>({
@@ -267,6 +269,16 @@ export function WaterUnits() {
       name: property.name,
     }))
   }, [properties])
+
+  const propertyNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    normalizedProperties.forEach((property) => {
+      if (property.id) {
+        map.set(String(property.id), property.name || "—")
+      }
+    })
+    return map
+  }, [normalizedProperties])
 
   const normalizedLeases = useMemo(() => {
     return leases.map((lease: any) => ({
@@ -990,7 +1002,7 @@ export function WaterUnits() {
     const timestampValue = (recentReading as any).lastModifiedAt || (recentReading as any).createdAt || (recentReading as any).last_modified_at || (recentReading as any).created_at || (recentReading as any).readingDate || (recentReading as any).reading_date
     if (!timestampValue) return null
     const modifiedTime = new Date(timestampValue)
-    const label = modifiedTime.toLocaleString()
+    const label = formatWithOffset(modifiedTime, timezoneOffsetMinutes)
 
     const lease = activeLeasesByUnit.get(unitId)
     const invoiceCutoff = normalizedInvoices
@@ -1259,6 +1271,7 @@ export function WaterUnits() {
                         <TableRow>
                           <TableHead className="w-32">Unit</TableHead>
                           <TableHead>Account</TableHead>
+                          <TableHead className="w-40">Property</TableHead>
                           <TableHead className="w-40">Water Rate</TableHead>
                           <TableHead className="w-40">Previous Reading</TableHead>
                           <TableHead className="w-48">New Reading (m³)</TableHead>
@@ -1298,6 +1311,9 @@ export function WaterUnits() {
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {getAccountName(unit.id)}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {propertyNameById.get(String(unit.propertyId)) || "—"}
                               </TableCell>
                               <TableCell className="text-sm">
                                 KSH {waterRate.toFixed(2)} per m³
