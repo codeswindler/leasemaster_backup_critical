@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getPaletteByIndex } from "@/lib/palette"
+import { formatUtcOffset, getSupportedTimeZones, getTimeZoneOffsetMinutes } from "@/lib/timezone"
 
 interface AlertRule {
   key: string
@@ -213,6 +214,20 @@ export function Settings() {
   const { toast } = useToast()
   const [showFields, setShowFields] = useState<Record<string, boolean>>({})
   const settingsDisabled = !selectedPropertyId || selectedPropertyId === "all"
+  const timeZoneOptions = useMemo(() => {
+    const zones = getSupportedTimeZones()
+    return zones
+      .map((zone) => {
+        const offsetMinutes = getTimeZoneOffsetMinutes(zone)
+        const label = `${zone.replace(/_/g, " ")} (${formatUtcOffset(offsetMinutes)})`
+        return { value: zone, label }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [])
+  const fixedOffsetOptions = useMemo(
+    () => timezoneOffsets.map((offset) => ({ value: offset, label: `${offset} (Fixed offset)` })),
+    []
+  )
 
   const scopeParams = useMemo(() => {
     const params = new URLSearchParams()
@@ -1023,9 +1038,16 @@ export function Settings() {
                       <SelectValue placeholder="Select timezone offset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {timezoneOffsets.map((offset) => (
-                        <SelectItem key={offset} value={offset}>
-                          {offset}
+                      <div className="px-2 py-1 text-xs text-muted-foreground">Fixed offsets</div>
+                      {fixedOffsetOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                      <div className="px-2 py-1 text-xs text-muted-foreground">Time zones</div>
+                      {timeZoneOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
