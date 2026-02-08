@@ -34,10 +34,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Users, Search, Building2, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, UserPlus, LogIn, KeyRound, Shield, ArrowLeft } from "lucide-react";
+import { Users, Search, Building2, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, UserPlus, LogIn, KeyRound, Shield, ArrowLeft, UserCog } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -54,6 +55,14 @@ const propertyLimitSchema = z.preprocess(
   z.number().int().min(0, "Property limit must be 0 or higher")
 );
 
+const agentSchema = z.object({
+  username: z.string().email("Must be a valid email address"),
+  fullName: z.string().min(1, "Full name is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  idNumber: z.string().min(1, "Identification number is required"),
+  propertyLimit: propertyLimitSchema,
+});
+
 const createLandlordSchema = z.object({
   username: z.string().email("Must be a valid email address"),
   fullName: z.string().min(1, "Full name is required"),
@@ -63,6 +72,7 @@ const createLandlordSchema = z.object({
 });
 
 type CreateLandlordFormData = z.infer<typeof createLandlordSchema>;
+type AgentFormData = z.infer<typeof agentSchema>;
 
 const editLandlordSchema = z.object({
   username: z.string().email("Must be a valid email address"),
@@ -102,7 +112,25 @@ export function ClientsPage() {
     () => getPaletteByKey("edit-client-dialog", dialogPaletteSeed),
     [dialogPaletteSeed]
   );
+  const agentDialogPalette = useMemo(
+    () => getPaletteByKey("create-agent-dialog", dialogPaletteSeed),
+    [dialogPaletteSeed]
+  );
   const { scheduleDelete } = useUndoDelete();
+  const [selectedAgentForForm, setSelectedAgentForForm] = useState<string | null>(null);
+  const [isAgentDialogOpen, setIsAgentDialogOpen] = useState(false);
+
+  const { data: authData } = useQuery({
+    queryKey: ["/api/auth/check"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/auth/check");
+      return await response.json();
+    },
+  });
+  const currentUser = authData?.user || null;
+  const currentRole = (currentUser?.role || "").toLowerCase();
+  const isSuperAdmin = currentRole === "super_admin";
+  const isAgentUser = currentRole === "agent";
   const { data: authData } = useQuery({
     queryKey: ["/api/auth/check"],
     queryFn: async () => {
@@ -124,6 +152,15 @@ export function ClientsPage() {
     },
     staleTime: 0, // Always fetch fresh data (no caching)
     refetchOnMount: true, // Refetch when component mounts
+  });
+
+  const { data: agents = [] } = useQuery({
+    queryKey: ["/api/users", "agents"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/users?role=agent");
+      return await response.json();
+    },
+    enabled: isSuperAdmin,
   });
   
   // Invalidate cache on mount to remove stale data
@@ -174,16 +211,40 @@ export function ClientsPage() {
     },
   });
 
+  const agentForm = useForm<AgentFormData>({
+    resolver: zodResolver(agentSchema),
+    defaultValues: {
+      username: "",
+      fullName: "",
+      phone: "",
+      idNumber: "",
+      propertyLimit: undefined,
+    },
+  });
+
+  useEffect(() => {
+    if (isAgentUser && currentUser?.id) {
+      setSelectedAgentForForm(String(currentUser.id));
+      return;
+    }
+    if (isSuperAdmin && selectedAgentId) {
+      setSelectedAgentForForm(String(selectedAgentId));
+    }
+  }, [isAgentUser, isSuperAdmin, currentUser?.id, selectedAgentId]);
+
   // Create landlord mutation
   const createLandlordMutation = useMutation({
     mutationFn: async (data: CreateLandlordFormData) => {
+      const agentIdForPayload = isAgentUser
+        ? String(currentUser?.id || "")
+        : selectedAgentForForm || undefined;
       const response = await apiRequest("POST", "/api/landlords", {
         username: data.username,
         fullName: data.fullName,
         phone: data.phone,
         idNumber: data.idNumber || undefined,
         propertyLimit: data.propertyLimit,
-        adminId: selectedAgentId || undefined,
+        adminId: agentIdForPayload || undefined,
       });
       const result = await response.json();
       
@@ -219,15 +280,59 @@ export function ClientsPage() {
     },
   });
 
+  const createAgentMutation = useMutation({
+    mutationFn: async (data: AgentFormData) => {
+      const response = await apiRequest("POST", "/api/users", {
+        username: data.username,
+        fullName: data.fullName,
+        phone: data.phone,
+        idNumber: data.idNumber || undefined,
+        propertyLimit: data.propertyLimit,
+        role: "agent",
+      });
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        throw new Error(result.error || "Failed to create agent");
+      }
+      if (!result.id) {
+        throw new Error("Agent creation failed - no ID returned");
+      }
+      return result;
+    },
+    onSuccess: (agent: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", "agents"] });
+      agentForm.reset();
+      setIsAgentDialogOpen(false);
+      if (agent?.id) {
+        setSelectedAgentForForm(String(agent.id));
+      }
+      toast({
+        title: "Agent Created",
+        description: "Agent has been created successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create agent",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Update landlord mutation
   const updateLandlordMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: EditLandlordFormData }) => {
+      const agentIdForPayload = isAgentUser
+        ? String(currentUser?.id || "")
+        : selectedAgentForForm || undefined;
       const response = await apiRequest("PUT", `/api/landlords/${id}`, {
         username: data.username,
         fullName: data.fullName,
         phone: data.phone,
         idNumber: data.idNumber || undefined,
         propertyLimit: data.propertyLimit,
+        adminId: agentIdForPayload || undefined,
       });
       return await response.json();
     },
@@ -377,6 +482,7 @@ export function ClientsPage() {
     const primaryProperty = properties[0];
     const fallbackName = primaryProperty?.landlord_name ?? primaryProperty?.landlordName ?? "";
     const fallbackPhone = primaryProperty?.landlord_phone ?? primaryProperty?.landlordPhone ?? "";
+    const ownerAgentId = customer.admin_id ?? customer.adminId ?? selectedAgentForForm;
     setEditingCustomer(customer);
     editForm.reset({
       username: customer.username || "",
@@ -388,6 +494,11 @@ export function ClientsPage() {
         customer.property_limit ??
         undefined,
     });
+    if (isAgentUser && currentUser?.id) {
+      setSelectedAgentForForm(String(currentUser.id));
+    } else if (isSuperAdmin && ownerAgentId) {
+      setSelectedAgentForForm(String(ownerAgentId));
+    }
     setIsEditDialogOpen(true);
   };
 
@@ -500,7 +611,15 @@ export function ClientsPage() {
             )}
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button
+                  onClick={() => {
+                    if (isAgentUser && currentUser?.id) {
+                      setSelectedAgentForForm(String(currentUser.id));
+                    } else if (isSuperAdmin && selectedAgentId) {
+                      setSelectedAgentForForm(String(selectedAgentId));
+                    }
+                  }}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Add New Customer
                 </Button>
@@ -515,10 +634,55 @@ export function ClientsPage() {
                 <Form {...createForm}>
                   <form
                     onSubmit={createForm.handleSubmit((data) => {
+                      if (isSuperAdmin && !selectedAgentForForm) {
+                        toast({
+                          title: "Agent Required",
+                          description: "Select an agent before creating a customer.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
                       createLandlordMutation.mutate(data);
                     })}
                     className="space-y-4"
                   >
+                    {isSuperAdmin && (
+                      <FormItem>
+                        <FormLabel>Agent <span className="text-destructive">*</span></FormLabel>
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                          <Select
+                            value={selectedAgentForForm || ""}
+                            onValueChange={(value) => setSelectedAgentForForm(value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <UserCog className="h-4 w-4 mr-2" />
+                              <SelectValue placeholder="Select agent" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(agents as any[]).map((agent: any) => (
+                                <SelectItem key={agent.id} value={String(agent.id)}>
+                                  {agent.username}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsAgentDialogOpen(true)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add New Agent
+                          </Button>
+                        </div>
+                      </FormItem>
+                    )}
+                    {isAgentUser && (
+                      <FormItem>
+                        <FormLabel>Agent</FormLabel>
+                        <Input value={currentUser?.username || ""} disabled />
+                      </FormItem>
+                    )}
                     <FormField
                       control={createForm.control}
                       name="username"
@@ -849,12 +1013,57 @@ export function ClientsPage() {
           <Form {...editForm}>
             <form
               onSubmit={editForm.handleSubmit((data) => {
+                if (isSuperAdmin && !selectedAgentForForm) {
+                  toast({
+                    title: "Agent Required",
+                    description: "Select an agent before updating a customer.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
                 if (editingCustomer) {
                   updateLandlordMutation.mutate({ id: editingCustomer.id, data });
                 }
               })}
               className="space-y-4"
             >
+              {isSuperAdmin && (
+                <FormItem>
+                  <FormLabel>Agent <span className="text-destructive">*</span></FormLabel>
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                    <Select
+                      value={selectedAgentForForm || ""}
+                      onValueChange={(value) => setSelectedAgentForForm(value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <UserCog className="h-4 w-4 mr-2" />
+                        <SelectValue placeholder="Select agent" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(agents as any[]).map((agent: any) => (
+                          <SelectItem key={agent.id} value={String(agent.id)}>
+                            {agent.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsAgentDialogOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New Agent
+                    </Button>
+                  </div>
+                </FormItem>
+              )}
+              {isAgentUser && (
+                <FormItem>
+                  <FormLabel>Agent</FormLabel>
+                  <Input value={currentUser?.username || ""} disabled />
+                </FormItem>
+              )}
               <FormField
                 control={editForm.control}
                 name="username"
@@ -943,6 +1152,115 @@ export function ClientsPage() {
                     </>
                   ) : (
                     "Save Changes"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Agent Dialog (nested) */}
+      <Dialog open={isAgentDialogOpen} onOpenChange={setIsAgentDialogOpen}>
+        <DialogContent className={`vibrant-card ${agentDialogPalette.card} ${agentDialogPalette.border}`}>
+          <DialogHeader>
+            <DialogTitle>Add New Agent</DialogTitle>
+            <DialogDescription>
+              Create a new agent account. Login credentials will be sent automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...agentForm}>
+            <form
+              onSubmit={agentForm.handleSubmit((data) => createAgentMutation.mutate(data))}
+              className="space-y-4"
+            >
+              <FormField
+                control={agentForm.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username (Email) <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="agent@email.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={agentForm.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input placeholder="Agent Full Name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={agentForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input type="tel" placeholder="+254 7XX XXX XXX" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={agentForm.control}
+                name="propertyLimit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Property Limit <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        placeholder="e.g. 10"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={agentForm.control}
+                name="idNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Identification Number <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input placeholder="ID Number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsAgentDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createAgentMutation.isPending}>
+                  {createAgentMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Create Agent
+                    </>
                   )}
                 </Button>
               </DialogFooter>
