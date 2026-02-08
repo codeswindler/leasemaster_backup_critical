@@ -124,11 +124,6 @@ export function TenantDetail() {
     () => getPaletteByKey("terminate-lease", terminateDialogSeed),
     [terminateDialogSeed]
   )
-  const terminateDialogSeed = useMemo(() => getSessionSeed("terminate-lease-dialog"), [])
-  const terminateDialogPalette = useMemo(
-    () => getPaletteByKey("terminate-lease", terminateDialogSeed),
-    [terminateDialogSeed]
-  )
 
   const parseAmount = (value: any) => {
     const parsed = Number(value)
