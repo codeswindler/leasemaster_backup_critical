@@ -974,27 +974,53 @@ export function Settings() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Company Name</Label>
-                  <Input value={invoiceSettings.company_name} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_name: e.target.value }))} />
+                  <Label>
+                    Company Name <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    required
+                    value={invoiceSettings.company_name}
+                    onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_name: e.target.value }))}
+                  />
                 </div>
                 <div>
-                  <Label>Company Phone</Label>
-                  <Input value={invoiceSettings.company_phone} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_phone: e.target.value }))} />
+                  <Label>
+                    Company Phone <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    required
+                    value={invoiceSettings.company_phone}
+                    onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_phone: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Company Email</Label>
-                  <Input value={invoiceSettings.company_email} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_email: e.target.value }))} />
+                  <Label>
+                    Company Email <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    required
+                    value={invoiceSettings.company_email}
+                    onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_email: e.target.value }))}
+                  />
                 </div>
                 <div>
-                  <Label>Company Address</Label>
-                  <Input value={invoiceSettings.company_address} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_address: e.target.value }))} />
+                  <Label>
+                    Company Address <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    required
+                    value={invoiceSettings.company_address}
+                    onChange={(e) => setInvoiceSettings(prev => ({ ...prev, company_address: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label>Account Timezone</Label>
+                  <Label>
+                    Account Timezone <span className="text-destructive">*</span>
+                  </Label>
                   <Select
                     value={invoiceSettings.timezone_offset}
                     onValueChange={(value) => setInvoiceSettings(prev => ({ ...prev, timezone_offset: value }))}
@@ -1050,8 +1076,15 @@ export function Settings() {
                 </div>
               </div>
               <div>
-                <Label>Payment Options (one per line)</Label>
-                <Textarea rows={4} value={invoiceSettings.payment_options} onChange={(e) => setInvoiceSettings(prev => ({ ...prev, payment_options: e.target.value }))} />
+                <Label>
+                  Payment Options (one per line) <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  rows={4}
+                  required
+                  value={invoiceSettings.payment_options}
+                  onChange={(e) => setInvoiceSettings(prev => ({ ...prev, payment_options: e.target.value }))}
+                />
               </div>
               <Button onClick={() => saveSection("invoice", invoiceSettings)}>
                 <Save className="h-4 w-4 mr-2" />
