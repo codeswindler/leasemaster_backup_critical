@@ -645,9 +645,9 @@ export function About() {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="max-w-6xl mx-auto mb-16"
         >
-          <div className="grid md:grid-cols-2 gap-8">
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
-              <CardContent className="p-10">
+          <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <CardContent className="p-10">
+              <div className="grid md:grid-cols-2 gap-8 items-center">
                 <div className="space-y-6">
                   <div>
                     <h2 className={`text-3xl font-bold mb-3 ${getTextContrastClass()}`}>
@@ -677,10 +677,6 @@ export function About() {
                     </li>
                   </ul>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
-              <CardContent className="p-10">
                 <div className="relative aspect-video rounded-lg overflow-hidden border-2 border-primary/30">
                   <img
                     src={agentWorkspaceImage}
@@ -691,9 +687,9 @@ export function About() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         <motion.div
