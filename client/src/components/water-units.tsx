@@ -962,11 +962,11 @@ export function WaterUnits() {
               <div className="flex gap-4">
                 <Button 
                   onClick={handleSaveReading}
-                  disabled={actionsDisabled || createReadingMutation.isPending || !currentReading.unitId || !currentReading.reading}
+                  disabled={actionsDisabled || upsertReadingMutation.isPending || !currentReading.unitId || !currentReading.reading}
                   data-testid="button-save-reading"
                 >
                   <Save className="h-4 w-4 mr-2" />
-                  {createReadingMutation.isPending ? "Saving..." : "Save Reading"}
+                  {upsertReadingMutation.isPending ? "Saving..." : "Save Reading"}
                 </Button>
                 
               </div>
