@@ -90,14 +90,15 @@ export function Tenants() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingDeleteRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
-  const actionsDisabled = !selectedPropertyId
+  const normalizedPropertyId = selectedPropertyId && selectedPropertyId !== "all" ? selectedPropertyId : null
+  const actionsDisabled = !normalizedPropertyId
 
   useEffect(() => {
-    if (!selectedPropertyId) return
-    if (selectedProperty !== selectedPropertyId) {
-      setSelectedProperty(selectedPropertyId)
+    if (!normalizedPropertyId) return
+    if (selectedProperty !== normalizedPropertyId) {
+      setSelectedProperty(normalizedPropertyId)
     }
-  }, [selectedPropertyId, selectedProperty])
+  }, [normalizedPropertyId, selectedProperty])
 
   const { data: authData } = useQuery({
     queryKey: ["/api/auth/check"],
@@ -364,7 +365,7 @@ export function Tenants() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (selectedAgentId) params.append("agentId", selectedAgentId)
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/tenants${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -379,7 +380,7 @@ export function Tenants() {
       const params = new URLSearchParams()
       if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       const url = `/api/properties${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       return await response.json()
@@ -392,7 +393,7 @@ export function Tenants() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (selectedAgentId) params.append("agentId", selectedAgentId)
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/units${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -405,7 +406,7 @@ export function Tenants() {
     queryKey: ["/api/house-types", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/house-types${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
@@ -418,7 +419,7 @@ export function Tenants() {
     queryKey: ["/api/leases", selectedPropertyId, selectedLandlordId],
     queryFn: async () => {
       const params = new URLSearchParams()
-      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (normalizedPropertyId) params.append("propertyId", normalizedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/leases${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)

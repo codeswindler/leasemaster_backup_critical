@@ -315,6 +315,7 @@ export function AdminLogin({
   const [clientSearchTerm, setClientSearchTerm] = useState("");
   const [shakeQuickAction, setShakeQuickAction] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>("");
+  const [currentUserRole, setCurrentUserRole] = useState<string>("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -759,6 +760,7 @@ export function AdminLogin({
           if (data.authenticated && data.user) {
             setIsAuthenticated(true);
             setCurrentUsername(data.user.username || "");
+            setCurrentUserRole((data.user.role || "").toLowerCase());
           }
         }
       } catch (error) {
@@ -1285,12 +1287,47 @@ export function AdminLogin({
               </motion.div>
             )}
 
+            {(loginType === "agent" || (isAuthenticated && currentUserRole === "super_admin")) && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.65 }}
+                className="pt-6 border-t border-slate-200/50 dark:border-slate-700/50"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className={`w-full h-14 text-base gap-3 ${getTextContrastClass()}`}
+                  onClick={() => {
+                    const hostname = window.location.hostname;
+                    const protocol = window.location.protocol;
+                    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                      setLocation(loginType === "agent" ? '/clients' : '/agents');
+                    } else {
+                      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, '');
+                      if (loginType === "agent") {
+                        window.location.href = `${protocol}//agents.${rootDomain}/clients`;
+                      } else {
+                        window.location.href = `${protocol}//admin.${rootDomain}/agents`;
+                      }
+                    }
+                  }}
+                >
+                  <ArrowLeft className="h-5 w-5 animated-arrow-left" />
+                  <span className="font-medium">
+                    {loginType === "agent" ? "Back to Clients" : "Back to Agents"}
+                  </span>
+                </Button>
+              </motion.div>
+            )}
+
             {/* Back to Homepage */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.7 }}
-              className="pt-8 border-t border-slate-200/50 dark:border-slate-700/50"
+              className="pt-6 border-t border-slate-200/50 dark:border-slate-700/50"
             >
               <Button
                 type="button"

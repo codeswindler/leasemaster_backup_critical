@@ -692,7 +692,7 @@ class Storage {
         $fields = [];
         $values = [];
         
-        $allowed = ['username', 'password', 'fullName', 'phone', 'idNumber', 'propertyLimit'];
+        $allowed = ['username', 'password', 'fullName', 'phone', 'idNumber', 'propertyLimit', 'adminId'];
         foreach ($allowed as $key) {
             if (isset($data[$key])) {
                 if ($key === 'password') {
@@ -713,6 +713,9 @@ class Storage {
                     $values[] = $data[$key];
                 } elseif ($key === 'propertyLimit' && $this->columnExists('users', 'property_limit')) {
                     $fields[] = "property_limit = ?";
+                    $values[] = $data[$key];
+                } elseif ($key === 'adminId' && $this->columnExists('users', 'admin_id')) {
+                    $fields[] = "admin_id = ?";
                     $values[] = $data[$key];
                 }
             }

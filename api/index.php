@@ -1489,6 +1489,13 @@ try {
         }
         
         if ($method === 'PUT' && $id) {
+            $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
+            $currentRole = $currentUser['role'] ?? 'landlord';
+            if ($currentRole === 'agent') {
+                $body['adminId'] = $_SESSION['userId'] ?? null;
+            } elseif ($currentRole === 'admin') {
+                $body['adminId'] = $_SESSION['userId'] ?? null;
+            }
             $landlord = $storage->updateLandlord($id, $body);
             if ($landlord) {
                 $storage->logActivity([
