@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useRoute, useLocation } from "wouter"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, User, Phone, Mail, Home, FileText, CreditCard, Pencil, Undo2, Send } from "lucide-react"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
@@ -32,6 +32,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ToastAction } from "@/components/ui/toast"
+import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
+import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
 import {
   Select,
   SelectContent,
@@ -117,6 +119,16 @@ export function TenantDetail() {
     notifySecondary: "false",
   })
   const tenantDetailSeed = useRef(Math.floor(Math.random() * tenantDetailVariants.length))
+  const terminateDialogSeed = useMemo(() => getSessionSeed("terminate-lease-dialog"), [])
+  const terminateDialogPalette = useMemo(
+    () => getPaletteByKey("terminate-lease", terminateDialogSeed),
+    [terminateDialogSeed]
+  )
+  const terminateDialogSeed = useMemo(() => getSessionSeed("terminate-lease-dialog"), [])
+  const terminateDialogPalette = useMemo(
+    () => getPaletteByKey("terminate-lease", terminateDialogSeed),
+    [terminateDialogSeed]
+  )
 
   const parseAmount = (value: any) => {
     const parsed = Number(value)
@@ -140,7 +152,7 @@ export function TenantDetail() {
     },
   })
   const currentUser = authData?.authenticated ? authData.user : null
-  const isAdminUser = currentUser && (currentUser.role === "admin" || currentUser.role === "super_admin")
+  const isAdminUser = currentUser && (currentUser.role === "admin" || currentUser.role === "super_admin" || currentUser.role === "agent")
   const userPermissions = (() => {
     if (!currentUser?.permissions) return []
     if (Array.isArray(currentUser.permissions)) return currentUser.permissions
@@ -828,7 +840,7 @@ export function TenantDetail() {
                               Terminate Lease
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className={`vibrant-card ${terminateDialogPalette.card} ${terminateDialogPalette.border}`}>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Terminate lease?</AlertDialogTitle>
                               <AlertDialogDescription>
