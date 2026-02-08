@@ -66,11 +66,13 @@ export function WaterUnits() {
     message: string
     unitId: string | null
     onConfirm: (() => void) | null
+    onCancel?: (() => void) | null
   }>({
     isOpen: false,
     message: "",
     unitId: null,
     onConfirm: null,
+    onCancel: null,
   })
   const [showTrendBreakdown, setShowTrendBreakdown] = useState(false)
   // Removed unitSaveTimes - now using database timestamps from water readings
@@ -157,7 +159,7 @@ export function WaterUnits() {
     },
   })
 
-  const saveWaterReading = async (data: { id?: string; unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+  const saveWaterReading = async (data: { id?: string; unitId: string; currentReading?: string; previousReading?: string; readingDate: string }) => {
     const { id, ...payload } = data
     const method = id ? "PUT" : "POST"
     const url = id ? `/api/water-readings/${id}` : "/api/water-readings"
@@ -355,8 +357,61 @@ export function WaterUnits() {
     [getReadingTimestamp, normalizeId, waterReadings]
   )
 
+  const readingsMatch = useCallback((a: any, b: any) => {
+    const aNum = Number(a)
+    const bNum = Number(b)
+    if (!Number.isFinite(aNum) || !Number.isFinite(bNum)) return false
+    return aNum === bNum
+  }, [])
+
+  const updateNextMonthPrevious = useCallback(
+    (unitId: string, value: string) => {
+      const nextMonthKey = getAdjacentMonthKey(consumptionMonth, 1)
+      if (!nextMonthKey) return
+      const existing = getReadingForUnitMonth(unitId, nextMonthKey)
+      const readingDate = getReadingDateForMonth(nextMonthKey)
+      if (existing) {
+        const existingCurrent = existing.currentReading ?? existing.current_reading
+        bulkSaveReadingMutation.mutate({
+          id: existing.id,
+          unitId,
+          currentReading: String(existingCurrent ?? value),
+          previousReading: value,
+          readingDate,
+        })
+        return
+      }
+      bulkSaveReadingMutation.mutate({
+        unitId,
+        currentReading: value,
+        previousReading: value,
+        readingDate,
+      })
+    },
+    [bulkSaveReadingMutation, consumptionMonth, getAdjacentMonthKey, getReadingDateForMonth, getReadingForUnitMonth]
+  )
+
+  const updatePrevMonthCurrent = useCallback(
+    (unitId: string, value: string) => {
+      const prevMonthKey = getAdjacentMonthKey(consumptionMonth, -1)
+      if (!prevMonthKey) return
+      const existing = getReadingForUnitMonth(unitId, prevMonthKey)
+      if (!existing) return
+      const readingDate = getReadingDateForMonth(prevMonthKey)
+      const existingPrevious = existing.previousReading ?? existing.previous_reading
+      bulkSaveReadingMutation.mutate({
+        id: existing.id,
+        unitId,
+        currentReading: value,
+        previousReading: existingPrevious !== undefined && existingPrevious !== null ? String(existingPrevious) : undefined,
+        readingDate,
+      })
+    },
+    [bulkSaveReadingMutation, consumptionMonth, getAdjacentMonthKey, getReadingDateForMonth, getReadingForUnitMonth]
+  )
+
   const confirmCrossMonthImpact = useCallback(
-    (unitId: string, message: string, onConfirm: () => void) => {
+    (unitId: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
       setConfirmPaletteSeed(Math.floor(Math.random() * 1_000_000))
       setPendingConfirmUnits(prev => new Set(prev).add(unitId))
       setCrossMonthConfirm({
@@ -364,6 +419,7 @@ export function WaterUnits() {
         message,
         unitId,
         onConfirm,
+        onCancel: onCancel ?? null,
       })
     },
     []
@@ -474,16 +530,27 @@ export function WaterUnits() {
         }
 
         const nextMonthKey = getAdjacentMonthKey(consumptionMonth, 1)
-        const hasNextMonthReading = !!getReadingForUnitMonth(unitId, nextMonthKey)
-        if (hasNextMonthReading) {
+        const nextReading = getReadingForUnitMonth(unitId, nextMonthKey)
+        const nextPrevious = nextReading?.previousReading ?? nextReading?.previous_reading
+        const shouldPrompt = !!nextReading && !readingsMatch(value, nextPrevious)
+        if (shouldPrompt) {
           confirmCrossMonthImpact(
             unitId,
-            "This current reading will affect the next month's previous reading. We will not auto-update it. Continue?",
-            doSave
+            "This current reading will affect the next month's previous reading. We will update it if you continue.",
+            () => {
+              doSave()
+              updateNextMonthPrevious(unitId, value)
+            },
+            () => {
+              doSave()
+            }
           )
           return
         }
         doSave()
+        if (!nextReading) {
+          updateNextMonthPrevious(unitId, value)
+        }
       }, 1500) // Save after 1.5 seconds of no changes
       
       // Store timeout reference
@@ -535,12 +602,20 @@ export function WaterUnits() {
         }
 
         const prevMonthKey = getAdjacentMonthKey(consumptionMonth, -1)
-        const hasPrevMonthReading = !!getReadingForUnitMonth(unitId, prevMonthKey)
-        if (hasPrevMonthReading) {
+        const prevReading = getReadingForUnitMonth(unitId, prevMonthKey)
+        const prevCurrent = prevReading?.currentReading ?? prevReading?.current_reading
+        const shouldPrompt = !!prevReading && !readingsMatch(value, prevCurrent)
+        if (shouldPrompt) {
           confirmCrossMonthImpact(
             unitId,
-            "This previous reading should match the prior month's current reading. We will not auto-update it. Continue?",
-            doSave
+            "This previous reading should match the prior month's current reading. We will update it if you continue.",
+            () => {
+              doSave()
+              updatePrevMonthCurrent(unitId, value)
+            },
+            () => {
+              doSave()
+            }
           )
           return
         }
@@ -831,16 +906,27 @@ export function WaterUnits() {
       })
     }
     const nextMonthKey = getAdjacentMonthKey(consumptionMonth, 1)
-    const hasNextMonthReading = !!getReadingForUnitMonth(currentReading.unitId, nextMonthKey)
-    if (hasNextMonthReading) {
+    const nextReading = getReadingForUnitMonth(currentReading.unitId, nextMonthKey)
+    const nextPrevious = nextReading?.previousReading ?? nextReading?.previous_reading
+    const shouldPrompt = !!nextReading && !readingsMatch(readingValue, nextPrevious)
+    if (shouldPrompt) {
       confirmCrossMonthImpact(
         currentReading.unitId,
-        "This current reading will affect the next month's previous reading. We will not auto-update it. Continue?",
-        doSave
+        "This current reading will affect the next month's previous reading. We will update it if you continue.",
+        () => {
+          doSave()
+          updateNextMonthPrevious(currentReading.unitId, readingValue.toString())
+        },
+        () => {
+          doSave()
+        }
       )
       return
     }
     doSave()
+    if (!nextReading) {
+      updateNextMonthPrevious(currentReading.unitId, readingValue.toString())
+    }
   }
 
   const getUnitName = (unitId: string) => {
@@ -915,7 +1001,7 @@ export function WaterUnits() {
                 return next
               })
             }
-            setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null })
+            setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null, onCancel: null })
           }
         }}
       >
@@ -927,6 +1013,7 @@ export function WaterUnits() {
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={() => {
+                crossMonthConfirm.onCancel?.()
                 if (crossMonthConfirm.unitId) {
                   setPendingConfirmUnits(prev => {
                     const next = new Set(prev)
@@ -934,7 +1021,7 @@ export function WaterUnits() {
                     return next
                   })
                 }
-                setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null })
+                setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null, onCancel: null })
               }}
             >
               Cancel
@@ -949,7 +1036,7 @@ export function WaterUnits() {
                     return next
                   })
                 }
-                setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null })
+                setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null, onCancel: null })
               }}
             >
               Continue
