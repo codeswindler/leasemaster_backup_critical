@@ -1165,12 +1165,28 @@ export function Tenants() {
               }
             }}
           >
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-tenant">
+            {actionsDisabled ? (
+              <Button
+                data-testid="button-add-tenant"
+                onClick={() => {
+                  toast({
+                    title: "Property Required",
+                    description: "Select a property in the header before adding tenants.",
+                    variant: "destructive",
+                  })
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Tenant
               </Button>
-            </DialogTrigger>
+            ) : (
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-tenant">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Tenant
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent
               className={`sm:max-w-[900px] max-h-[85vh] overflow-y-auto vibrant-card ${addTenantDialogPalette.card} ${addTenantDialogPalette.border}`}
             >
@@ -1751,7 +1767,18 @@ export function Tenants() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setLocation(`/tenants/${tenant.id}`)}
+                          disabled={actionsDisabled}
+                          onClick={() => {
+                            if (actionsDisabled) {
+                              toast({
+                                title: "Property Required",
+                                description: "Select a property in the header before opening tenant details.",
+                                variant: "destructive",
+                              })
+                              return
+                            }
+                            setLocation(`/tenants/${tenant.id}`)
+                          }}
                         >
                           Open
                         </Button>
@@ -1772,7 +1799,19 @@ export function Tenants() {
           <p className="text-muted-foreground mb-4">
             {searchTerm ? "Try adjusting your search terms" : "Get started by adding your first tenant"}
           </p>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Button
+            onClick={() => {
+              if (actionsDisabled) {
+                toast({
+                  title: "Property Required",
+                  description: "Select a property in the header before adding tenants.",
+                  variant: "destructive",
+                })
+                return
+              }
+              setIsAddDialogOpen(true)
+            }}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Tenant
           </Button>
