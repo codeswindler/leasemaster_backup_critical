@@ -1524,51 +1524,58 @@ export function Landing() {
       {/* Contact Popup Dialog */}
       <Dialog open={showContactPopup} onOpenChange={setShowContactPopup}>
         <DialogContent className="sm:max-w-[500px] border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
-          <DialogHeader>
-            <DialogTitle className={`text-2xl font-bold ${getTextContrastClass()}`}>Contact Us</DialogTitle>
-            <DialogDescription className={getTextContrastClass()}>
-              Get in touch with our team
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 mt-4">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-blue-600/20 text-blue-400">
-                <Mail className="h-6 w-6" />
+          <div className="p-2">
+            <h2 className={`text-2xl font-bold mb-6 text-center ${getTextContrastClass()}`}>
+              Contact Information
+            </h2>
+            <div className="grid gap-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                  <Mail className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>
+                    Email
+                  </h3>
+                  <a
+                    href="mailto:info@theleasemaster.com"
+                    className={`text-base hover:text-primary transition-colors ${getTextContrastClass()}`}
+                  >
+                    info@theleasemaster.com
+                  </a>
+                </div>
               </div>
-              <div>
-                <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>Email</h3>
-                <a
-                  href="mailto:info@theleasemaster.com"
-                  className="text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  info@theleasemaster.com
-                </a>
+
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                  <Phone className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>
+                    Phone
+                  </h3>
+                  <a
+                    href="tel:+254727839315"
+                    className={`text-base hover:text-primary transition-colors ${getTextContrastClass()}`}
+                  >
+                    +254 727 839 315
+                  </a>
+                </div>
               </div>
-            </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-green-600/20 text-green-400">
-                <Phone className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>Phone</h3>
-                <a
-                  href="tel:+254727839315"
-                  className="text-green-400 hover:text-green-300 transition-colors"
-                >
-                  +254 727 839 315
-                </a>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-purple-600/20 text-purple-400">
-                <Clock className="h-6 w-6" />
-              </div>
-              <div>
-                <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>Working Hours</h3>
-                <p className={getTextContrastClass()}>24/7 Available</p>
-                <p className="text-sm text-muted-foreground">{typedSupportMessage}</p>
+
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                  <Clock className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>
+                    Working Hours
+                  </h3>
+                  <p className={`text-base ${getTextContrastClass()}`}>24/7 Available</p>
+                  <p className={`text-sm text-muted-foreground ${getTextContrastClass()}`}>
+                    {typedSupportMessage}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
