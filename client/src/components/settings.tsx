@@ -466,6 +466,35 @@ export function Settings() {
   })
 
   const saveSection = (section: string, payload: any) => {
+    if (section === "invoice") {
+      const missingFields = [
+        !payload.company_name && "Company Name",
+        !payload.company_phone && "Company Phone",
+        !payload.company_email && "Company Email",
+        !payload.company_address && "Company Address",
+        !payload.payment_options && "Payment Options",
+        !payload.timezone_offset && "Account Timezone",
+      ].filter(Boolean)
+
+      if (!selectedPropertyId || selectedPropertyId === "all") {
+        toast({
+          title: "Property Required",
+          description: "Select a property in the header before saving invoice settings.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (missingFields.length > 0) {
+        toast({
+          title: "Invoice Settings Required",
+          description: `Complete: ${missingFields.join(", ")}. Logo is optional.`,
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
     const scopedPayload = {
       ...payload,
       propertyId: selectedPropertyId || null,
