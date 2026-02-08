@@ -418,8 +418,20 @@ export function Settings() {
       const response = await apiRequest("PUT", `/api/settings/${section}${scopeParams}`, payload)
       return await response.json()
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/settings"] })
+    onSuccess: (data, variables) => {
+      const section = variables.section
+      queryClient.invalidateQueries({ queryKey: [`/api/settings/${section}`, selectedPropertyId, selectedLandlordId, selectedAgentId] })
+      if (section === "invoice" && data && typeof data === "object") {
+        setInvoiceSettings({
+          company_name: data.company_name ?? "",
+          company_phone: data.company_phone ?? "",
+          company_email: data.company_email ?? "",
+          company_address: data.company_address ?? "",
+          payment_options: data.payment_options ?? "",
+          logo_url: data.logo_url ?? "",
+          timezone_offset: data.timezone_offset ?? "UTC+00:00"
+        })
+      }
       toast({ title: "Settings saved" })
     },
     onError: (error: any) => {

@@ -4103,10 +4103,14 @@ class Storage {
     }
 
     public function saveInvoiceSettings($propertyId, $landlordId, $data) {
-        return $this->upsertSettings('invoice_settings', $propertyId, $landlordId, $data, [
+        $allowed = [
             'company_name', 'company_phone', 'company_email', 'company_address', 'payment_options', 'logo_url', 'enabled',
             'timezone_offset'
-        ]);
+        ];
+        $allowed = array_values(array_filter($allowed, function ($column) {
+            return $this->columnExists('invoice_settings', $column);
+        }));
+        return $this->upsertSettings('invoice_settings', $propertyId, $landlordId, $data, $allowed);
     }
 
     public function getAlertSettings($propertyId = null, $landlordId = null) {
