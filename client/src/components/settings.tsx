@@ -187,6 +187,16 @@ const timezoneOffsets = [
   "UTC+10:00", "UTC+11:00", "UTC+12:00", "UTC+13:00", "UTC+14:00"
 ]
 
+const normalizeInvoiceSettings = (data: any) => ({
+  company_name: data?.company_name ?? data?.companyName ?? "",
+  company_phone: data?.company_phone ?? data?.companyPhone ?? "",
+  company_email: data?.company_email ?? data?.companyEmail ?? "",
+  company_address: data?.company_address ?? data?.companyAddress ?? "",
+  payment_options: data?.payment_options ?? data?.paymentOptions ?? "",
+  logo_url: data?.logo_url ?? data?.logoUrl ?? "",
+  timezone_offset: data?.timezone_offset ?? data?.timezoneOffset ?? "UTC+00:00"
+})
+
 export function Settings() {
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const tabsSeed = useRef(Math.floor(Math.random() * 6))
@@ -351,16 +361,8 @@ export function Settings() {
   }, [mpesaData])
 
   useEffect(() => {
-    if (invoiceData && typeof invoiceData === "object") {
-      setInvoiceSettings({
-        company_name: invoiceData.company_name ?? "",
-        company_phone: invoiceData.company_phone ?? "",
-        company_email: invoiceData.company_email ?? "",
-        company_address: invoiceData.company_address ?? "",
-        payment_options: invoiceData.payment_options ?? "",
-        logo_url: invoiceData.logo_url ?? "",
-        timezone_offset: invoiceData.timezone_offset ?? "UTC+00:00"
-      })
+    if (invoiceData && typeof invoiceData === "object" && !Array.isArray(invoiceData)) {
+      setInvoiceSettings(normalizeInvoiceSettings(invoiceData))
     }
   }, [invoiceData])
 
@@ -423,15 +425,7 @@ export function Settings() {
       queryClient.invalidateQueries({ queryKey: [`/api/settings/${section}`, selectedPropertyId, selectedLandlordId, selectedAgentId] })
       queryClient.refetchQueries({ queryKey: [`/api/settings/${section}`, selectedPropertyId, selectedLandlordId, selectedAgentId] })
       if (section === "invoice" && data && typeof data === "object") {
-        setInvoiceSettings({
-          company_name: data.company_name ?? "",
-          company_phone: data.company_phone ?? "",
-          company_email: data.company_email ?? "",
-          company_address: data.company_address ?? "",
-          payment_options: data.payment_options ?? "",
-          logo_url: data.logo_url ?? "",
-          timezone_offset: data.timezone_offset ?? "UTC+00:00"
-        })
+        setInvoiceSettings(normalizeInvoiceSettings(data))
       }
       toast({ title: "Settings saved" })
     },
