@@ -131,16 +131,6 @@ export function ClientsPage() {
   const currentRole = (currentUser?.role || "").toLowerCase();
   const isSuperAdmin = currentRole === "super_admin";
   const isAgentUser = currentRole === "agent";
-  const { data: authData } = useQuery({
-    queryKey: ["/api/auth/check"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/auth/check");
-      return await response.json();
-    },
-  });
-  const currentRole = (authData?.user?.role || "").toLowerCase();
-  const isSuperAdmin = currentRole === "super_admin";
-
   // Fetch all landlords (users with role 'landlord')
   const { data: landlords = [], isLoading } = useQuery({
     queryKey: ["/api/landlords", selectedAgentId],
