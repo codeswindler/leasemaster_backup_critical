@@ -30,11 +30,12 @@ export function WaterUnits() {
   const summaryPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const listPaletteSeed = useRef(Math.floor(Math.random() * 6))
   const analysisPaletteSeed = useRef(Math.floor(Math.random() * 6))
-  const [consumptionMonth, setConsumptionMonth] = useState<string>(() => {
+  const getPreviousMonthKey = useCallback(() => {
     const now = new Date()
     const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    return previousMonth.toISOString().slice(0, 7)
-  })
+    return `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, "0")}`
+  }, [])
+  const [consumptionMonth, setConsumptionMonth] = useState<string>(() => getPreviousMonthKey())
   const [currentReading, setCurrentReading] = useState<{ unitId: string; reading: string; previousReading: string }>({
     unitId: "",
     reading: "",
@@ -431,6 +432,12 @@ export function WaterUnits() {
   }, [filteredWaterReadings])
 
   useEffect(() => {
+    if (!consumptionMonth) {
+      setConsumptionMonth(getPreviousMonthKey())
+    }
+  }, [consumptionMonth, getPreviousMonthKey])
+
+  useEffect(() => {
     if (!filteredUnits.length) {
       setBulkReadings({})
       setBulkPreviousReadings({})
@@ -456,6 +463,7 @@ export function WaterUnits() {
       filteredUnits.forEach((unit) => {
         const unitId = unit.id
         if (savingUnits.has(unitId) || editingUnits.has(unitId)) return
+        if (prev[unitId] !== undefined && String(prev[unitId]).trim() !== "") return
         const reading = latestReadingByUnit.get(unitId)
         const previousValue = reading?.previousReading ?? reading?.previous_reading
         if (previousValue !== undefined && previousValue !== null && previousValue !== "") {
