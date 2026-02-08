@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query"
-import { useRef } from "react"
+import { useMemo, useRef, useState } from "react"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
@@ -7,6 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
 
 export function TerminatedLeases() {
   const terminatedLeaseVariants = [
@@ -23,6 +27,15 @@ export function TerminatedLeases() {
   const actionsDisabled = !selectedPropertyId
   const effectivePropertyId = selectedPropertyId && selectedPropertyId !== "all" ? selectedPropertyId : null
   const normalizeStatus = (status: any) => String(status ?? "").trim().toLowerCase()
+  const dialogPaletteSeed = useMemo(() => getSessionSeed("lease-reactivate-dialog"), [])
+  const dialogPalette = useMemo(
+    () => getPaletteByKey("lease-reactivate", dialogPaletteSeed),
+    [dialogPaletteSeed]
+  )
+  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false)
+  const [reactivateLeaseId, setReactivateLeaseId] = useState<string | null>(null)
+  const [reactivateStartDate, setReactivateStartDate] = useState("")
+  const [reactivateEndDate, setReactivateEndDate] = useState("")
 
   const { data: leases = [] } = useQuery({
     queryKey: ["/api/leases", effectivePropertyId, selectedLandlordId],
@@ -106,21 +119,27 @@ export function TerminatedLeases() {
   })
 
   const reActivateMutation = useMutation({
-    mutationFn: async (leaseId: string) => {
+    mutationFn: async (payload: { leaseId: string; startDate: string; endDate: string }) => {
       if (actionsDisabled) {
         throw new Error("Select a property in the header to reactivate leases.")
       }
-      const response = await apiRequest("PUT", `/api/leases/${leaseId}`, {
+      const response = await apiRequest("PUT", `/api/leases/${payload.leaseId}`, {
         status: "active",
+        startDate: payload.startDate,
+        endDate: payload.endDate,
       })
       return await response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leases"] })
       queryClient.invalidateQueries({ queryKey: ["/api/units"] })
+      setReactivateDialogOpen(false)
+      setReactivateLeaseId(null)
+      setReactivateStartDate("")
+      setReactivateEndDate("")
       toast({
         title: "Lease reactivated",
-        description: "The lease is active again.",
+        description: "The lease is active again with updated dates.",
       })
     },
     onError: (error: any) => {
@@ -131,6 +150,13 @@ export function TerminatedLeases() {
       })
     },
   })
+
+  const openReactivateDialog = (lease: any) => {
+    setReactivateLeaseId(lease.id)
+    setReactivateStartDate(lease.startDate ? String(lease.startDate).slice(0, 10) : "")
+    setReactivateEndDate("")
+    setReactivateDialogOpen(true)
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -174,7 +200,7 @@ export function TerminatedLeases() {
                       <Button
                         size="sm"
                         disabled={actionsDisabled || reActivateMutation.isPending}
-                        onClick={() => reActivateMutation.mutate(lease.id)}
+                        onClick={() => openReactivateDialog(lease)}
                       >
                         Reactivate
                       </Button>
@@ -193,6 +219,60 @@ export function TerminatedLeases() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={reactivateDialogOpen} onOpenChange={setReactivateDialogOpen}>
+        <DialogContent className={`vibrant-card ${dialogPalette.card} ${dialogPalette.border}`}>
+          <DialogHeader>
+            <DialogTitle>Reactivate Lease</DialogTitle>
+            <DialogDescription>
+              Set new lease dates to keep occupancy and revenue accurate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="reactivate-start">Start Date</Label>
+              <Input
+                id="reactivate-start"
+                type="date"
+                value={reactivateStartDate}
+                onChange={(event) => setReactivateStartDate(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reactivate-end">End Date</Label>
+              <Input
+                id="reactivate-end"
+                type="date"
+                value={reactivateEndDate}
+                onChange={(event) => setReactivateEndDate(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReactivateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !reactivateLeaseId ||
+                !reactivateStartDate ||
+                !reactivateEndDate ||
+                reActivateMutation.isPending
+              }
+              onClick={() => {
+                if (!reactivateLeaseId) return
+                reActivateMutation.mutate({
+                  leaseId: reactivateLeaseId,
+                  startDate: reactivateStartDate,
+                  endDate: reactivateEndDate,
+                })
+              }}
+            >
+              {reActivateMutation.isPending ? "Reactivating..." : "Reactivate Lease"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
