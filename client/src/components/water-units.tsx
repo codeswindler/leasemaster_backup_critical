@@ -564,6 +564,14 @@ export function WaterUnits() {
   }, [consumptionMonth, getPreviousMonthKey])
 
   useEffect(() => {
+    setBulkReadings({})
+    setBulkPreviousReadings({})
+    setSavingUnits(new Set())
+    setSavedUnits(new Set())
+    setEditingUnits(new Set())
+  }, [consumptionMonth])
+
+  useEffect(() => {
     if (!filteredUnits.length) {
       setBulkReadings({})
       setBulkPreviousReadings({})
