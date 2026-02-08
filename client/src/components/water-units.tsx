@@ -134,13 +134,20 @@ export function WaterUnits() {
     },
   })
 
-  // Create new water reading mutation
-  const createReadingMutation = useMutation({
-    mutationFn: async (data: { unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+  const saveWaterReading = async (data: { id?: string; unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+    const { id, ...payload } = data
+    const method = id ? "PUT" : "POST"
+    const url = id ? `/api/water-readings/${id}` : "/api/water-readings"
+    return await apiRequest(method, url, payload)
+  }
+
+  // Create or update water reading mutation (single-entry form)
+  const upsertReadingMutation = useMutation({
+    mutationFn: async (data: { id?: string; unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
       if (actionsDisabled) {
         throw new Error("Select a property in the header to save water readings.")
       }
-      return await apiRequest("POST", "/api/water-readings", data)
+      return await saveWaterReading(data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/water-readings"] })
@@ -161,12 +168,12 @@ export function WaterUnits() {
 
   // Bulk save single reading mutation
   const bulkSaveReadingMutation = useMutation({
-    mutationFn: async (data: { unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+    mutationFn: async (data: { id?: string; unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
       if (actionsDisabled) {
         throw new Error("Select a property in the header to save water readings.")
       }
       console.log("🚀 Bulk save mutation starting for unit:", data.unitId)
-      return await apiRequest("POST", "/api/water-readings", data)
+      return await saveWaterReading(data)
     },
     onSuccess: (_, variables) => {
       console.log("✅ Bulk save SUCCESS for unit:", variables.unitId)
@@ -215,6 +222,7 @@ export function WaterUnits() {
 
   // Store timeout refs for each unit
   const [timeoutRefs, setTimeoutRefs] = useState<Record<string, NodeJS.Timeout>>({})
+  const [previousTimeoutRefs, setPreviousTimeoutRefs] = useState<Record<string, NodeJS.Timeout>>({})
 
   const normalizedUnits = useMemo(() => {
     return units.map((unit: any) => ({
@@ -249,6 +257,65 @@ export function WaterUnits() {
   }, [leases])
 
   const normalizeId = (value: any) => (value === null || value === undefined ? null : String(value))
+
+  const getReadingTimestamp = useCallback((reading: any) => {
+    const timestampValue =
+      reading.lastModifiedAt ||
+      reading.createdAt ||
+      reading.last_modified_at ||
+      reading.created_at ||
+      reading.readingDate ||
+      reading.reading_date
+    return timestampValue ? new Date(timestampValue).getTime() : 0
+  }, [])
+
+  const getReadingMonthKey = useCallback((reading: any) => {
+    const readingDateValue = reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at
+    if (!readingDateValue) return null
+    const readingDate = new Date(readingDateValue)
+    if (Number.isNaN(readingDate.getTime())) return null
+    return `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, "0")}`
+  }, [])
+
+  const getReadingForUnitMonth = useCallback(
+    (unitId: string, monthKey: string | null) => {
+      if (!monthKey) return null
+      const unitKey = normalizeId(unitId)
+      const candidates = waterReadings.filter((reading: any) => {
+        const readingUnitId = normalizeId(reading.unitId ?? reading.unit_id)
+        return readingUnitId === unitKey && getReadingMonthKey(reading) === monthKey
+      })
+      if (!candidates.length) return null
+      return candidates.reduce((latest: any, reading: any) => {
+        return getReadingTimestamp(reading) >= getReadingTimestamp(latest) ? reading : latest
+      }, candidates[0])
+    },
+    [getReadingMonthKey, getReadingTimestamp, normalizeId, waterReadings]
+  )
+
+  const getLatestReadingBeforeMonth = useCallback(
+    (unitId: string, monthKey: string | null) => {
+      if (!monthKey) return null
+      const [year, month] = monthKey.split("-").map(Number)
+      if (!year || !month) return null
+      const monthStart = new Date(year, month - 1, 1)
+      const unitKey = normalizeId(unitId)
+      const candidates = waterReadings.filter((reading: any) => {
+        const readingUnitId = normalizeId(reading.unitId ?? reading.unit_id)
+        if (readingUnitId !== unitKey) return false
+        const readingDateValue = reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at
+        if (!readingDateValue) return false
+        const readingDate = new Date(readingDateValue)
+        if (Number.isNaN(readingDate.getTime())) return false
+        return readingDate < monthStart
+      })
+      if (!candidates.length) return null
+      return candidates.reduce((latest: any, reading: any) => {
+        return getReadingTimestamp(reading) >= getReadingTimestamp(latest) ? reading : latest
+      }, candidates[0])
+    },
+    [getReadingTimestamp, normalizeId, waterReadings]
+  )
 
   const toStartOfDay = (dateValue: any) => {
     if (!dateValue) return null
@@ -329,12 +396,14 @@ export function WaterUnits() {
           console.log("💾 Adding to savingUnits:", unitId, "New set:", newSet)
           return newSet
         })
-        
+
         const monthParts = consumptionMonth.split("-")
         const readingDate = monthParts.length === 2
           ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
           : new Date().toISOString().split("T")[0]
+        const existingReading = getReadingForUnitMonth(unitId, consumptionMonth)
         bulkSaveReadingMutation.mutate({
+          id: existingReading?.id,
           unitId,
           currentReading: value,
           previousReading: previousReading.toString(),
@@ -344,6 +413,55 @@ export function WaterUnits() {
       
       // Store timeout reference
       setTimeoutRefs(prev => ({ ...prev, [unitId]: timeoutId }))
+    }
+  }
+
+  const handleBulkPreviousReadingChange = (unitId: string, value: string) => {
+    if (actionsDisabled) return
+    setEditingUnits(prev => {
+      const next = new Set(prev)
+      next.add(unitId)
+      return next
+    })
+    setBulkPreviousReadings(prev => ({ ...prev, [unitId]: value }))
+    setSavedUnits(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(unitId)
+      return newSet
+    })
+
+    if (previousTimeoutRefs[unitId]) {
+      clearTimeout(previousTimeoutRefs[unitId])
+    }
+
+    if (value && value.trim() !== "" && !isNaN(Number(value))) {
+      const timeoutId = setTimeout(() => {
+        const existingReading = getReadingForUnitMonth(unitId, consumptionMonth)
+        const currentValue =
+          bulkReadings[unitId] ??
+          existingReading?.currentReading ??
+          existingReading?.current_reading
+
+        if (currentValue === undefined || currentValue === null || String(currentValue).trim() === "") {
+          return
+        }
+
+        setSavingUnits(prev => new Set(prev).add(unitId))
+
+        const monthParts = consumptionMonth.split("-")
+        const readingDate = monthParts.length === 2
+          ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0]
+        bulkSaveReadingMutation.mutate({
+          id: existingReading?.id,
+          unitId,
+          currentReading: String(currentValue),
+          previousReading: value.toString(),
+          readingDate,
+        })
+      }, 1500)
+
+      setPreviousTimeoutRefs(prev => ({ ...prev, [unitId]: timeoutId }))
     }
   }
 
@@ -575,13 +693,13 @@ export function WaterUnits() {
     }
 
     // Find the latest reading for this unit to validate against previous reading
-    const unitReadings = waterReadings
-      .filter((reading: any) => (reading.unitId ?? reading.unit_id) === currentReading.unitId)
-      .sort((a: any, b: any) => new Date(b.readingDate ?? b.reading_date).getTime() - new Date(a.readingDate ?? a.reading_date).getTime())
-    
-    const latestReading = unitReadings[0]
+    const latestReading = getLatestReadingBeforeMonth(currentReading.unitId, consumptionMonth)
+    const existingReading = getReadingForUnitMonth(currentReading.unitId, consumptionMonth)
     const overridePrevious = currentReading.previousReading ? parseFloat(currentReading.previousReading) : null
-    const previousValue = overridePrevious ?? (latestReading ? parseFloat(latestReading.currentReading) : 0)
+    const existingPrevious = existingReading?.previousReading ?? existingReading?.previous_reading
+    const previousValue = overridePrevious
+      ?? (existingPrevious !== undefined && existingPrevious !== null ? parseFloat(existingPrevious) : null)
+      ?? (latestReading ? parseFloat(latestReading.currentReading ?? latestReading.current_reading) : 0)
     if (readingValue < previousValue) {
       toast({
         title: "Error",
@@ -603,7 +721,8 @@ export function WaterUnits() {
       ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
       : new Date().toISOString().split("T")[0]
 
-    createReadingMutation.mutate({
+    upsertReadingMutation.mutate({
+      id: existingReading?.id,
       unitId: currentReading.unitId,
       currentReading: readingValue.toString(),
       previousReading: previousValue.toString(),
@@ -624,10 +743,7 @@ export function WaterUnits() {
   }
 
   const getLastReadingForUnit = (unitId: string) => {
-    const unitReadings = waterReadings
-      .filter((reading: any) => (reading.unitId ?? reading.unit_id) === unitId)
-      .sort((a: any, b: any) => new Date(b.readingDate ?? b.reading_date).getTime() - new Date(a.readingDate ?? a.reading_date).getTime())
-    return unitReadings[0] || null
+    return getLatestReadingBeforeMonth(unitId, consumptionMonth)
   }
 
   // Get the last modification timestamp for a unit from database (persistent across page reloads)
@@ -890,7 +1006,7 @@ export function WaterUnits() {
                           const previousValue = previousOverride !== undefined && previousOverride !== ""
                             ? parseFloat(previousOverride)
                             : lastReading
-                              ? parseFloat(lastReading.currentReading)
+                              ? parseFloat(lastReading.currentReading ?? lastReading.current_reading)
                               : 0
                           const newValue = currentValue !== "" ? parseFloat(currentValue) : NaN
                           const unitsConsumed = Number.isFinite(newValue) ? Math.max(0, newValue - previousValue) : 0
@@ -916,16 +1032,9 @@ export function WaterUnits() {
                               <TableCell className="text-sm">
                                 <Input
                                   type="number"
-                                  placeholder={lastReading ? `${lastReading.currentReading}` : "0"}
+                                  placeholder={lastReading ? `${lastReading.currentReading ?? lastReading.current_reading}` : "0"}
                                   value={bulkPreviousReadings[unit.id] ?? ""}
-                                  onChange={(e) => {
-                                    setEditingUnits(prev => {
-                                      const next = new Set(prev)
-                                      next.add(unit.id)
-                                      return next
-                                    })
-                                    setBulkPreviousReadings(prev => ({ ...prev, [unit.id]: e.target.value }))
-                                  }}
+                                  onChange={(e) => handleBulkPreviousReadingChange(unit.id, e.target.value)}
                                   onFocus={() => {
                                     setEditingUnits(prev => {
                                       const next = new Set(prev)

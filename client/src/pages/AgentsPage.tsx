@@ -36,7 +36,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Users, Search, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, LogIn, Shield, UserPlus } from "lucide-react";
+import { Users, Search, Mail, Phone, Loader2, Plus, Send, Edit, Trash2, LogIn, Shield, UserPlus, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -300,6 +300,13 @@ export function AgentsPage() {
     setLocation("/clients");
   };
 
+  const handleBackToClients = () => {
+    setSelectedAgentId(null);
+    setSelectedLandlordId(null);
+    setSelectedPropertyId(null);
+    setLocation("/clients");
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col gap-6">
@@ -309,6 +316,10 @@ export function AgentsPage() {
             <p className="text-muted-foreground">Create and manage agent accounts</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={handleBackToClients} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Clients
+            </Button>
             <Button
               variant="outline"
               onClick={() => setLocation("/portal")}

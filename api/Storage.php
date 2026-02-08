@@ -3576,8 +3576,8 @@ class Storage {
         if (!$existing) return null;
         
         // Recalculate if reading values changed
-        if (isset($data['currentReading']) || isset($data['ratePerUnit'])) {
-            $previousReading = floatval($existing['previous_reading']);
+        if (isset($data['currentReading']) || isset($data['previousReading']) || isset($data['ratePerUnit'])) {
+            $previousReading = floatval($data['previousReading'] ?? $existing['previous_reading']);
             $currentReading = floatval($data['currentReading'] ?? $existing['current_reading']);
             $ratePerUnit = floatval($data['ratePerUnit'] ?? $existing['rate_per_unit']);
             
@@ -3599,6 +3599,7 @@ class Storage {
             'unitId' => 'unit_id',
             'readingDate' => 'reading_date',
             'currentReading' => 'current_reading',
+            'previousReading' => 'previous_reading',
             'consumption' => 'consumption',
             'ratePerUnit' => 'rate_per_unit',
             'totalAmount' => 'total_amount',
