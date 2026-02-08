@@ -134,7 +134,7 @@ export const waterReadings = pgTable("water_readings", {
   unitId: varchar("unit_id").notNull().references(() => units.id),
   readingDate: date("reading_date").notNull(),
   previousReading: decimal("previous_reading", { precision: 10, scale: 2 }),
-  currentReading: decimal("current_reading", { precision: 10, scale: 2 }).notNull(),
+  currentReading: decimal("current_reading", { precision: 10, scale: 2 }),
   consumption: decimal("consumption", { precision: 10, scale: 2 }).notNull(), // calculated: current - previous
   ratePerUnit: decimal("rate_per_unit", { precision: 8, scale: 2 }).notNull(),
   totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),

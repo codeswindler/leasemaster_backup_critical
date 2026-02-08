@@ -3541,13 +3541,14 @@ class Storage {
         $previousReading = $previousReadings ? floatval($previousReadings[0]['current_reading']) : 0;
         }
         
-        $currentReading = floatval($data['currentReading']);
+        $hasCurrentReading = array_key_exists('currentReading', $data) && $data['currentReading'] !== '' && $data['currentReading'] !== null;
+        $currentReading = $hasCurrentReading ? floatval($data['currentReading']) : null;
         
-        if ($currentReading < $previousReading) {
+        if ($hasCurrentReading && $currentReading < $previousReading) {
             throw new Exception("Current reading cannot be less than previous reading");
         }
         
-        $consumption = $currentReading - $previousReading;
+        $consumption = $hasCurrentReading ? ($currentReading - $previousReading) : 0;
         $totalAmount = $consumption * $ratePerUnit;
         
         $id = $this->generateUUID();
@@ -3575,17 +3576,21 @@ class Storage {
         $existing = $this->getWaterReading($id);
         if (!$existing) return null;
         
-        // Recalculate if reading values changed
-        if (isset($data['currentReading']) || isset($data['previousReading']) || isset($data['ratePerUnit'])) {
+        // Recalculate if reading values changed (only when current reading is present)
+        $hasCurrentReading = array_key_exists('currentReading', $data) && $data['currentReading'] !== '' && $data['currentReading'] !== null;
+        $existingHasCurrent = isset($existing['current_reading']) && $existing['current_reading'] !== null && $existing['current_reading'] !== '';
+        $shouldRecalculate = $hasCurrentReading || isset($data['ratePerUnit']) || (isset($data['previousReading']) && $existingHasCurrent);
+        
+        if ($shouldRecalculate) {
             $previousReading = floatval($data['previousReading'] ?? $existing['previous_reading']);
-            $currentReading = floatval($data['currentReading'] ?? $existing['current_reading']);
+            $currentReadingValue = $hasCurrentReading ? floatval($data['currentReading']) : floatval($existing['current_reading']);
             $ratePerUnit = floatval($data['ratePerUnit'] ?? $existing['rate_per_unit']);
             
-            if ($currentReading < $previousReading) {
+            if ($currentReadingValue < $previousReading) {
                 throw new Exception("Current reading cannot be less than previous reading");
             }
             
-            $consumption = $currentReading - $previousReading;
+            $consumption = $currentReadingValue - $previousReading;
             $totalAmount = $consumption * $ratePerUnit;
             
             $data['consumption'] = $consumption;
