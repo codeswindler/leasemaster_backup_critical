@@ -76,6 +76,11 @@ export function AgentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("agent-cards"), []);
+  const headerPaletteSeed = useMemo(() => Math.floor(Math.random() * 1_000_000), []);
+  const headerPalette = useMemo(
+    () => getPaletteByKey("agents-header-actions", headerPaletteSeed),
+    [headerPaletteSeed]
+  );
   const dialogPaletteSeed = useMemo(() => Math.floor(Math.random() * 1_000_000), []);
   const createDialogPalette = useMemo(
     () => getPaletteByKey("create-agent-dialog", dialogPaletteSeed),
@@ -300,11 +305,18 @@ export function AgentsPage() {
     setLocation("/clients");
   };
 
-  const handleBackToClients = () => {
+  const handleBackToLobby = () => {
     setSelectedAgentId(null);
     setSelectedLandlordId(null);
     setSelectedPropertyId(null);
-    setLocation("/clients");
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      setLocation("/admin/login");
+    } else {
+      const rootDomain = hostname.replace(/^(www|admin|agents|portal|clients|enquiries|tenant|tenants)\./, "");
+      window.location.href = `${protocol}//admin.${rootDomain}/login`;
+    }
   };
 
   return (
@@ -316,14 +328,18 @@ export function AgentsPage() {
             <p className="text-muted-foreground">Create and manage agent accounts</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleBackToClients} className="gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBackToLobby}
+              className={`gap-2 border-2 ${headerPalette.border} ${headerPalette.accentBg} ${headerPalette.accentText}`}
+            >
               <ArrowLeft className="h-4 w-4" />
-              Back to Clients
+              Back to Lobby
             </Button>
             <Button
               variant="outline"
               onClick={() => setLocation("/portal")}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 border-2 ${headerPalette.border} ${headerPalette.accentBg} ${headerPalette.accentText}`}
             >
               <motion.div
                 animate={{
@@ -346,7 +362,7 @@ export function AgentsPage() {
             </Button>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
+                <Button className={`gap-2 border-2 ${headerPalette.border} ${headerPalette.accentBg} ${headerPalette.accentText}`}>
                   <Plus className="h-4 w-4" />
                   Add New Agent
                 </Button>
