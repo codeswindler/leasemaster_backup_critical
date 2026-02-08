@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useQuery, useMutation } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -60,6 +60,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import ExcelJS from "exceljs"
+import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
 
 export function Tenants() {
   const tenantsListVariants = [
@@ -71,6 +72,11 @@ export function Tenants() {
     "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
   ]
   const tenantsListSeed = useRef(Math.floor(Math.random() * tenantsListVariants.length))
+  const addTenantDialogSeed = useMemo(() => getSessionSeed("add-tenant-dialog"), [])
+  const addTenantDialogPalette = useMemo(
+    () => getPaletteByKey("add-tenant-dialog", addTenantDialogSeed),
+    [addTenantDialogSeed]
+  )
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [formStep, setFormStep] = useState(1)
@@ -1174,7 +1180,9 @@ export function Tenants() {
                 </Button>
               </DialogTrigger>
             )}
-            <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-y-auto">
+            <DialogContent
+              className={`sm:max-w-[900px] max-h-[85vh] overflow-y-auto vibrant-card ${addTenantDialogPalette.card} ${addTenantDialogPalette.border}`}
+            >
             <DialogHeader>
               <DialogTitle>
                 {formStep === 1 ? "Add New Tenant" : "Allocate Unit"}
