@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { 
   Building2,
@@ -13,28 +13,53 @@ import {
   TrendingUp,
   DollarSign,
   Users,
+  User,
   BarChart3,
   Smartphone,
   FileText,
   Shield,
   CheckCircle2,
   ArrowRight,
-  Zap
+  Zap,
+  MessageSquare,
+  Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { motion, AnimatePresence } from "framer-motion";
 import { BackToTop } from "@/components/back-to-top";
+import { useToast } from "@/hooks/use-toast";
 
 export function About() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageBrightness, setImageBrightness] = useState<number>(0.5);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [showComingSoon, setShowComingSoon] = useState<string | null>(null);
   const [tenantPortalImageIndex, setTenantPortalImageIndex] = useState(0);
   const [securityImageIndex, setSecurityImageIndex] = useState(0);
+  const [showEnquiryPopup, setShowEnquiryPopup] = useState(false);
+  const [enquiryForm, setEnquiryForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    message: "",
+  });
+  const [submittingEnquiry, setSubmittingEnquiry] = useState(false);
+  const supportMessage = "we are here to serve you, your convinience is our priority";
+  const [typedSupportMessage, setTypedSupportMessage] = useState("");
 
   // Scroll to top when component mounts (for navigation from footer)
   useEffect(() => {
@@ -87,6 +112,39 @@ export function About() {
     });
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    let index = 0;
+    let direction = 1;
+    let timeout: ReturnType<typeof setTimeout>;
+    let active = true;
+
+    const tick = () => {
+      if (!active) return;
+      setTypedSupportMessage(supportMessage.slice(0, index));
+
+      if (direction === 1 && index >= supportMessage.length) {
+        direction = -1;
+        timeout = setTimeout(tick, 1400);
+        return;
+      }
+
+      if (direction === -1 && index <= 0) {
+        direction = 1;
+        timeout = setTimeout(tick, 500);
+        return;
+      }
+
+      index += direction;
+      timeout = setTimeout(tick, 45);
+    };
+
+    tick();
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [supportMessage]);
 
   // Background slideshow
   useEffect(() => {
@@ -161,6 +219,36 @@ export function About() {
   const handleComingSoon = (section: string) => {
     setShowComingSoon(section);
     setTimeout(() => setShowComingSoon(null), 3000);
+  };
+
+  const handleEnquirySubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmittingEnquiry(true);
+    try {
+      const response = await fetch("/api/enquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(enquiryForm),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Enquiry Submitted",
+          description: "Thank you! We'll get back to you soon.",
+        });
+        setEnquiryForm({ name: "", email: "", phone: "", message: "" });
+      } else {
+        throw new Error("Failed to submit enquiry");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit enquiry. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingEnquiry(false);
+    }
   };
 
   return (
@@ -909,20 +997,20 @@ export function About() {
           </div>
           
           <div className="grid md:grid-cols-3 gap-6">
-            {/* Starter Plan */}
+            {/* Basic Plan */}
             <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
               <CardContent className="p-8">
                 <h3 className={`text-2xl font-bold mb-2 ${getTextContrastClass()}`}>
-                  Starter
+                  Basic
                 </h3>
                 <p className={`text-3xl font-bold mb-4 text-primary`}>
-                  $50
+                  $85
                 </p>
                 <p className={`text-sm mb-6 ${getTextContrastClass()}`}>
                   per month
                 </p>
                 <p className={`text-sm mb-6 font-semibold ${getTextContrastClass()}`}>
-                  Up to 10 properties
+                  Up to 2 properties
                 </p>
                 <ul className={`space-y-3 mb-8 ${getTextContrastClass()}`}>
                   <li className="flex items-center gap-2 text-sm">
@@ -942,13 +1030,13 @@ export function About() {
                     <span>Email support</span>
                   </li>
                 </ul>
-                <Button className="w-full" variant="outline">
-                  Start Free Trial
+                <Button className="w-full" variant="outline" onClick={() => setShowEnquiryPopup(true)}>
+                  Start 7 Day Free Trial
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Professional Plan - Most Popular */}
+            {/* Popular Plan - Most Popular */}
             <Card className="border-2 border-primary backdrop-blur-lg bg-background/25 dark:bg-background/25 relative">
               <div className="absolute -top-3 right-6">
                 <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-semibold">
@@ -957,16 +1045,16 @@ export function About() {
               </div>
               <CardContent className="p-8">
                 <h3 className={`text-2xl font-bold mb-2 ${getTextContrastClass()}`}>
-                  Professional
+                  Popular
                 </h3>
                 <p className={`text-3xl font-bold mb-4 text-primary`}>
-                  $100
+                  $150
                 </p>
                 <p className={`text-sm mb-6 ${getTextContrastClass()}`}>
                   per month
                 </p>
                 <p className={`text-sm mb-6 font-semibold ${getTextContrastClass()}`}>
-                  Up to 50 properties
+                  Up to 5 properties
                 </p>
                 <ul className={`space-y-3 mb-8 ${getTextContrastClass()}`}>
                   <li className="flex items-center gap-2 text-sm">
@@ -990,8 +1078,8 @@ export function About() {
                     <span>Priority support</span>
                   </li>
                 </ul>
-                <Button className="w-full">
-                  Start Free Trial
+                <Button className="w-full" onClick={() => setShowEnquiryPopup(true)}>
+                  Start 7 Day Free Trial
                 </Button>
               </CardContent>
             </Card>
@@ -1033,8 +1121,8 @@ export function About() {
                     <span>24/7 support</span>
                   </li>
                 </ul>
-                <Button className="w-full" variant="outline">
-                  Start Free Trial
+                <Button className="w-full" variant="outline" onClick={() => setShowEnquiryPopup(true)}>
+                  Start 7 Day Free Trial
                 </Button>
               </CardContent>
             </Card>
@@ -1081,10 +1169,10 @@ export function About() {
                       Phone
                     </h3>
                     <a
-                      href="tel:+254790213018"
+                      href="tel:+254727839315"
                       className={`text-lg hover:text-primary transition-colors ${getTextContrastClass()}`}
                     >
-                      +254 790 213 018
+                      +254 727 839 315
                     </a>
                   </div>
                 </div>
@@ -1097,9 +1185,9 @@ export function About() {
                     <h3 className={`text-xl font-semibold mb-2 ${getTextContrastClass()}`}>
                       Working Hours
                     </h3>
-                    <p className={`text-lg ${getTextContrastClass()}`}>
-                      Monday - Friday<br />
-                      8:00 AM - 5:00 PM
+                    <p className={`text-lg ${getTextContrastClass()}`}>24/7 Available</p>
+                    <p className={`text-sm text-muted-foreground ${getTextContrastClass()}`}>
+                      {typedSupportMessage}
                     </p>
                   </div>
                 </div>
@@ -1108,6 +1196,103 @@ export function About() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Enquiry Popup Dialog */}
+      <Dialog open={showEnquiryPopup} onOpenChange={setShowEnquiryPopup}>
+        <DialogContent className="sm:max-w-[600px] border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+          <DialogHeader>
+            <DialogTitle className={`text-2xl font-bold ${getTextContrastClass()}`}>Make an Enquiry</DialogTitle>
+            <DialogDescription className={getTextContrastClass()}>
+              Get in touch with us for more information about LeaseMaster
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEnquirySubmit} className="space-y-4 mt-2">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="about-enquiry-name" className={getTextContrastClass()}>
+                  <User className="h-4 w-4 inline mr-2" />
+                  Full Name
+                </Label>
+                <Input
+                  id="about-enquiry-name"
+                  placeholder="John Doe"
+                  value={enquiryForm.name}
+                  onChange={(e) => setEnquiryForm({ ...enquiryForm, name: e.target.value })}
+                  required
+                  className="h-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="about-enquiry-email" className={getTextContrastClass()}>
+                  <Mail className="h-4 w-4 inline mr-2" />
+                  Email Address
+                </Label>
+                <Input
+                  id="about-enquiry-email"
+                  type="email"
+                  placeholder="john@example.com"
+                  value={enquiryForm.email}
+                  onChange={(e) => setEnquiryForm({ ...enquiryForm, email: e.target.value })}
+                  required
+                  className="h-12"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="about-enquiry-phone" className={getTextContrastClass()}>
+                <Phone className="h-4 w-4 inline mr-2" />
+                Phone Number
+              </Label>
+              <Input
+                id="about-enquiry-phone"
+                type="tel"
+                placeholder="+254 727 839 315"
+                value={enquiryForm.phone}
+                onChange={(e) => setEnquiryForm({ ...enquiryForm, phone: e.target.value })}
+                className="h-12"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="about-enquiry-message" className={getTextContrastClass()}>
+                <MessageSquare className="h-4 w-4 inline mr-2" />
+                Message
+              </Label>
+              <Textarea
+                id="about-enquiry-message"
+                placeholder="Tell us about your property management needs..."
+                value={enquiryForm.message}
+                onChange={(e) => setEnquiryForm({ ...enquiryForm, message: e.target.value })}
+                required
+                rows={5}
+                className="resize-none"
+              />
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full h-12 text-lg gap-2"
+              disabled={submittingEnquiry}
+            >
+              {submittingEnquiry ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Send className="h-5 w-5" />
+                  </motion.div>
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="h-5 w-5" />
+                  Submit Enquiry
+                </>
+              )}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Back to Top Button */}
       <BackToTop />

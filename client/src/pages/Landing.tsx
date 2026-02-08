@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -50,6 +50,7 @@ export function Landing() {
   const [isPortal, setIsPortal] = useState(false);
   const [showContactPopup, setShowContactPopup] = useState(false);
   const [showSubscriptionPopup, setShowSubscriptionPopup] = useState(false);
+  const [showEnquiryPopup, setShowEnquiryPopup] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Check authentication status for dynamic admin icon
@@ -76,6 +77,8 @@ export function Landing() {
   const wordControls = useAnimation();
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const supportMessage = "we are here to serve you, your convinience is our priority";
+  const [typedSupportMessage, setTypedSupportMessage] = useState("");
   
   // Property images for background slideshow (same as login page)
   const propertyImages = [
@@ -130,6 +133,39 @@ export function Landing() {
     }, 10000);
     return () => clearInterval(interval);
   }, [highlights.length]);
+
+  useEffect(() => {
+    let index = 0;
+    let direction = 1;
+    let timeout: ReturnType<typeof setTimeout>;
+    let active = true;
+
+    const tick = () => {
+      if (!active) return;
+      setTypedSupportMessage(supportMessage.slice(0, index));
+
+      if (direction === 1 && index >= supportMessage.length) {
+        direction = -1;
+        timeout = setTimeout(tick, 1400);
+        return;
+      }
+
+      if (direction === -1 && index <= 0) {
+        direction = 1;
+        timeout = setTimeout(tick, 500);
+        return;
+      }
+
+      index += direction;
+      timeout = setTimeout(tick, 45);
+    };
+
+    tick();
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [supportMessage]);
 
   const heroMessages = [
     {
@@ -464,6 +500,36 @@ export function Landing() {
     "Send bulk SMS notifications",
     "Generate financial reports"
   ];
+
+  const handleEnquirySubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmittingEnquiry(true);
+    try {
+      const response = await fetch("/api/enquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(enquiryForm),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Enquiry Submitted",
+          description: "Thank you! We'll get back to you soon.",
+        });
+        setEnquiryForm({ name: "", email: "", phone: "", message: "" });
+      } else {
+        throw new Error("Failed to submit enquiry");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit enquiry. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingEnquiry(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden">
@@ -1021,38 +1087,7 @@ export function Landing() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  setSubmittingEnquiry(true);
-                  try {
-                    const response = await fetch("/api/enquiries", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(enquiryForm),
-                    });
-                    
-                    if (response.ok) {
-                      toast({
-                        title: "Enquiry Submitted",
-                        description: "Thank you! We'll get back to you soon.",
-                      });
-                      setEnquiryForm({ name: "", email: "", phone: "", message: "" });
-                    } else {
-                      throw new Error("Failed to submit enquiry");
-                    }
-                  } catch (error) {
-                    toast({
-                      title: "Error",
-                      description: "Failed to submit enquiry. Please try again.",
-                      variant: "destructive",
-                    });
-                  } finally {
-                    setSubmittingEnquiry(false);
-                  }
-                }}
-                className="space-y-4"
-              >
+              <form onSubmit={handleEnquirySubmit} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -1112,7 +1147,7 @@ export function Landing() {
                   <Input
                     id="enquiry-phone"
                     type="tel"
-                    placeholder="+254 700 000 000"
+                    placeholder="+254 727 839 315"
                     value={enquiryForm.phone}
                     onChange={(e) => setEnquiryForm({ ...enquiryForm, phone: e.target.value })}
                     className="h-12"
@@ -1236,11 +1271,32 @@ export function Landing() {
                       Phone
                     </h3>
                     <a
-                      href="tel:+254790213018"
+                      href="tel:+254727839315"
                       className={`text-lg hover:text-primary transition-colors ${getTextContrastClass()}`}
                     >
-                      +254 790 213 018
+                      +254 727 839 315
                     </a>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                  className="flex items-start gap-4 md:col-span-2"
+                >
+                  <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                    <Clock className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className={`text-xl font-semibold mb-2 ${getTextContrastClass()}`}>
+                      Working Hours
+                    </h3>
+                    <p className={`text-lg ${getTextContrastClass()}`}>24/7 Available</p>
+                    <p className={`text-sm text-muted-foreground ${getTextContrastClass()}`}>
+                      {typedSupportMessage}
+                    </p>
                   </div>
                 </motion.div>
               </div>
@@ -1326,8 +1382,8 @@ export function Landing() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4" />
-                  <a href="tel:+254790213018" className="hover:text-primary transition-colors">
-                    +254 790 213 018
+                  <a href="tel:+254727839315" className="hover:text-primary transition-colors">
+                    +254 727 839 315
                   </a>
                 </div>
               </div>
@@ -1368,12 +1424,109 @@ export function Landing() {
       {/* Back to Top Button */}
       <BackToTop />
 
+      {/* Enquiry Popup Dialog */}
+      <Dialog open={showEnquiryPopup} onOpenChange={setShowEnquiryPopup}>
+        <DialogContent className="sm:max-w-[600px] border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+          <DialogHeader>
+            <DialogTitle className={`text-2xl font-bold ${getTextContrastClass()}`}>Make an Enquiry</DialogTitle>
+            <DialogDescription className={getTextContrastClass()}>
+              Get in touch with us for more information about LeaseMaster
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEnquirySubmit} className="space-y-4 mt-2">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="enquiry-name-popup" className={getTextContrastClass()}>
+                  <User className="h-4 w-4 inline mr-2" />
+                  Full Name
+                </Label>
+                <Input
+                  id="enquiry-name-popup"
+                  placeholder="John Doe"
+                  value={enquiryForm.name}
+                  onChange={(e) => setEnquiryForm({ ...enquiryForm, name: e.target.value })}
+                  required
+                  className="h-12"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="enquiry-email-popup" className={getTextContrastClass()}>
+                  <Mail className="h-4 w-4 inline mr-2" />
+                  Email Address
+                </Label>
+                <Input
+                  id="enquiry-email-popup"
+                  type="email"
+                  placeholder="john@example.com"
+                  value={enquiryForm.email}
+                  onChange={(e) => setEnquiryForm({ ...enquiryForm, email: e.target.value })}
+                  required
+                  className="h-12"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="enquiry-phone-popup" className={getTextContrastClass()}>
+                <Phone className="h-4 w-4 inline mr-2" />
+                Phone Number
+              </Label>
+              <Input
+                id="enquiry-phone-popup"
+                type="tel"
+                placeholder="+254 727 839 315"
+                value={enquiryForm.phone}
+                onChange={(e) => setEnquiryForm({ ...enquiryForm, phone: e.target.value })}
+                className="h-12"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="enquiry-message-popup" className={getTextContrastClass()}>
+                <MessageSquare className="h-4 w-4 inline mr-2" />
+                Message
+              </Label>
+              <Textarea
+                id="enquiry-message-popup"
+                placeholder="Tell us about your property management needs..."
+                value={enquiryForm.message}
+                onChange={(e) => setEnquiryForm({ ...enquiryForm, message: e.target.value })}
+                required
+                rows={5}
+                className="resize-none"
+              />
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full h-12 text-lg gap-2"
+              disabled={submittingEnquiry}
+            >
+              {submittingEnquiry ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Send className="h-5 w-5" />
+                  </motion.div>
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="h-5 w-5" />
+                  Submit Enquiry
+                </>
+              )}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Contact Popup Dialog */}
       <Dialog open={showContactPopup} onOpenChange={setShowContactPopup}>
-        <DialogContent className="sm:max-w-[500px] bg-slate-800 dark:bg-slate-900 border-slate-700">
+        <DialogContent className="sm:max-w-[500px] border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-white">Contact Us</DialogTitle>
-            <DialogDescription className="text-slate-300">
+            <DialogTitle className={`text-2xl font-bold ${getTextContrastClass()}`}>Contact Us</DialogTitle>
+            <DialogDescription className={getTextContrastClass()}>
               Get in touch with our team
             </DialogDescription>
           </DialogHeader>
@@ -1383,7 +1536,7 @@ export function Landing() {
                 <Mail className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-1">Email</h3>
+                <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>Email</h3>
                 <a
                   href="mailto:info@theleasemaster.com"
                   className="text-blue-400 hover:text-blue-300 transition-colors"
@@ -1398,12 +1551,12 @@ export function Landing() {
                 <Phone className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-1">Phone</h3>
+                <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>Phone</h3>
                 <a
-                  href="tel:+254700000000"
+                  href="tel:+254727839315"
                   className="text-green-400 hover:text-green-300 transition-colors"
                 >
-                  +254 700 000 000
+                  +254 727 839 315
                 </a>
               </div>
             </div>
@@ -1413,9 +1566,9 @@ export function Landing() {
                 <Clock className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white mb-1">Working Hours</h3>
-                <p className="text-slate-300">24/7 Available</p>
-                <p className="text-sm text-slate-400">We're always here to help you</p>
+                <h3 className={`text-lg font-semibold mb-1 ${getTextContrastClass()}`}>Working Hours</h3>
+                <p className={getTextContrastClass()}>24/7 Available</p>
+                <p className="text-sm text-muted-foreground">{typedSupportMessage}</p>
               </div>
             </div>
           </div>
@@ -1424,10 +1577,10 @@ export function Landing() {
 
       {/* Pricing Popup Dialog */}
       <Dialog open={showSubscriptionPopup} onOpenChange={setShowSubscriptionPopup}>
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto bg-slate-800 dark:bg-slate-900 border-slate-700">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-white">Pricing Plans</DialogTitle>
-            <DialogDescription className="text-slate-300">
+            <DialogTitle className={`text-2xl font-bold ${getTextContrastClass()}`}>Pricing Plans</DialogTitle>
+            <DialogDescription className={getTextContrastClass()}>
               Choose the plan that scales with your property portfolio. No hidden fees.
             </DialogDescription>
           </DialogHeader>
@@ -1465,7 +1618,14 @@ export function Landing() {
                     <span>Email support</span>
                   </li>
                 </ul>
-                <Button className="w-full" variant="outline">
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => {
+                    setShowSubscriptionPopup(false);
+                    setShowEnquiryPopup(true);
+                  }}
+                >
                   Start 7 Day Free Trial
                 </Button>
               </CardContent>
@@ -1511,7 +1671,13 @@ export function Landing() {
                     <span>Priority support</span>
                   </li>
                 </ul>
-                <Button className="w-full">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setShowSubscriptionPopup(false);
+                    setShowEnquiryPopup(true);
+                  }}
+                >
                   Start 7 Day Free Trial
                 </Button>
               </CardContent>
@@ -1559,7 +1725,7 @@ export function Landing() {
                   variant="outline"
                   onClick={() => {
                     setShowSubscriptionPopup(false);
-                    setShowContactPopup(true);
+                    setShowEnquiryPopup(true);
                   }}
                 >
                   Start 7 Day Free Trial
