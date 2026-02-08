@@ -496,9 +496,6 @@ export function Tenants() {
   // Create tenant mutation
   const createTenantMutation = useMutation({
     mutationFn: async (data: any) => {
-      if (actionsDisabled) {
-        throw new Error("Select a property in the header to create tenants.")
-      }
       return apiRequest("POST", "/api/tenants", data)
     },
     onSuccess: async (response) => {
@@ -523,9 +520,6 @@ export function Tenants() {
   // Create lease mutation
   const createLeaseMutation = useMutation({
     mutationFn: async (data: any) => {
-      if (actionsDisabled) {
-        throw new Error("Select a property in the header to create leases.")
-      }
       return apiRequest("POST", "/api/leases", data)
     },
     onSuccess: () => {
@@ -865,7 +859,7 @@ export function Tenants() {
   )
 
   const ensurePropertySelected = () => {
-    if (selectedPropertyId) return true
+    if (selectedProperty || selectedPropertyId) return true
     toast({
       title: "Property Required",
       description: "Please select a property before creating a tenant.",
@@ -876,9 +870,10 @@ export function Tenants() {
 
   const handleCreateTenant = (data: any) => {
     if (!ensurePropertySelected()) return false
+    const effectivePropertyId = selectedProperty || selectedPropertyId
     const payload = {
       ...data,
-      propertyId: selectedPropertyId,
+      propertyId: effectivePropertyId,
     }
     const normalizedEmail = String(data.email || "").toLowerCase().trim()
     const normalizedPhone = String(data.phone || "").replace(/\D+/g, "")
@@ -895,6 +890,9 @@ export function Tenants() {
         variant: "destructive",
       })
       return false
+    }
+    if (effectivePropertyId && effectivePropertyId !== selectedPropertyId) {
+      setSelectedPropertyId(effectivePropertyId)
     }
     createTenantMutation.mutate(payload)
     return true
@@ -1158,28 +1156,12 @@ export function Tenants() {
             Upload Data
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            {actionsDisabled ? (
-              <Button
-                data-testid="button-add-tenant"
-                onClick={() => {
-                  toast({
-                    title: "Property Required",
-                    description: "Select a property in the header before adding tenants.",
-                    variant: "destructive",
-                  })
-                }}
-              >
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-tenant">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Tenant
               </Button>
-            ) : (
-              <DialogTrigger asChild>
-                <Button data-testid="button-add-tenant">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Tenant
-                </Button>
-              </DialogTrigger>
-            )}
+            </DialogTrigger>
             <DialogContent
               className={`sm:max-w-[900px] max-h-[85vh] overflow-y-auto vibrant-card ${addTenantDialogPalette.card} ${addTenantDialogPalette.border}`}
             >
@@ -1781,19 +1763,7 @@ export function Tenants() {
           <p className="text-muted-foreground mb-4">
             {searchTerm ? "Try adjusting your search terms" : "Get started by adding your first tenant"}
           </p>
-          <Button
-            onClick={() => {
-              if (!selectedPropertyId) {
-                toast({
-                  title: "Property Required",
-                  description: "Select a property in the header before adding tenants.",
-                  variant: "destructive",
-                })
-                return
-              }
-              setIsAddDialogOpen(true)
-            }}
-          >
+          <Button onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Tenant
           </Button>
