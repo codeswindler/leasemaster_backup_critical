@@ -330,7 +330,7 @@ export function WaterUnits() {
     if (!monthKey) return new Date().toISOString().split("T")[0]
     const [year, month] = monthKey.split("-").map(Number)
     if (!year || !month) return new Date().toISOString().split("T")[0]
-    return new Date(year, month - 1, 1).toISOString().split("T")[0]
+    return `${year}-${String(month).padStart(2, "0")}-01`
   }, [])
 
   const getLatestReadingBeforeMonth = useCallback(
