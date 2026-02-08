@@ -138,7 +138,10 @@ export const usePropertyTimezoneOffset = () => {
     enabled: Boolean(selectedPropertyId),
   })
 
-  const timezoneOffset = invoiceSettingsQuery.data?.timezone_offset || "UTC+00:00"
+  const timezoneOffset =
+    invoiceSettingsQuery.data?.timezone_offset ??
+    invoiceSettingsQuery.data?.timezoneOffset ??
+    "UTC+00:00"
   const timezoneOffsetMinutes = useMemo(
     () => getTimeZoneOffsetMinutes(timezoneOffset),
     [timezoneOffset]
