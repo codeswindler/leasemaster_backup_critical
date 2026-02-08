@@ -1319,10 +1319,14 @@ export function Landing() {
               <h3 className={`text-xl font-semibold mb-4 ${getTextContrastClass()}`}>
                 About LeaseMaster
               </h3>
-              <p className={`text-sm leading-relaxed ${getTextContrastClass()}`}>
-                Africa's Most Trusted Property Management System. Streamlining property operations 
-                across the continent with innovative technology and local expertise.
-              </p>
+              <div className={`text-sm leading-relaxed space-y-3 ${getTextContrastClass()}`}>
+                <p>🌀 Your Management, Reimagined.</p>
+                <p>
+                  In the noise of maintenance requests, unpaid rents, and scattered documents — we build
+                  silence. A single source of truth, designed not to manage property, but to free those who
+                  do.
+                </p>
+              </div>
             </motion.div>
 
             {/* Connect Section */}
@@ -1399,9 +1403,13 @@ export function Landing() {
               <h3 className={`text-xl font-semibold mb-4 ${getTextContrastClass()}`}>
                 About Us
               </h3>
-              <p className={`text-sm leading-relaxed ${getTextContrastClass()}`}>
-                Learn more about LeaseMaster and our mission to revolutionize property management in Africa.
-              </p>
+              <div className={`text-sm leading-relaxed space-y-3 ${getTextContrastClass()}`}>
+                <p>🧠 Think Less, Manage More.</p>
+                <p>
+                  Your mind should strategize—not track late rents. We absorb the operational weight so you
+                  can focus on growth, relationships, and what truly moves the needle. Free Your Mind
+                </p>
+              </div>
               <Button
                 variant="ghost"
                 onClick={() => setLocation("/about")}
