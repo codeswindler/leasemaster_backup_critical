@@ -360,8 +360,16 @@ export function WaterUnits() {
   }, [invoices])
 
   // Handle bulk reading input change with immediate state management
-  const handleBulkReadingChange = (unitId: string, value: string, previousReading: number) => {
+  const handleBulkReadingChange = (unitId: string, value: string, previousReading: number | null, isPreviousMissing: boolean) => {
     if (actionsDisabled) return
+    if (isPreviousMissing) {
+      toast({
+        title: "Previous reading required",
+        description: "Enter a previous reading before saving the current reading.",
+        variant: "destructive",
+      })
+      return
+    }
     console.log("📝 Input change for unit:", unitId, "value:", value)
     setEditingUnits(prev => {
       const next = new Set(prev)
@@ -385,7 +393,7 @@ export function WaterUnits() {
     }
     
     // Only proceed if the value is valid
-    if (value && value.trim() !== "" && !isNaN(Number(value))) {
+    if (value && value.trim() !== "" && !isNaN(Number(value)) && previousReading !== null && !isNaN(previousReading)) {
       console.log("✅ Valid value, setting timeout for:", unitId)
       // Set new timeout for auto-save
       const timeoutId = setTimeout(() => {
@@ -699,7 +707,15 @@ export function WaterUnits() {
     const existingPrevious = existingReading?.previousReading ?? existingReading?.previous_reading
     const previousValue = overridePrevious
       ?? (existingPrevious !== undefined && existingPrevious !== null ? parseFloat(existingPrevious) : null)
-      ?? (latestReading ? parseFloat(latestReading.currentReading ?? latestReading.current_reading) : 0)
+      ?? (latestReading ? parseFloat(latestReading.currentReading ?? latestReading.current_reading) : null)
+    if (previousValue === null || Number.isNaN(previousValue)) {
+      toast({
+        title: "Previous reading required",
+        description: "Enter a previous reading before saving the current reading.",
+        variant: "destructive",
+      })
+      return
+    }
     if (readingValue < previousValue) {
       toast({
         title: "Error",
@@ -1003,11 +1019,15 @@ export function WaterUnits() {
                           const waterRate = getWaterRateForUnit(unit.id)
                           const currentValue = bulkReadings[unit.id] || ""
                           const previousOverride = bulkPreviousReadings[unit.id]
-                          const previousValue = previousOverride !== undefined && previousOverride !== ""
+                          const hasPreviousOverride = previousOverride !== undefined && previousOverride !== ""
+                          const lastReadingValue = lastReading ? (lastReading.currentReading ?? lastReading.current_reading) : null
+                          const hasLastReading = lastReadingValue !== null && lastReadingValue !== undefined && String(lastReadingValue) !== ""
+                          const isPreviousMissing = !hasPreviousOverride && !hasLastReading
+                          const previousValue = hasPreviousOverride
                             ? parseFloat(previousOverride)
-                            : lastReading
-                              ? parseFloat(lastReading.currentReading ?? lastReading.current_reading)
-                              : 0
+                            : hasLastReading
+                              ? parseFloat(String(lastReadingValue))
+                              : NaN
                           const newValue = currentValue !== "" ? parseFloat(currentValue) : NaN
                           const unitsConsumed = Number.isFinite(newValue) ? Math.max(0, newValue - previousValue) : 0
                           const totalCost = unitsConsumed * waterRate
@@ -1069,7 +1089,7 @@ export function WaterUnits() {
                                     type="number"
                                     placeholder="Enter reading"
                                     value={currentValue}
-                                    onChange={(e) => handleBulkReadingChange(unit.id, e.target.value, previousValue)}
+                                    onChange={(e) => handleBulkReadingChange(unit.id, e.target.value, Number.isFinite(previousValue) ? previousValue : null, isPreviousMissing)}
                                     onFocus={() => {
                                       setEditingUnits(prev => {
                                         const next = new Set(prev)
