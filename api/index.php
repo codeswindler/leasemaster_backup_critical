@@ -2067,8 +2067,21 @@ try {
                     sendJson(['error' => $e->getMessage()], 400);
                 }
             } else {
-                $invoice = $storage->createInvoice($body);
                 $propertyId = getPropertyIdByLease($storage, $body['leaseId'] ?? null);
+                $property = $propertyId ? $storage->getProperty($propertyId) : null;
+                $landlordId = $property['landlord_id'] ?? null;
+                $invoiceSettings = $storage->getInvoiceSettings($propertyId, $landlordId);
+                $missingInvoiceSettings = empty($invoiceSettings['company_name'])
+                    || empty($invoiceSettings['company_phone'])
+                    || empty($invoiceSettings['company_email'])
+                    || empty($invoiceSettings['company_address'])
+                    || empty($invoiceSettings['payment_options'])
+                    || empty($invoiceSettings['timezone_offset']);
+                if ($missingInvoiceSettings) {
+                    sendJson(['error' => 'Configure invoice settings for this property before creating invoices.'], 400);
+                }
+
+                $invoice = $storage->createInvoice($body);
                 $storage->logActivity([
                     'action' => 'Invoice Created',
                     'details' => "Invoice {$invoice['invoice_number']} created",
