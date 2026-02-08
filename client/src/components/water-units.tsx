@@ -21,7 +21,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
-import { getPaletteByIndex } from "@/lib/palette"
+import { getPaletteByIndex, getPaletteByKey } from "@/lib/palette"
 import { Plus, Save, Eye, FileText, Calculator, Droplets } from "lucide-react"
 import {
   CartesianGrid,
@@ -59,13 +59,17 @@ export function WaterUnits() {
   const [savingUnits, setSavingUnits] = useState<Set<string>>(new Set())
   const [savedUnits, setSavedUnits] = useState<Set<string>>(new Set())
   const [editingUnits, setEditingUnits] = useState<Set<string>>(new Set())
+  const [pendingConfirmUnits, setPendingConfirmUnits] = useState<Set<string>>(new Set())
+  const [confirmPaletteSeed, setConfirmPaletteSeed] = useState(() => Math.floor(Math.random() * 1_000_000))
   const [crossMonthConfirm, setCrossMonthConfirm] = useState<{
     isOpen: boolean
     message: string
+    unitId: string | null
     onConfirm: (() => void) | null
   }>({
     isOpen: false,
     message: "",
+    unitId: null,
     onConfirm: null,
   })
   const [showTrendBreakdown, setShowTrendBreakdown] = useState(false)
@@ -352,14 +356,22 @@ export function WaterUnits() {
   )
 
   const confirmCrossMonthImpact = useCallback(
-    (message: string, onConfirm: () => void) => {
+    (unitId: string, message: string, onConfirm: () => void) => {
+      setConfirmPaletteSeed(Math.floor(Math.random() * 1_000_000))
+      setPendingConfirmUnits(prev => new Set(prev).add(unitId))
       setCrossMonthConfirm({
         isOpen: true,
         message,
+        unitId,
         onConfirm,
       })
     },
     []
+  )
+
+  const confirmPalette = useMemo(
+    () => getPaletteByKey("cross-month-confirm", confirmPaletteSeed),
+    [confirmPaletteSeed]
   )
 
   const toStartOfDay = (dateValue: any) => {
@@ -465,6 +477,7 @@ export function WaterUnits() {
         const hasNextMonthReading = !!getReadingForUnitMonth(unitId, nextMonthKey)
         if (hasNextMonthReading) {
           confirmCrossMonthImpact(
+            unitId,
             "This current reading will affect the next month's previous reading. We will not auto-update it. Continue?",
             doSave
           )
@@ -525,6 +538,7 @@ export function WaterUnits() {
         const hasPrevMonthReading = !!getReadingForUnitMonth(unitId, prevMonthKey)
         if (hasPrevMonthReading) {
           confirmCrossMonthImpact(
+            unitId,
             "This previous reading should match the prior month's current reading. We will not auto-update it. Continue?",
             doSave
           )
@@ -633,6 +647,7 @@ export function WaterUnits() {
     setSavingUnits(new Set())
     setSavedUnits(new Set())
     setEditingUnits(new Set())
+    setPendingConfirmUnits(new Set())
   }, [consumptionMonth])
 
   useEffect(() => {
@@ -645,7 +660,7 @@ export function WaterUnits() {
       const next: Record<string, string> = { ...prev }
       filteredUnits.forEach((unit) => {
         const unitId = unit.id
-        if (savingUnits.has(unitId) || editingUnits.has(unitId)) return
+        if (savingUnits.has(unitId) || editingUnits.has(unitId) || pendingConfirmUnits.has(unitId)) return
         const reading = latestReadingByUnit.get(unitId)
         const currentValue = reading?.currentReading ?? reading?.current_reading
         if (currentValue !== undefined && currentValue !== null && currentValue !== "") {
@@ -660,7 +675,7 @@ export function WaterUnits() {
       const next: Record<string, string> = { ...prev }
       filteredUnits.forEach((unit) => {
         const unitId = unit.id
-        if (savingUnits.has(unitId) || editingUnits.has(unitId)) return
+        if (savingUnits.has(unitId) || editingUnits.has(unitId) || pendingConfirmUnits.has(unitId)) return
         if (prev[unitId] !== undefined && String(prev[unitId]).trim() !== "") return
         const reading = latestReadingByUnit.get(unitId)
         const previousValue = reading?.previousReading ?? reading?.previous_reading
@@ -672,7 +687,7 @@ export function WaterUnits() {
       })
       return next
     })
-  }, [filteredUnits, latestReadingByUnit, savingUnits, editingUnits])
+  }, [filteredUnits, latestReadingByUnit, savingUnits, editingUnits, pendingConfirmUnits])
 
   // Get water readings summary for dashboard cards (scoped to selected property)
   const readingsThisMonth = filteredWaterReadings.filter((reading: any) => {
@@ -819,6 +834,7 @@ export function WaterUnits() {
     const hasNextMonthReading = !!getReadingForUnitMonth(currentReading.unitId, nextMonthKey)
     if (hasNextMonthReading) {
       confirmCrossMonthImpact(
+        currentReading.unitId,
         "This current reading will affect the next month's previous reading. We will not auto-update it. Continue?",
         doSave
       )
@@ -892,23 +908,48 @@ export function WaterUnits() {
         open={crossMonthConfirm.isOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setCrossMonthConfirm({ isOpen: false, message: "", onConfirm: null })
+            if (crossMonthConfirm.unitId) {
+              setPendingConfirmUnits(prev => {
+                const next = new Set(prev)
+                next.delete(crossMonthConfirm.unitId!)
+                return next
+              })
+            }
+            setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null })
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className={`vibrant-card ${confirmPalette.card} ${confirmPalette.border}`}>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm cross-month impact</AlertDialogTitle>
             <AlertDialogDescription>{crossMonthConfirm.message}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setCrossMonthConfirm({ isOpen: false, message: "", onConfirm: null })}>
+            <AlertDialogCancel
+              onClick={() => {
+                if (crossMonthConfirm.unitId) {
+                  setPendingConfirmUnits(prev => {
+                    const next = new Set(prev)
+                    next.delete(crossMonthConfirm.unitId!)
+                    return next
+                  })
+                }
+                setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null })
+              }}
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 crossMonthConfirm.onConfirm?.()
-                setCrossMonthConfirm({ isOpen: false, message: "", onConfirm: null })
+                if (crossMonthConfirm.unitId) {
+                  setPendingConfirmUnits(prev => {
+                    const next = new Set(prev)
+                    next.delete(crossMonthConfirm.unitId!)
+                    return next
+                  })
+                }
+                setCrossMonthConfirm({ isOpen: false, message: "", unitId: null, onConfirm: null })
               }}
             >
               Continue
