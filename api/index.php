@@ -2561,7 +2561,20 @@ try {
                 sendJson($storage->getInvoiceSettings($scopePropertyId, $scopeLandlordId) ?: []);
             }
             if ($method === 'PUT' || $method === 'POST') {
+                if (!$scopePropertyId) {
+                    sendJson(['error' => 'propertyId is required'], 400);
+                }
                 $data = $body;
+                $missingFields = [];
+                if (empty($data['company_name'])) $missingFields[] = 'Company Name';
+                if (empty($data['company_phone'])) $missingFields[] = 'Company Phone';
+                if (empty($data['company_email'])) $missingFields[] = 'Company Email';
+                if (empty($data['company_address'])) $missingFields[] = 'Company Address';
+                if (empty($data['payment_options'])) $missingFields[] = 'Payment Options';
+                if (empty($data['timezone_offset'])) $missingFields[] = 'Account Timezone';
+                if (!empty($missingFields)) {
+                    sendJson(['error' => 'Invoice settings missing', 'missingFields' => $missingFields], 400);
+                }
                 $settings = $storage->saveInvoiceSettings($scopePropertyId, $scopeLandlordId, $data);
                 sendJson($settings);
             }
