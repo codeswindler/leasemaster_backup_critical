@@ -17,6 +17,7 @@ import autoTable from 'jspdf-autotable'
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
+import { formatDateWithOffset, formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -71,6 +72,7 @@ export function Receipts() {
   const [allocationInvoiceId, setAllocationInvoiceId] = useState<string>("")
   const { toast } = useToast()
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
 
@@ -472,7 +474,7 @@ export function Receipts() {
       doc.setFontSize(11)
       doc.text("RECEIPT", 150, 20)
       doc.setFontSize(9)
-      doc.text(`Date: ${new Date(paymentDate).toLocaleDateString()}`, 150, 26)
+      doc.text(`Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, 150, 26)
       doc.text(`Receipt No: ${receipt.reference || receipt.id}`, 150, 31)
 
       doc.line(20, 42, 190, 42)
@@ -746,7 +748,7 @@ export function Receipts() {
                   <TableCell>{receipt.unit}</TableCell>
                   <TableCell className="font-mono">KSh {receipt.amount.toLocaleString()}</TableCell>
                   <TableCell>
-                    {receipt.paymentDate ? new Date(receipt.paymentDate).toLocaleString() : "—"}
+                    {receipt.paymentDate ? formatWithOffset(receipt.paymentDate, timezoneOffsetMinutes) : "—"}
                   </TableCell>
                   <TableCell>{receipt.paymentMethod}</TableCell>
                   <TableCell className="font-mono text-sm">{receipt.reference}</TableCell>
@@ -822,7 +824,7 @@ export function Receipts() {
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Date</Label>
-                  <p className="text-sm">{new Date(viewingReceipt.paymentDate).toLocaleDateString()}</p>
+                  <p className="text-sm">{formatDateWithOffset(viewingReceipt.paymentDate, timezoneOffsetMinutes)}</p>
                 </div>
               </div>
               

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { useFilter } from "@/contexts/FilterContext"
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
+import { formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ import { getPaletteByIndex } from "@/lib/palette"
 export function IncomingPayments() {
   const { selectedAgentId, selectedPropertyId, selectedLandlordId } = useFilter()
   const { toast } = useToast()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const pagePaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
   const listPaletteSeed = useMemo(() => Math.floor(Math.random() * 6), [])
   const pagePalette = getPaletteByIndex(pagePaletteSeed)
@@ -285,11 +287,7 @@ export function IncomingPayments() {
                 payment.transactionDate ||
                 payment.created_at ||
                 payment.createdAt
-              const parsedDate = rawDate ? new Date(rawDate) : null
-              const dateLabel =
-                parsedDate && !Number.isNaN(parsedDate.getTime())
-                  ? parsedDate.toLocaleString()
-                  : rawDate || "—"
+              const dateLabel = formatWithOffset(rawDate, timezoneOffsetMinutes)
               const methodLabel = payment.payment_method || payment.paymentMethod || "M-Pesa"
               const payerLabel = payment.tenantName || "Unallocated payer"
               return (

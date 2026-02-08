@@ -33,7 +33,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ToastAction } from "@/components/ui/toast"
 import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
-import { getPaletteByKey, getSessionSeed } from "@/lib/palette"
+import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import {
   Select,
   SelectContent,
@@ -92,6 +92,7 @@ export function TenantDetail() {
   const tenantId = params?.id
   const [, setLocation] = useLocation()
   const { selectedPropertyId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const { toast } = useToast()
   const actionsDisabled = !selectedPropertyId
   const [isEditing, setIsEditing] = useState(false)
@@ -796,7 +797,7 @@ export function TenantDetail() {
                     const rentText = `Rent: KSh ${parseAmount(entry.lease.rentAmount).toLocaleString()}`
                     const depositText = `Deposit: KSh ${parseAmount(entry.lease.depositAmount).toLocaleString()}`
                     const waterText = `Water Rate: KSh ${parseAmount(entry.lease.waterRatePerUnit).toLocaleString()} / m³`
-                    const leaseText = `Lease: ${entry.lease.startDate ? new Date(entry.lease.startDate).toLocaleDateString() : "—"} - ${entry.lease.endDate ? new Date(entry.lease.endDate).toLocaleDateString() : "—"}`
+                    const leaseText = `Lease: ${entry.lease.startDate ? formatDateWithOffset(entry.lease.startDate, timezoneOffsetMinutes) : "—"} - ${entry.lease.endDate ? formatDateWithOffset(entry.lease.endDate, timezoneOffsetMinutes) : "—"}`
 
                     return (
                     <div
@@ -1025,8 +1026,8 @@ export function TenantDetail() {
                       <TableRow key={invoice.id}>
                         <TableCell className="font-mono text-sm">{invoice.invoiceNumber || invoice.id}</TableCell>
                         <TableCell>{invoice.description}</TableCell>
-                        <TableCell>{invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : "—"}</TableCell>
-                        <TableCell>{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "—"}</TableCell>
+                        <TableCell>{invoice.issueDate ? formatDateWithOffset(invoice.issueDate, timezoneOffsetMinutes) : "—"}</TableCell>
+                        <TableCell>{invoice.dueDate ? formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes) : "—"}</TableCell>
                         <TableCell>{invoice.status}</TableCell>
                         <TableCell className="text-right font-mono">KSh {parseAmount(invoice.amount).toLocaleString()}</TableCell>
                       </TableRow>
@@ -1074,7 +1075,7 @@ export function TenantDetail() {
                   <TableBody>
                     {filteredPayments.map((payment: any) => (
                       <TableRow key={payment.id}>
-                        <TableCell>{payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : "—"}</TableCell>
+                        <TableCell>{payment.paymentDate ? formatDateWithOffset(payment.paymentDate, timezoneOffsetMinutes) : "—"}</TableCell>
                         <TableCell>{payment.paymentMethod}</TableCell>
                         <TableCell>{payment.reference || "—"}</TableCell>
                         <TableCell className="text-right font-mono">KSh {parseAmount(payment.amount).toLocaleString()}</TableCell>
@@ -1159,7 +1160,7 @@ export function TenantDetail() {
                       const rowBalanceClass = row.balance < 0 ? "text-green-600" : row.balance > 0 ? "text-red-500" : "text-muted-foreground"
                       return (
                         <TableRow key={row.id}>
-                          <TableCell>{row.date ? new Date(row.date).toLocaleDateString() : "—"}</TableCell>
+                          <TableCell>{row.date ? formatDateWithOffset(row.date, timezoneOffsetMinutes) : "—"}</TableCell>
                           <TableCell>{row.type}</TableCell>
                           <TableCell>{row.description}</TableCell>
                           <TableCell className="text-right font-mono">

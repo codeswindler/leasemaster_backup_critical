@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ToastAction } from "@/components/ui/toast"
+import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
 import {
   Table,
   TableBody,
@@ -90,6 +91,7 @@ export function Tenants() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pendingDeleteRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const { selectedAgentId, selectedPropertyId, selectedLandlordId, setSelectedPropertyId } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const normalizedPropertyId = selectedPropertyId && selectedPropertyId !== "all" ? selectedPropertyId : null
   const actionsDisabled = !normalizedPropertyId
 
@@ -818,7 +820,7 @@ export function Tenants() {
       "ID Number": tenant.idNumber,
       "Emergency Contact": tenant.emergencyContact || "",
       "Emergency Phone": tenant.emergencyPhone || "",
-      "Created Date": tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : "",
+      "Created Date": tenant.createdAt ? formatDateWithOffset(tenant.createdAt, timezoneOffsetMinutes) : "",
       "Lease Status": tenant.status || "Inactive",
       "Property": tenant.property?.name || "Not Assigned",
       "Unit Number": tenant.unit?.unitNumber || "Not Assigned",

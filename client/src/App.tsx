@@ -11,6 +11,7 @@ import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { BackToTop } from "@/components/back-to-top";
 import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import "@/components/animated-icons.css";
+import { formatWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone";
 
 // Lazy load components for code splitting and faster initial load
 const Dashboard = lazy(() => import("@/components/dashboard").then(m => ({ default: m.Dashboard })));
@@ -336,6 +337,7 @@ function AppContent() {
     setSelectedLandlordId,
     setSelectedPropertyId,
   } = useFilter()
+  const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const { toast } = useToast()
   const [smsBalanceNotified, setSmsBalanceNotified] = useState(false)
   const [emailBalanceNotified, setEmailBalanceNotified] = useState(false)
@@ -956,7 +958,7 @@ function AppContent() {
                   )}
                   {item.createdAt && (
                     <span className="text-[10px] text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleString()}
+                      {formatWithOffset(item.createdAt, timezoneOffsetMinutes)}
                     </span>
                   )}
                 </div>

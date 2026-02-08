@@ -60,6 +60,7 @@ import { ToastAction } from "@/components/ui/toast"
 import { useFilter } from "@/contexts/FilterContext"
 import { getPaletteByIndex, getPaletteByKey } from "@/lib/palette"
 import { getStatusPalette } from "@/lib/color-rules"
+import { formatDateWithOffset, formatWithOffset, parseUtcOffsetToMinutes } from "@/lib/timezone"
 import { jsPDF } from "jspdf"
 import autoTable from 'jspdf-autotable'
 import { Label } from "@/components/ui/label"
@@ -73,17 +74,6 @@ const invoicesListVariants = [
   "bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-violet-900/50",
   "bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-cyan-900/50",
 ]
-
-const parseUtcOffsetToMinutes = (offset?: string) => {
-  if (!offset) return 0
-  const match = offset.match(/^UTC([+-])(\d{2}):(\d{2})$/)
-  if (!match) return 0
-  const sign = match[1] === "-" ? -1 : 1
-  const hours = Number(match[2])
-  const minutes = Number(match[3])
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0
-  return sign * (hours * 60 + minutes)
-}
 
 export function Invoices() {
   const invoicesListSeed = useRef(Math.floor(Math.random() * invoicesListVariants.length))
@@ -703,8 +693,8 @@ export function Invoices() {
       doc.setFontSize(11)
       doc.text(`Invoice #${invoiceNumber}`, 150, 20)
       doc.setFontSize(9)
-      doc.text(`Date: ${new Date(invoiceDate).toLocaleDateString()}`, 150, 26)
-      doc.text(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`, 150, 31)
+      doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, 150, 26)
+      doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, 150, 31)
 
       doc.line(20, 42, 190, 42)
 
@@ -1201,7 +1191,7 @@ export function Invoices() {
                     <div key={note.id} className="rounded-md border p-2">
                       <div className="text-xs text-muted-foreground">
                         {note.full_name || note.username || "User"} •{" "}
-                        {note.created_at ? new Date(note.created_at).toLocaleString() : "—"}
+                        {note.created_at ? formatWithOffset(note.created_at, timezoneOffsetMinutes) : "—"}
                       </div>
                       <div className="mt-1">{note.note}</div>
                     </div>
@@ -1411,7 +1401,7 @@ export function Invoices() {
                   </TableCell>
                   <TableCell className={invoice.isOverdue ? "text-red-600" : ""}>
                     {invoice.dueDate && !Number.isNaN(new Date(invoice.dueDate).getTime())
-                      ? new Date(invoice.dueDate).toLocaleDateString()
+                      ? formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)
                       : "—"}
                   </TableCell>
                   <TableCell>{getStatusBadge(invoice.paymentStatus)}</TableCell>
@@ -1503,8 +1493,8 @@ export function Invoices() {
                   <h3 className="font-semibold mb-2">Invoice Information</h3>
                   <div className="space-y-1 text-sm">
                     <div><strong>Invoice ID:</strong> {formatInvoiceId(selectedInvoice.id)}</div>
-                    <div><strong>Date:</strong> {new Date(selectedInvoice.createdAt || Date.now()).toLocaleDateString()}</div>
-                    <div><strong>Due Date:</strong> {new Date(selectedInvoice.dueDate).toLocaleDateString()}</div>
+                    <div><strong>Date:</strong> {formatDateWithOffset(selectedInvoice.createdAt || Date.now(), timezoneOffsetMinutes)}</div>
+                    <div><strong>Due Date:</strong> {formatDateWithOffset(selectedInvoice.dueDate, timezoneOffsetMinutes)}</div>
                     <div><strong>Status:</strong> {getStatusBadge(selectedInvoice.paymentStatus)}</div>
                   </div>
                 </div>
