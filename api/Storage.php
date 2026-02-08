@@ -4192,6 +4192,62 @@ class Storage {
         return $this->getAlertSettings($propertyId, $landlordId);
     }
 
+    // ========== ENQUIRIES ==========
+    public function createEnquiry($data) {
+        if (!$this->tableExists('enquiries')) {
+            throw new Exception("enquiries table not found");
+        }
+        $id = $this->generateUUID();
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO enquiries (id, name, email, phone, message, status, created_at)
+             VALUES (?, ?, ?, ?, ?, 'new', NOW())"
+        );
+        $stmt->execute([
+            $id,
+            $data['name'] ?? '',
+            $data['email'] ?? '',
+            $data['phone'] ?? null,
+            $data['message'] ?? null
+        ]);
+        return $this->getEnquiry($id);
+    }
+
+    public function getEnquiries() {
+        if (!$this->tableExists('enquiries')) {
+            return [];
+        }
+        $stmt = $this->pdo->prepare("SELECT * FROM enquiries ORDER BY created_at DESC");
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    public function getEnquiry($id) {
+        if (!$this->tableExists('enquiries')) {
+            return null;
+        }
+        $stmt = $this->pdo->prepare("SELECT * FROM enquiries WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    public function updateEnquiryStatus($id, $status) {
+        if (!$this->tableExists('enquiries')) {
+            throw new Exception("enquiries table not found");
+        }
+        $stmt = $this->pdo->prepare("UPDATE enquiries SET status = ? WHERE id = ?");
+        $stmt->execute([$status, $id]);
+        return $this->getEnquiry($id);
+    }
+
+    public function deleteEnquiry($id) {
+        if (!$this->tableExists('enquiries')) {
+            throw new Exception("enquiries table not found");
+        }
+        $stmt = $this->pdo->prepare("DELETE FROM enquiries WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
     // ========== CREDIT USAGE ==========
     public function recordCreditUsage($data) {
         if (!$this->tableExists('credit_usage')) {
