@@ -2591,6 +2591,90 @@ try {
         }
     }
 
+    // ========== ENQUIRIES ==========
+    elseif ($endpoint === 'enquiries') {
+        if ($method === 'POST') {
+            $name = trim((string)($body['name'] ?? ''));
+            $email = trim((string)($body['email'] ?? ''));
+            $phone = trim((string)($body['phone'] ?? ''));
+            $message = trim((string)($body['message'] ?? ''));
+            if ($name === '' || $email === '' || $message === '') {
+                sendJson(['error' => 'Name, email, and message are required.'], 400);
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                sendJson(['error' => 'Invalid email address.'], 400);
+            }
+
+            $enquiry = $storage->createEnquiry([
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone !== '' ? $phone : null,
+                'message' => $message
+            ]);
+
+            // Notify super admins via email/SMS
+            $superAdmins = $storage->getUsers(['role' => 'super_admin']);
+            $subject = "New Enquiry Received";
+            $emailBody = "<html><body>";
+            $emailBody .= "<p>You have a new enquiry:</p>";
+            $emailBody .= "<p><strong>Name:</strong> " . htmlspecialchars($name) . "<br/>";
+            $emailBody .= "<strong>Email:</strong> " . htmlspecialchars($email) . "<br/>";
+            if ($phone !== '') {
+                $emailBody .= "<strong>Phone:</strong> " . htmlspecialchars($phone) . "<br/>";
+            }
+            $emailBody .= "<strong>Message:</strong><br/>" . nl2br(htmlspecialchars($message)) . "</p>";
+            $emailBody .= "</body></html>";
+
+            $smsMessage = "New LeaseMaster enquiry:\n";
+            $smsMessage .= "Name: {$name}\n";
+            $smsMessage .= "Email: {$email}\n";
+            if ($phone !== '') {
+                $smsMessage .= "Phone: {$phone}\n";
+            }
+            $smsMessage .= "Message: {$message}";
+
+            foreach ($superAdmins as $admin) {
+                $adminEmail = $admin['username'] ?? null;
+                $adminName = $admin['full_name'] ?? 'Super Admin';
+                $adminPhone = $admin['phone'] ?? null;
+                if ($adminEmail && filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) {
+                    $messagingService->sendEmail($adminEmail, $adminName, $subject, $emailBody, true);
+                }
+                if ($adminPhone) {
+                    $messagingService->sendSystemSMS($adminPhone, $smsMessage);
+                }
+            }
+
+            sendJson($enquiry, 201);
+        }
+
+        requireAuth();
+        $currentUser = $storage->getUser($_SESSION['userId'] ?? null);
+        $role = strtolower(str_replace(' ', '_', $currentUser['role'] ?? ''));
+        if ($role !== 'super_admin') {
+            sendJson(['error' => 'Forbidden'], 403);
+        }
+
+        if ($method === 'GET') {
+            sendJson($storage->getEnquiries());
+        }
+
+        if ($method === 'PUT' && $id) {
+            $status = strtolower(trim((string)($body['status'] ?? '')));
+            $allowed = ['new', 'read', 'responded'];
+            if (!in_array($status, $allowed, true)) {
+                sendJson(['error' => 'Invalid status'], 400);
+            }
+            $updated = $storage->updateEnquiryStatus($id, $status);
+            sendJson($updated ?: ['error' => 'Enquiry not found'], $updated ? 200 : 404);
+        }
+
+        if ($method === 'DELETE' && $id) {
+            $deleted = $storage->deleteEnquiry($id);
+            sendJson(['success' => $deleted], $deleted ? 200 : 404);
+        }
+    }
+
     // ========== M-PESA STK PUSH ==========
     elseif ($endpoint === 'mpesa' && $action === 'stk-push' && $method === 'POST') {
         if (!isset($_SESSION['userId']) && !isset($_SESSION['tenantId'])) {
