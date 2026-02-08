@@ -164,6 +164,32 @@ export function BulkInvoicing() {
     enabled: !!selectedPropertyId,
   })
 
+  const invoiceSettingsQuery = useQuery({
+    queryKey: ['/api/settings/invoice', selectedLandlordId, selectedPropertyId, selectedAgentId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      const url = `/api/settings/invoice${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: Boolean(selectedPropertyId),
+  })
+
+  const isInvoiceSettingsConfigured = useMemo(() => {
+    const settings = invoiceSettingsQuery.data || {}
+    return Boolean(
+      settings.company_name &&
+      settings.company_phone &&
+      settings.company_email &&
+      settings.company_address &&
+      settings.payment_options &&
+      settings.timezone_offset
+    )
+  }, [invoiceSettingsQuery.data])
+
   const { data: waterReadings = [] } = useQuery({
     queryKey: ["/api/water-readings", selectedPropertyId, selectedLandlordId, selectedAgentId],
     queryFn: async () => {
@@ -517,6 +543,14 @@ export function BulkInvoicing() {
       toast({
         title: "Property Required",
         description: "Select a property in the header before submitting invoices.",
+        variant: "destructive"
+      })
+      return
+    }
+    if (!isInvoiceSettingsConfigured) {
+      toast({
+        title: "Configure Invoice Settings",
+        description: "Complete invoice settings for this property before creating invoices. Logo is optional.",
         variant: "destructive"
       })
       return
