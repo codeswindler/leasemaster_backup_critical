@@ -1287,7 +1287,7 @@ export function AdminLogin({
               </motion.div>
             )}
 
-            {(loginType === "agent" || (isAuthenticated && currentUserRole === "super_admin")) && (
+            {(loginType === "agent" || loginType === "admin" || (isAuthenticated && currentUserRole === "super_admin")) && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
