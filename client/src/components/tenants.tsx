@@ -1156,7 +1156,15 @@ export function Tenants() {
             <Upload className="h-4 w-4 mr-2" />
             Upload Data
           </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <Dialog
+            open={isAddDialogOpen}
+            onOpenChange={(open) => {
+              setIsAddDialogOpen(open)
+              if (open && !normalizedPropertyId) {
+                setSelectedProperty("")
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button data-testid="button-add-tenant">
                 <Plus className="h-4 w-4 mr-2" />
@@ -1188,7 +1196,7 @@ export function Tenants() {
                     <FormLabel>Property</FormLabel>
                     <FormControl>
                       <Select
-                        value={selectedPropertyId ? String(selectedPropertyId) : ""}
+                        value={selectedProperty}
                         onValueChange={(value) => {
                           setSelectedProperty(value)
                           setSelectedPropertyId(value || null)
@@ -1197,7 +1205,7 @@ export function Tenants() {
                           setSelectedUnitCharges({})
                         }}
                         data-testid="select-tenant-property"
-                        disabled={!!selectedPropertyId}
+                        disabled={!!normalizedPropertyId}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select property" />
