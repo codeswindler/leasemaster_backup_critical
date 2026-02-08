@@ -8,6 +8,16 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useFilter } from "@/contexts/FilterContext"
@@ -49,6 +59,15 @@ export function WaterUnits() {
   const [savingUnits, setSavingUnits] = useState<Set<string>>(new Set())
   const [savedUnits, setSavedUnits] = useState<Set<string>>(new Set())
   const [editingUnits, setEditingUnits] = useState<Set<string>>(new Set())
+  const [crossMonthConfirm, setCrossMonthConfirm] = useState<{
+    isOpen: boolean
+    message: string
+    onConfirm: (() => void) | null
+  }>({
+    isOpen: false,
+    message: "",
+    onConfirm: null,
+  })
   const [showTrendBreakdown, setShowTrendBreakdown] = useState(false)
   // Removed unitSaveTimes - now using database timestamps from water readings
 
@@ -293,6 +312,21 @@ export function WaterUnits() {
     [getReadingMonthKey, getReadingTimestamp, normalizeId, waterReadings]
   )
 
+  const getAdjacentMonthKey = useCallback((monthKey: string | null, offset: number) => {
+    if (!monthKey) return null
+    const [year, month] = monthKey.split("-").map(Number)
+    if (!year || !month) return null
+    const date = new Date(year, month - 1 + offset, 1)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+  }, [])
+
+  const getReadingDateForMonth = useCallback((monthKey: string | null) => {
+    if (!monthKey) return new Date().toISOString().split("T")[0]
+    const [year, month] = monthKey.split("-").map(Number)
+    if (!year || !month) return new Date().toISOString().split("T")[0]
+    return new Date(year, month - 1, 1).toISOString().split("T")[0]
+  }, [])
+
   const getLatestReadingBeforeMonth = useCallback(
     (unitId: string, monthKey: string | null) => {
       if (!monthKey) return null
@@ -315,6 +349,17 @@ export function WaterUnits() {
       }, candidates[0])
     },
     [getReadingTimestamp, normalizeId, waterReadings]
+  )
+
+  const confirmCrossMonthImpact = useCallback(
+    (message: string, onConfirm: () => void) => {
+      setCrossMonthConfirm({
+        isOpen: true,
+        message,
+        onConfirm,
+      })
+    },
+    []
   )
 
   const toStartOfDay = (dateValue: any) => {
@@ -397,26 +442,35 @@ export function WaterUnits() {
       console.log("✅ Valid value, setting timeout for:", unitId)
       // Set new timeout for auto-save
       const timeoutId = setTimeout(() => {
-        console.log("⏱️ Timeout triggered for unit:", unitId, "Setting saving state...")
-        // Show saving state
-        setSavingUnits(prev => {
-          const newSet = new Set(prev).add(unitId)
-          console.log("💾 Adding to savingUnits:", unitId, "New set:", newSet)
-          return newSet
-        })
+        const doSave = () => {
+          console.log("⏱️ Timeout triggered for unit:", unitId, "Setting saving state...")
+          setSavingUnits(prev => {
+            const newSet = new Set(prev).add(unitId)
+            console.log("💾 Adding to savingUnits:", unitId, "New set:", newSet)
+            return newSet
+          })
 
-        const monthParts = consumptionMonth.split("-")
-        const readingDate = monthParts.length === 2
-          ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0]
-        const existingReading = getReadingForUnitMonth(unitId, consumptionMonth)
-        bulkSaveReadingMutation.mutate({
-          id: existingReading?.id,
-          unitId,
-          currentReading: value,
-          previousReading: previousReading.toString(),
-          readingDate,
-        })
+          const readingDate = getReadingDateForMonth(consumptionMonth)
+          const existingReading = getReadingForUnitMonth(unitId, consumptionMonth)
+          bulkSaveReadingMutation.mutate({
+            id: existingReading?.id,
+            unitId,
+            currentReading: value,
+            previousReading: previousReading.toString(),
+            readingDate,
+          })
+        }
+
+        const nextMonthKey = getAdjacentMonthKey(consumptionMonth, 1)
+        const hasNextMonthReading = !!getReadingForUnitMonth(unitId, nextMonthKey)
+        if (hasNextMonthReading) {
+          confirmCrossMonthImpact(
+            "This current reading will affect the next month's previous reading. We will not auto-update it. Continue?",
+            doSave
+          )
+          return
+        }
+        doSave()
       }, 1500) // Save after 1.5 seconds of no changes
       
       // Store timeout reference
@@ -454,19 +508,29 @@ export function WaterUnits() {
           return
         }
 
-        setSavingUnits(prev => new Set(prev).add(unitId))
+        const doSave = () => {
+          setSavingUnits(prev => new Set(prev).add(unitId))
 
-        const monthParts = consumptionMonth.split("-")
-        const readingDate = monthParts.length === 2
-          ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0]
-        bulkSaveReadingMutation.mutate({
-          id: existingReading?.id,
-          unitId,
-          currentReading: String(currentValue),
-          previousReading: value.toString(),
-          readingDate,
-        })
+          const readingDate = getReadingDateForMonth(consumptionMonth)
+          bulkSaveReadingMutation.mutate({
+            id: existingReading?.id,
+            unitId,
+            currentReading: String(currentValue),
+            previousReading: value.toString(),
+            readingDate,
+          })
+        }
+
+        const prevMonthKey = getAdjacentMonthKey(consumptionMonth, -1)
+        const hasPrevMonthReading = !!getReadingForUnitMonth(unitId, prevMonthKey)
+        if (hasPrevMonthReading) {
+          confirmCrossMonthImpact(
+            "This previous reading should match the prior month's current reading. We will not auto-update it. Continue?",
+            doSave
+          )
+          return
+        }
+        doSave()
       }, 1500)
 
       setPreviousTimeoutRefs(prev => ({ ...prev, [unitId]: timeoutId }))
@@ -740,18 +804,27 @@ export function WaterUnits() {
     const waterRate = getWaterRateForUnit(currentReading.unitId)
 
     // Get current date for reading
-    const monthParts = consumptionMonth.split("-")
-    const readingDate = monthParts.length === 2
-      ? new Date(Number(monthParts[0]), Number(monthParts[1]), 0).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0]
+        const readingDate = getReadingDateForMonth(consumptionMonth)
 
-    upsertReadingMutation.mutate({
-      id: existingReading?.id,
-      unitId: currentReading.unitId,
-      currentReading: readingValue.toString(),
-      previousReading: previousValue.toString(),
-      readingDate,
-    })
+    const doSave = () => {
+      upsertReadingMutation.mutate({
+        id: existingReading?.id,
+        unitId: currentReading.unitId,
+        currentReading: readingValue.toString(),
+        previousReading: previousValue.toString(),
+        readingDate,
+      })
+    }
+    const nextMonthKey = getAdjacentMonthKey(consumptionMonth, 1)
+    const hasNextMonthReading = !!getReadingForUnitMonth(currentReading.unitId, nextMonthKey)
+    if (hasNextMonthReading) {
+      confirmCrossMonthImpact(
+        "This current reading will affect the next month's previous reading. We will not auto-update it. Continue?",
+        doSave
+      )
+      return
+    }
+    doSave()
   }
 
   const getUnitName = (unitId: string) => {
@@ -815,6 +888,34 @@ export function WaterUnits() {
 
   return (
     <div className="space-y-6">
+      <AlertDialog
+        open={crossMonthConfirm.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCrossMonthConfirm({ isOpen: false, message: "", onConfirm: null })
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm cross-month impact</AlertDialogTitle>
+            <AlertDialogDescription>{crossMonthConfirm.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCrossMonthConfirm({ isOpen: false, message: "", onConfirm: null })}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                crossMonthConfirm.onConfirm?.()
+                setCrossMonthConfirm({ isOpen: false, message: "", onConfirm: null })
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold" data-testid="heading-water-units">Water Units</h1>
