@@ -198,14 +198,14 @@ export function EnquiriesPage() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className={`w-[160px] border-2 ${accentPalette.border} ${accentPalette.accentBg}`}
+              className={`w-[160px] border-2 ${accentPalette.border} bg-background/80 text-foreground placeholder:text-muted-foreground`}
             />
             <span className="text-muted-foreground text-sm">to</span>
             <Input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className={`w-[160px] border-2 ${accentPalette.border} ${accentPalette.accentBg}`}
+              className={`w-[160px] border-2 ${accentPalette.border} bg-background/80 text-foreground placeholder:text-muted-foreground`}
             />
           </div>
           <Button
@@ -216,7 +216,7 @@ export function EnquiriesPage() {
             Export CSV
           </Button>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className={`w-[180px] border-2 ${accentPalette.border} ${accentPalette.accentBg}`}>
+            <SelectTrigger className={`w-[180px] border-2 ${accentPalette.border} bg-background/80 text-foreground`}>
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
