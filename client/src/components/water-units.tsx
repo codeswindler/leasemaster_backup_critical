@@ -1002,7 +1002,7 @@ export function WaterUnits() {
     const timestampValue = (recentReading as any).lastModifiedAt || (recentReading as any).createdAt || (recentReading as any).last_modified_at || (recentReading as any).created_at || (recentReading as any).readingDate || (recentReading as any).reading_date
     if (!timestampValue) return null
     const modifiedTime = new Date(timestampValue)
-    const label = formatWithOffset(modifiedTime, timezoneOffsetMinutes)
+    const label = formatWithOffset(timestampValue, timezoneOffsetMinutes)
 
     const lease = activeLeasesByUnit.get(unitId)
     const invoiceCutoff = normalizedInvoices
