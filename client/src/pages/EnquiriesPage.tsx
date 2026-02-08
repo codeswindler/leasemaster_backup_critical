@@ -198,21 +198,25 @@ export function EnquiriesPage() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-[160px]"
+              className={`w-[160px] border-2 ${accentPalette.border} ${accentPalette.accentBg}`}
             />
             <span className="text-muted-foreground text-sm">to</span>
             <Input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-[160px]"
+              className={`w-[160px] border-2 ${accentPalette.border} ${accentPalette.accentBg}`}
             />
           </div>
-          <Button variant="outline" onClick={exportEnquiries}>
+          <Button
+            variant="outline"
+            onClick={exportEnquiries}
+            className={`border-2 ${accentPalette.border} ${accentPalette.accentBg} ${accentPalette.accentText}`}
+          >
             Export CSV
           </Button>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className={`w-[180px] border-2 ${accentPalette.border} ${accentPalette.accentBg}`}>
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>

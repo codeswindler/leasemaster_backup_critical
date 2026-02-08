@@ -103,6 +103,11 @@ export function ClientsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const sessionPaletteSeed = useMemo(() => getSessionSeed("client-cards"), []);
+  const headerPaletteSeed = useMemo(() => Math.floor(Math.random() * 1_000_000), []);
+  const headerPalette = useMemo(
+    () => getPaletteByKey("clients-header-actions", headerPaletteSeed),
+    [headerPaletteSeed]
+  );
   const dialogPaletteSeed = useMemo(() => Math.floor(Math.random() * 1_000_000), []);
   const createDialogPalette = useMemo(
     () => getPaletteByKey("create-client-dialog", dialogPaletteSeed),
@@ -534,7 +539,7 @@ export function ClientsPage() {
             <Button
               variant="outline"
               onClick={() => setLocation("/portal")}
-              className="flex items-center gap-2"
+              className={`flex items-center gap-2 border-2 ${headerPalette.border} ${headerPalette.accentBg} ${headerPalette.accentText}`}
             >
               <motion.div
                 animate={{ 
@@ -594,7 +599,11 @@ export function ClientsPage() {
               </>
             )}
             {isSuperAdmin && (
-              <Button variant="outline" onClick={() => setLocation("/agents")} className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setLocation("/agents")}
+                className={`gap-2 border-2 ${headerPalette.border} ${headerPalette.accentBg} ${headerPalette.accentText}`}
+              >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Agents
               </Button>
@@ -609,6 +618,7 @@ export function ClientsPage() {
                       setSelectedAgentForForm(String(selectedAgentId));
                     }
                   }}
+                  className={`border-2 ${headerPalette.border} ${headerPalette.accentBg} ${headerPalette.accentText}`}
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add New Customer
