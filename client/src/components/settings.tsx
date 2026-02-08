@@ -421,6 +421,7 @@ export function Settings() {
     onSuccess: (data, variables) => {
       const section = variables.section
       queryClient.invalidateQueries({ queryKey: [`/api/settings/${section}`, selectedPropertyId, selectedLandlordId, selectedAgentId] })
+      queryClient.refetchQueries({ queryKey: [`/api/settings/${section}`, selectedPropertyId, selectedLandlordId, selectedAgentId] })
       if (section === "invoice" && data && typeof data === "object") {
         setInvoiceSettings({
           company_name: data.company_name ?? "",
@@ -465,7 +466,12 @@ export function Settings() {
   })
 
   const saveSection = (section: string, payload: any) => {
-    saveMutation.mutate({ section, payload })
+    const scopedPayload = {
+      ...payload,
+      propertyId: selectedPropertyId || null,
+      landlordId: selectedLandlordId || null,
+    }
+    saveMutation.mutate({ section, payload: scopedPayload })
   }
 
   const handleLogoUpload = async (file?: File | null) => {
