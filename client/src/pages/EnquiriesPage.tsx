@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -34,12 +35,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { getPaletteByIndex, getPaletteByKey } from "@/lib/palette";
 
 export function EnquiriesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<string | null>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const accentSeed = useRef(Math.floor(Math.random() * 6));
+  const accentPalette = getPaletteByIndex(accentSeed.current);
+  const listSeed = useRef(Math.floor(Math.random() * 1_000_000));
 
   // Fetch all enquiries
   const { data: enquiries = [], isLoading } = useQuery({
@@ -96,16 +103,27 @@ export function EnquiriesPage() {
   });
 
   // Filter enquiries by status
+  const getEnquiryDateKey = (enquiry: any) => {
+    const rawDate = enquiry.createdAt ?? enquiry.created_at;
+    if (!rawDate) return "";
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toISOString().slice(0, 10);
+  };
+
   const filteredEnquiries = enquiries.filter((enquiry: any) => {
-    if (statusFilter === "all") return true;
-    return enquiry.status === statusFilter;
+    if (statusFilter !== "all" && enquiry.status !== statusFilter) return false;
+    const dateKey = getEnquiryDateKey(enquiry);
+    if (startDate && (!dateKey || dateKey < startDate)) return false;
+    if (endDate && (!dateKey || dateKey > endDate)) return false;
+    return true;
   });
 
   // Get status badge variant
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, palette: { badge: string }) => {
     switch (status) {
       case "new":
-        return <Badge variant="default">New</Badge>;
+        return <Badge className={palette.badge}>New</Badge>;
       case "read":
         return <Badge variant="secondary">Read</Badge>;
       case "responded":
@@ -117,6 +135,29 @@ export function EnquiriesPage() {
     }
   };
 
+  const exportEnquiries = () => {
+    const headers = ["Name", "Email", "Phone", "Message", "Status", "Created At"];
+    const rows = filteredEnquiries.map((enquiry: any) => {
+      const createdAt = enquiry.createdAt ?? enquiry.created_at ?? "";
+      return [
+        enquiry.name ?? "",
+        enquiry.email ?? "",
+        enquiry.phone ?? "",
+        (enquiry.message ?? "").replace(/\r?\n/g, " "),
+        enquiry.status ?? "",
+        createdAt
+      ];
+    });
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `enquiries-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -126,12 +167,12 @@ export function EnquiriesPage() {
             View and manage all property enquiries from the landing page
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Admin Dashboard Button */}
           <Button
             variant="outline"
             onClick={() => setLocation("/portal")}
-            className="flex items-center gap-2"
+            className={`flex items-center gap-2 border-2 ${accentPalette.border} ${accentPalette.accentBg} ${accentPalette.accentText}`}
           >
             <motion.div
               animate={{ 
@@ -151,6 +192,24 @@ export function EnquiriesPage() {
               </motion.div>
             </motion.div>
             Admin Dashboard
+          </Button>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-[160px]"
+            />
+            <span className="text-muted-foreground text-sm">to</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-[160px]"
+            />
+          </div>
+          <Button variant="outline" onClick={exportEnquiries}>
+            Export CSV
           </Button>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
@@ -178,13 +237,17 @@ export function EnquiriesPage() {
         <>
           {filteredEnquiries.length > 0 ? (
             <div className="space-y-4">
-              {filteredEnquiries.map((enquiry: any) => (
-                <Card key={enquiry.id}>
+              {filteredEnquiries.map((enquiry: any) => {
+                const palette = getPaletteByKey(enquiry.id || enquiry.email || "enquiry", listSeed.current);
+                return (
+                <Card key={enquiry.id} className={`border-2 ${palette.card} ${palette.border}`}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
-                          <FileText className="h-5 w-5 text-primary" />
+                          <div className={`p-1.5 rounded-lg ${palette.iconBg} ${palette.icon}`}>
+                            <FileText className="h-4 w-4" />
+                          </div>
                           <CardTitle className="text-lg">{enquiry.name}</CardTitle>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -207,7 +270,7 @@ export function EnquiriesPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {getStatusBadge(enquiry.status)}
+                        {getStatusBadge(enquiry.status, palette)}
                       </div>
                     </div>
                   </CardHeader>
@@ -268,7 +331,7 @@ export function EnquiriesPage() {
                     </CardContent>
                   )}
                 </Card>
-              ))}
+              )})}
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
