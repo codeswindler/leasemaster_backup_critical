@@ -168,7 +168,7 @@ export function WaterUnits() {
 
   // Create or update water reading mutation (single-entry form)
   const upsertReadingMutation = useMutation({
-    mutationFn: async (data: { id?: string; unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+    mutationFn: async (data: { id?: string; unitId: string; currentReading?: string; previousReading?: string; readingDate: string }) => {
       if (actionsDisabled) {
         throw new Error("Select a property in the header to save water readings.")
       }
@@ -193,7 +193,7 @@ export function WaterUnits() {
 
   // Bulk save single reading mutation
   const bulkSaveReadingMutation = useMutation({
-    mutationFn: async (data: { id?: string; unitId: string; currentReading: string; previousReading?: string; readingDate: string }) => {
+    mutationFn: async (data: { id?: string; unitId: string; currentReading?: string; previousReading?: string; readingDate: string }) => {
       if (actionsDisabled) {
         throw new Error("Select a property in the header to save water readings.")
       }
@@ -367,15 +367,19 @@ export function WaterUnits() {
   const updateNextMonthPrevious = useCallback(
     (unitId: string, value: string) => {
       const nextMonthKey = getAdjacentMonthKey(consumptionMonth, 1)
+      // #region agent log
+      fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H1',location:'water-units.tsx:updateNextMonthPrevious',message:'update_next_month_prev_start',data:{unitId,consumptionMonth,nextMonthKey,value},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (!nextMonthKey) return
       const existing = getReadingForUnitMonth(unitId, nextMonthKey)
+      // #region agent log
+      fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H1',location:'water-units.tsx:updateNextMonthPrevious',message:'update_next_month_prev_existing',data:{unitId,hasExisting:!!existing,existingId:existing?.id ?? null,existingPrev:existing?.previousReading ?? existing?.previous_reading ?? null,existingCurr:existing?.currentReading ?? existing?.current_reading ?? null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const readingDate = getReadingDateForMonth(nextMonthKey)
       if (existing) {
-        const existingCurrent = existing.currentReading ?? existing.current_reading
         bulkSaveReadingMutation.mutate({
           id: existing.id,
           unitId,
-          currentReading: String(existingCurrent ?? value),
           previousReading: value,
           readingDate,
         })
@@ -383,7 +387,6 @@ export function WaterUnits() {
       }
       bulkSaveReadingMutation.mutate({
         unitId,
-        currentReading: value,
         previousReading: value,
         readingDate,
       })
@@ -394,16 +397,20 @@ export function WaterUnits() {
   const updatePrevMonthCurrent = useCallback(
     (unitId: string, value: string) => {
       const prevMonthKey = getAdjacentMonthKey(consumptionMonth, -1)
+      // #region agent log
+      fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H2',location:'water-units.tsx:updatePrevMonthCurrent',message:'update_prev_month_curr_start',data:{unitId,consumptionMonth,prevMonthKey,value},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (!prevMonthKey) return
       const existing = getReadingForUnitMonth(unitId, prevMonthKey)
+      // #region agent log
+      fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H2',location:'water-units.tsx:updatePrevMonthCurrent',message:'update_prev_month_curr_existing',data:{unitId,hasExisting:!!existing,existingId:existing?.id ?? null,existingPrev:existing?.previousReading ?? existing?.previous_reading ?? null,existingCurr:existing?.currentReading ?? existing?.current_reading ?? null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (!existing) return
       const readingDate = getReadingDateForMonth(prevMonthKey)
-      const existingPrevious = existing.previousReading ?? existing.previous_reading
       bulkSaveReadingMutation.mutate({
         id: existing.id,
         unitId,
         currentReading: value,
-        previousReading: existingPrevious !== undefined && existingPrevious !== null ? String(existingPrevious) : undefined,
         readingDate,
       })
     },
@@ -412,6 +419,9 @@ export function WaterUnits() {
 
   const confirmCrossMonthImpact = useCallback(
     (unitId: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
+      // #region agent log
+      fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H3',location:'water-units.tsx:confirmCrossMonthImpact',message:'open_cross_month_confirm',data:{unitId,message},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setConfirmPaletteSeed(Math.floor(Math.random() * 1_000_000))
       setPendingConfirmUnits(prev => new Set(prev).add(unitId))
       setCrossMonthConfirm({
@@ -511,6 +521,9 @@ export function WaterUnits() {
       // Set new timeout for auto-save
       const timeoutId = setTimeout(() => {
         const doSave = () => {
+          // #region agent log
+          fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H1',location:'water-units.tsx:handleBulkReadingChange',message:'bulk_doSave',data:{unitId,consumptionMonth,value,previousReading},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           console.log("⏱️ Timeout triggered for unit:", unitId, "Setting saving state...")
           setSavingUnits(prev => {
             const newSet = new Set(prev).add(unitId)
@@ -533,6 +546,9 @@ export function WaterUnits() {
         const nextReading = getReadingForUnitMonth(unitId, nextMonthKey)
         const nextPrevious = nextReading?.previousReading ?? nextReading?.previous_reading
         const shouldPrompt = !!nextReading && !readingsMatch(value, nextPrevious)
+        // #region agent log
+        fetch('',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix',hypothesisId:'H3',location:'water-units.tsx:handleBulkReadingChange',message:'bulk_prompt_decision',data:{unitId,consumptionMonth,nextMonthKey,hasNext:!!nextReading,nextPrevious,shouldPrompt},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (shouldPrompt) {
           confirmCrossMonthImpact(
             unitId,
