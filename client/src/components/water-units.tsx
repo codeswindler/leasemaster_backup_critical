@@ -1269,12 +1269,12 @@ export function WaterUnits() {
                     <Table className="table-fixed w-full">
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-32">Unit</TableHead>
-                          <TableHead>Account</TableHead>
-                          <TableHead className="w-40">Property</TableHead>
-                          <TableHead className="w-40">Water Rate</TableHead>
-                          <TableHead className="w-40">Previous Reading</TableHead>
-                          <TableHead className="w-48">New Reading (m³)</TableHead>
+                          <TableHead className="w-24">Unit</TableHead>
+                          <TableHead className="w-48">Account</TableHead>
+                          <TableHead className="w-48">Property</TableHead>
+                          <TableHead className="w-36">Water Rate</TableHead>
+                          <TableHead className="w-32">Previous Reading</TableHead>
+                          <TableHead className="w-40">New Reading (m³)</TableHead>
                           <TableHead className="w-32">Units Consumed</TableHead>
                           <TableHead className="w-32 text-right">Total Cost</TableHead>
                         </TableRow>
