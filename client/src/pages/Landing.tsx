@@ -567,13 +567,11 @@ export function Landing() {
               loading={currentImageIndex === 0 ? "eager" : "lazy"}
               decoding="async"
               style={{
-                filter: "brightness(0.5) contrast(0.9) saturate(0.8)",
+                filter: "brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)",
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
                 zIndex: 0,
-                willChange: "opacity",
-                transform: "translateZ(0)",
               }}
               onLoad={() => {
                 analyzeImageBrightness(
@@ -592,11 +590,8 @@ export function Landing() {
               }}
             />
 
-            {/* Dimmed/blurred overlay for better text readability */}
-            <div
-              className="absolute inset-0 bg-black/40 dark:bg-black/50"
-              style={{ zIndex: 1, backdropFilter: "blur(2px)" }}
-            />
+            {/* Dimmed overlay for better text readability */}
+            <div className="absolute inset-0 bg-black/40 dark:bg-black/50" style={{ zIndex: 1 }} />
           </motion.div>
         </AnimatePresence>
       </div>
