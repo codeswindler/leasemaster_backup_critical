@@ -596,7 +596,7 @@ export function Receipts() {
       doc.text(`Receipt No: ${receipt.reference || receipt.id}`, headerRightX, dateY + 5)
       doc.text(`Payment Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, headerRightX, dateY + 10)
 
-      const lineY = dateY + 9
+      const lineY = dateY + 14
       doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
