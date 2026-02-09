@@ -543,7 +543,7 @@ export function Receipts() {
       const marginX = 20
       const rightX = pageWidth - marginX
       const leftColX = marginX
-      const rightColX = pageWidth / 2 + 15
+      const rightColX = pageWidth / 2 + 22
       const headerRightX = rightColX + 10
 
       if (resolvedLogoUrl) {
