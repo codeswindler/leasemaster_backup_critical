@@ -546,7 +546,7 @@ export function Landing() {
   };
 
   return (
-    <div className="min-h-[calc(100vh/var(--ui-zoom))] h-[calc(100vh/var(--ui-zoom))] flex flex-col relative overflow-hidden">
+    <div className="min-h-[calc(100vh/var(--ui-zoom))] flex flex-col relative overflow-hidden">
       {/* Luxury Properties Background Slideshow */}
       <div className="absolute inset-0 z-0">
         <AnimatePresence>
