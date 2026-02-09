@@ -772,21 +772,22 @@ export function Invoices() {
           const logoDataUrl = await loadImageAsDataUrl(url)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
           const { width: logoW, height: logoH } = await getImageDimensions(logoDataUrl)
-          const maxLogoW = 50
-          const maxLogoH = 28
+          const maxLogoW = 56
+          const maxLogoH = 32
           const logoScale = Math.min(maxLogoW / logoW, maxLogoH / logoH, 1)
           const drawW = logoW * logoScale
           const drawH = logoH * logoScale
-          doc.addImage(logoDataUrl, format, leftColX, 16, drawW, drawH)
+          doc.addImage(logoDataUrl, format, leftColX, 20, drawW, drawH)
         }
         try {
           await tryDrawLogo(resolvedLogoUrl)
         } catch {
-          if (logoUrl !== defaultLogoUrl) {
-            try {
-              await tryDrawLogo(`${window.location.origin}${defaultLogoUrl}`)
-            } catch {
+          try {
+            const fallbackUrl = `${window.location.origin}${defaultLogoUrl}`
+            if (fallbackUrl !== resolvedLogoUrl) {
+              await tryDrawLogo(fallbackUrl)
             }
+          } catch {
           }
         }
       }
@@ -836,7 +837,7 @@ export function Invoices() {
         const isWater = String(charge.chargeCode || "").toLowerCase() === "water" ||
           String(charge.name || "").toLowerCase().includes("water")
         const waterSummary = isWater && invoice.waterSummary
-          ? `Prev: ${invoice.waterSummary.previous} | Curr: ${invoice.waterSummary.current} | Used: ${invoice.waterSummary.consumption}`
+          ? `Prev: ${invoice.waterSummary.previous} | Curr: ${invoice.waterSummary.current} | Consumed: ${invoice.waterSummary.consumption}`
           : ""
         return [
           String(index + 1),
@@ -849,7 +850,7 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: billToY + 16,
+        startY: billToY + 20,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
         styles: { fontSize: 9 }
@@ -863,7 +864,9 @@ export function Invoices() {
       const totalsY = finalY + 8
       const totalsH = 24
       doc.setFontSize(10)
+      doc.setDrawColor(140, 140, 140)
       doc.rect(totalsX - 2, totalsY - 4, totalsW + 4, totalsH + 8)
+      doc.setDrawColor(0, 0, 0)
       doc.setTextColor(0, 105, 80)
       doc.text(`Sub - Total: KES ${Number(invoice.amount || 0).toLocaleString()}`, totalsX, totalsY + 4)
       doc.text(`Paid: KES ${paid.toLocaleString()}`, totalsX, totalsY + 10)
