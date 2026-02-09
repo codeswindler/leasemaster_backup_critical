@@ -657,7 +657,7 @@ export function Invoices() {
       const unitLabel = invoice.unit ? String(invoice.unit).replace(/\s+/g, "-") : "unit"
       const invoiceNumber = invoice.invoiceNumber ?? invoice.invoice_number ?? invoice.id
       const invoiceSettings = invoiceSettingsQuery.data || {}
-      const logoUrl = invoiceSettings.logo_url || "/leasemaster-logo.png"
+      const logoUrl = invoiceSettings.logo_url || "/leasemaster-c2-svg.svg"
       const companyName = invoiceSettings.company_name || "Company"
       const companyPhone = invoiceSettings.company_phone || ""
       const companyEmail = invoiceSettings.company_email || ""

@@ -396,7 +396,7 @@ export function AppSidebar() {
             <motion.img
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.98 }}
-              src="/leasemaster-logo.png"
+              src="/leasemaster-c2-svg.svg"
               alt="LeaseMaster"
               className="logo-sidebar"
             />

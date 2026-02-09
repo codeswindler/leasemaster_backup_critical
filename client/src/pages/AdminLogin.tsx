@@ -902,7 +902,7 @@ export function AdminLogin({
                 className="flex justify-center"
               >
                 <img
-                  src="/leasemaster-logo.png"
+                  src="/leasemaster-c2-svg.svg"
                   alt="LeaseMaster"
                   className="logo-login"
                 />
