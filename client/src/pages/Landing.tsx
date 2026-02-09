@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -275,10 +275,21 @@ export function Landing() {
     };
   }, [logoControls, wordControls]);
 
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const fadeDurationMs = 8000;
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [nextImageIndex, setNextImageIndex] = useState(
+    propertyImages.length > 1 ? 1 : 0
+  );
+  const [isFading, setIsFading] = useState(false);
+  const activeImageIndexRef = useRef(0);
+  const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set());
   const [imageBrightness, setImageBrightness] = useState<number>(0.5);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
+
+  useEffect(() => {
+    activeImageIndexRef.current = activeImageIndex;
+  }, [activeImageIndex]);
 
   useEffect(() => {
     // Check if we're on portal subdomain (not root domain)
@@ -359,11 +370,11 @@ export function Landing() {
   useEffect(() => {
     const preloadImages = () => {
       const nextIndices = [
-        (currentImageIndex + 1) % propertyImages.length,
-        (currentImageIndex + 2) % propertyImages.length,
-        (currentImageIndex + 3) % propertyImages.length,
+        (activeImageIndex + 1) % propertyImages.length,
+        (activeImageIndex + 2) % propertyImages.length,
+        (activeImageIndex + 3) % propertyImages.length,
       ];
-      
+
       nextIndices.forEach((idx) => {
         if (!imagesLoaded.has(idx)) {
           const img = new Image();
@@ -376,23 +387,38 @@ export function Landing() {
     };
 
     preloadImages();
-  }, [currentImageIndex, propertyImages, imagesLoaded]);
+  }, [activeImageIndex, propertyImages, imagesLoaded]);
 
   // Update brightness when image changes
   useEffect(() => {
-    analyzeImageBrightness(propertyImages[currentImageIndex], (brightness) => {
+    analyzeImageBrightness(propertyImages[activeImageIndex], (brightness) => {
       setImageBrightness(brightness);
     });
-  }, [currentImageIndex, propertyImages]);
+  }, [activeImageIndex, propertyImages]);
 
   // Image slideshow interval
   useEffect(() => {
+    if (propertyImages.length < 2) return;
     const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % propertyImages.length);
+      const next = (activeImageIndexRef.current + 1) % propertyImages.length;
+      setNextImageIndex(next);
+      setIsFading(true);
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current);
+      }
+      fadeTimeoutRef.current = setTimeout(() => {
+        setActiveImageIndex(next);
+        setIsFading(false);
+      }, fadeDurationMs);
     }, 15000); // 15 seconds per image
 
-    return () => clearInterval(interval);
-  }, [propertyImages.length]);
+    return () => {
+      clearInterval(interval);
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current);
+      }
+    };
+  }, [fadeDurationMs, propertyImages.length]);
 
   // Calculate text contrast based on image brightness and theme
   const getTextContrastClass = (baseClass: string = '') => {
@@ -549,48 +575,41 @@ export function Landing() {
     <div className="min-h-screen flex flex-col relative overflow-hidden">
       {/* Luxury Properties Background Slideshow */}
       <div className="absolute inset-0 z-0">
-        <AnimatePresence>
-          <motion.div
-            key={currentImageIndex}
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 8, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            {/* Background Image */}
-            <img
-              key={`property-${currentImageIndex}`}
-              src={propertyImages[currentImageIndex]}
-              alt={`Luxury Property ${currentImageIndex + 1}`}
-              className="absolute inset-0 w-full h-full object-cover"
-              loading={currentImageIndex === 0 ? "eager" : "lazy"}
-              decoding="async"
-              style={{ 
-                filter: 'brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)',
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                zIndex: 0,
-              }}
-              onLoad={(e) => {
-                analyzeImageBrightness(propertyImages[currentImageIndex], (brightness) => {
-                  setImageBrightness(brightness);
-                });
-              }}
-              onError={(e) => {
-                const img = e.target as HTMLImageElement;
-                const nextIndex = (currentImageIndex + 1) % propertyImages.length;
-                if (nextIndex !== currentImageIndex) {
-                  img.src = propertyImages[nextIndex];
-                }
-              }}
-            />
-            
-            {/* Dimmed overlay for better text readability */}
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/50" style={{ zIndex: 1 }} />
-          </motion.div>
-        </AnimatePresence>
+        <div className="absolute inset-0">
+          <img
+            src={propertyImages[activeImageIndex]}
+            alt={`Luxury Property ${activeImageIndex + 1}`}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-[8000ms] ease-in-out"
+            loading="eager"
+            decoding="async"
+            style={{ opacity: isFading ? 0 : 1, willChange: "opacity" }}
+            onError={(e) => {
+              const img = e.currentTarget;
+              const fallbackIndex = (activeImageIndex + 1) % propertyImages.length;
+              if (fallbackIndex !== activeImageIndex) {
+                img.src = propertyImages[fallbackIndex];
+              }
+            }}
+          />
+          <img
+            src={propertyImages[nextImageIndex]}
+            alt={`Luxury Property ${nextImageIndex + 1}`}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-[8000ms] ease-in-out"
+            loading="eager"
+            decoding="async"
+            style={{ opacity: isFading ? 1 : 0, willChange: "opacity" }}
+            onError={(e) => {
+              const img = e.currentTarget;
+              const fallbackIndex = (nextImageIndex + 1) % propertyImages.length;
+              if (fallbackIndex !== nextImageIndex) {
+                img.src = propertyImages[fallbackIndex];
+              }
+            }}
+          />
+
+          {/* Dimmed overlay for better text readability */}
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/50 backdrop-blur-sm" />
+        </div>
       </div>
 
       {/* Animated Background Elements */}
@@ -644,7 +663,7 @@ export function Landing() {
           >
             <div className="relative flex items-center">
               <motion.img
-                src="/leasemaster-logo.png"
+                src="/leasemaster-c2-svg.svg"
                 alt="LeaseMaster"
                 className="logo-landing"
                 initial={{ x: -80, opacity: 0, filter: "blur(12px)" }}
@@ -863,16 +882,16 @@ export function Landing() {
               </div>
             </motion.div>
             
-            <div className="relative">
+            <div className="relative overflow-hidden">
               <div className="invisible">
-                <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
+                <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
                   {heroSizerMessage.titleLine1}
                   <br />
                   <span className="text-blue-500 dark:text-blue-300">
                     {heroSizerMessage.titleLine2}
                   </span>
                 </h1>
-                <p className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}>
+                <p className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}>
                   {heroSizerMessage.pitch}
                 </p>
               </div>
@@ -885,7 +904,7 @@ export function Landing() {
                     exit={{ opacity: 0, y: -18 }}
                     transition={{ duration: 0.5, ease: "easeOut" }}
                   >
-                    <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
+                    <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
                       {heroMessages[heroIndex].titleLine1}
                       <br />
                       <span className="text-blue-500 dark:text-blue-300">
@@ -902,7 +921,7 @@ export function Landing() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -18 }}
                     transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
-                    className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
+                    className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
                   >
                     {heroMessages[heroIndex].pitch}
                   </motion.p>
