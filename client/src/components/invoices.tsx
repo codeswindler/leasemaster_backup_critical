@@ -677,15 +677,21 @@ export function Invoices() {
       const accountPrefix = propertyMatch?.accountPrefix ?? propertyMatch?.account_prefix ?? ""
       const accountNumber = accountPrefix && invoice.unit ? `${accountPrefix}${invoice.unit}` : ""
 
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const marginX = 20
+      const rightX = pageWidth - marginX
+      const leftColX = marginX
+      const rightColX = pageWidth / 2 + 15
+
       if (resolvedLogoUrl) {
         try {
           const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
-          doc.addImage(logoDataUrl, format, 20, 12, 24, 18)
+          doc.addImage(logoDataUrl, format, leftColX, 12, 24, 18)
         } catch {
         }
       }
-      const headerRightX = 150
+      const headerRightX = rightColX + 10
       doc.setFontSize(11)
       doc.text(`Invoice #${invoiceNumber}`, headerRightX, 20)
 
@@ -708,24 +714,24 @@ export function Invoices() {
         detailsY += 5
       }
 
-      const dateY = Math.max(detailsY + 4, 47)
+      const dateY = Math.max(detailsY + 3, 42)
       doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
       doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, headerRightX, dateY + 5)
 
-      const lineY = dateY + 13
-      doc.line(20, lineY, 190, lineY)
+      const lineY = dateY + 9
+      doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
-      const billToY = lineY + 26
-      doc.text("BILL TO", 20, billToY)
-      doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, 20, billToY + 6)
-      if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, 20, billToY + 11)
-      if (invoice.tenantData?.phone) doc.text(`Phone: ${String(invoice.tenantData.phone)}`, 20, billToY + 16)
+      const billToY = lineY + 16
+      doc.text("BILL TO", leftColX, billToY)
+      doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, leftColX, billToY + 6)
+      if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, leftColX, billToY + 11)
+      if (invoice.tenantData?.phone) doc.text(`Phone: ${String(invoice.tenantData.phone)}`, leftColX, billToY + 16)
 
-      doc.text("PROPERTY", 120, billToY)
-      doc.text(String(invoice.property || "—"), 120, billToY + 6)
-      doc.text(`House: ${invoice.unit || "—"}`, 120, billToY + 11)
-      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, billToY + 16)
+      doc.text("PROPERTY", rightColX, billToY)
+      doc.text(String(invoice.property || "—"), rightColX, billToY + 6)
+      doc.text(`House: ${invoice.unit || "—"}`, rightColX, billToY + 11)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, rightColX, billToY + 16)
 
       const tableData = invoice.charges.map((charge: any, index: number) => [
         String(index + 1),
@@ -737,7 +743,7 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: billToY + 30,
+        startY: billToY + 22,
         theme: "grid",
         headStyles: { fillColor: [56, 78, 84], textColor: 255 },
         styles: { fontSize: 9 }
@@ -746,9 +752,9 @@ export function Invoices() {
       const finalY = (doc as any).lastAutoTable?.finalY || 140
       const paid = Number(invoice.paidAmount || 0)
       const balance = Number(invoice.balance || 0)
-      const totalsX = 120
-      const totalsY = finalY + 10
       const totalsW = 70
+      const totalsX = rightX - totalsW
+      const totalsY = finalY + 8
       const totalsH = 24
       doc.setFontSize(10)
       doc.rect(totalsX - 2, totalsY - 4, totalsW + 4, totalsH + 8)
@@ -757,9 +763,9 @@ export function Invoices() {
       doc.text(`Balance: KES ${balance.toLocaleString()}`, totalsX, totalsY + 16)
 
       if (paymentOptions.length) {
-        doc.text("Payment Options:", 20, finalY + 12)
+        doc.text("Payment Options:", leftColX, finalY + 10)
         paymentOptions.forEach((line, idx) => {
-          doc.text(`- ${line}`, 20, finalY + 18 + idx * 5)
+          doc.text(`- ${line}`, leftColX, finalY + 16 + idx * 5)
         })
       }
 
