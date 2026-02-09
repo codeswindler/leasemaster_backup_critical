@@ -29,6 +29,8 @@ const Receipts = lazy(() => import("@/components/receipts").then(m => ({ default
 const ReceivePayments = lazy(() => import("@/components/receive-payments").then(m => ({ default: m.ReceivePayments })));
 const IncomingPayments = lazy(() => import("@/components/incoming-payments").then(m => ({ default: m.IncomingPayments })));
 const Bills = lazy(() => import("@/components/bills").then(m => ({ default: m.Bills })));
+const BillPayments = lazy(() => import("@/components/bill-payments").then(m => ({ default: m.BillPayments })));
+const BillPayments = lazy(() => import("@/components/bill-payments").then(m => ({ default: m.BillPayments })));
 const PaymentTransactions = lazy(() => import("@/components/payment-transactions").then(m => ({ default: m.PaymentTransactions })));
 const MaintenanceRequests = lazy(() => import("@/components/maintenance-requests").then(m => ({ default: m.MaintenanceRequests })));
 const TenantPortal = lazy(() => import("@/components/tenant-portal").then(m => ({ default: m.TenantPortal })));
@@ -215,6 +217,12 @@ function Router({ showLanding = false }: { showLanding?: boolean }) {
         </Route>
         <Route path="/accounting/bills">
           {() => <Bills />}
+        </Route>
+        <Route path="/accounting/bill-payments">
+          {() => <BillPayments />}
+        </Route>
+        <Route path="/accounting/bill-payments">
+          {() => <BillPayments />}
         </Route>
         <Route path="/accounting/water-units">
           {() => <WaterUnits />}

@@ -294,6 +294,11 @@ export function AppSidebar() {
       icon: FileText,
     },
     {
+      title: "Bill Payments",
+      url: "/accounting/bill-payments",
+      icon: CreditCard,
+    },
+    {
       title: "Water Units",
       url: "/accounting/water-units",
       icon: Droplets,

@@ -2137,6 +2137,50 @@ try {
         }
     }
     
+    // ========== BILL PAYMENTS ==========
+    elseif ($endpoint === 'bill-payments') {
+        if ($method === 'GET') {
+            $propertyId = getQuery('propertyId');
+            $landlordId = getQuery('landlordId');
+            $agentIdFilter = getQuery('agentId');
+            $billId = getQuery('billId');
+            $user = null;
+            $userRole = null;
+
+            if (isset($_SESSION['userId'])) {
+                $user = $storage->getUser($_SESSION['userId']);
+                $userRole = $user['role'] ?? 'landlord';
+            }
+
+            if (!$user) {
+                sendJson(['error' => 'Unauthorized'], 401);
+            }
+
+            if ($userRole === 'admin' || $userRole === 'super_admin' || $userRole === 'agent') {
+                $adminScopeId = resolveAdminScopeId($user, $agentIdFilter);
+                $filters = [
+                    'adminId' => $adminScopeId,
+                    'landlordId' => $landlordId,
+                    'propertyId' => $propertyId,
+                    'billId' => $billId
+                ];
+                $payments = $storage->getBillPaymentsByScope($filters);
+            } elseif (isLandlordRole($userRole)) {
+                $filters = [
+                    'landlordId' => $user['id'] ?? null,
+                    'propertyId' => $propertyId,
+                    'billId' => $billId
+                ];
+                $payments = $storage->getBillPaymentsByScope($filters);
+            } else {
+                $propertyIds = $storage->getUserPropertyIds($user['id']);
+                $payments = $storage->getBillPaymentsByPropertyIds($propertyIds);
+            }
+
+            sendJson($payments);
+        }
+    }
+
     // ========== BILLS ==========
     elseif ($endpoint === 'bills') {
         if ($method === 'GET' && !$id) {
