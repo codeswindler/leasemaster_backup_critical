@@ -548,7 +548,7 @@ export function Landing() {
   return (
     <div className="min-h-[calc(100vh/var(--ui-zoom))] flex flex-col relative overflow-hidden">
       {/* Luxury Properties Background Slideshow */}
-      <div className="absolute inset-0 z-0">
+      <div className="fixed inset-0 z-0">
         <AnimatePresence>
           <motion.div
             key={currentImageIndex}
@@ -595,7 +595,7 @@ export function Landing() {
       </div>
 
       {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-[1]">
         <motion.div
           className="absolute top-20 left-10 w-72 h-72 bg-blue-200/20 rounded-full blur-3xl"
           animate={{
