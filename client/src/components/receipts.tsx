@@ -591,15 +591,15 @@ export function Receipts() {
         doc.text(`Email: ${companyEmail}`, headerRightX, detailsY)
         detailsY += 5
       }
-      const dateY = Math.max(detailsY + 3, 42)
+      const dateY = Math.max(detailsY + 2, 40)
       doc.text(`Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
       doc.text(`Receipt No: ${receipt.reference || receipt.id}`, headerRightX, dateY + 5)
 
-      const lineY = dateY + 7
+      const lineY = dateY + 6
       doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
-      const receivedY = lineY + 8
+      const receivedY = lineY + 6
       doc.text("RECEIVED FROM", leftColX, receivedY)
       doc.text(String(receipt.tenant || "Tenant"), leftColX, receivedY + 6)
       if (receipt.tenantEmail) doc.text(String(receipt.tenantEmail), leftColX, receivedY + 11)
@@ -613,7 +613,7 @@ export function Receipts() {
       autoTable(doc, {
         head: [["Description", "Amount"]],
         body: [[receipt.description || "Payment", `KES ${Number(receipt.amount || 0).toLocaleString()}`]],
-        startY: receivedY + 18,
+        startY: receivedY + 16,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
         styles: { fontSize: 9 }
