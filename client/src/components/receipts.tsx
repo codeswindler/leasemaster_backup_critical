@@ -619,7 +619,7 @@ export function Receipts() {
           formatWithOffset(paymentDate, timezoneOffsetMinutes),
           `KES ${Number(receipt.amount || 0).toLocaleString()}`
         ]],
-        startY: receivedY + 18,
+        startY: receivedY + 22,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
         styles: { fontSize: 9 },
