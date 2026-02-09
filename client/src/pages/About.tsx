@@ -60,6 +60,7 @@ export function About() {
   const [submittingEnquiry, setSubmittingEnquiry] = useState(false);
   const supportMessage = "we are here to serve you, your convinience is our priority";
   const [typedSupportMessage, setTypedSupportMessage] = useState("");
+  const [perfMode, setPerfMode] = useState(false);
 
   // Scroll to top when component mounts (for navigation from footer)
   useEffect(() => {
@@ -114,6 +115,35 @@ export function About() {
   }, []);
 
   useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const evaluatePerformanceMode = () => {
+      const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+      const saveData = Boolean(connection?.saveData);
+      const lowMemory =
+        typeof (navigator as Navigator & { deviceMemory?: number }).deviceMemory === "number" &&
+        (navigator as Navigator & { deviceMemory?: number }).deviceMemory! <= 4;
+      const lowCpu = typeof navigator.hardwareConcurrency === "number" && navigator.hardwareConcurrency <= 4;
+      const isHidden = document.hidden;
+
+      setPerfMode(media.matches || saveData || lowMemory || lowCpu || isHidden);
+    };
+
+    evaluatePerformanceMode();
+    media.addEventListener("change", evaluatePerformanceMode);
+    document.addEventListener("visibilitychange", evaluatePerformanceMode);
+    window.addEventListener("focus", evaluatePerformanceMode);
+    window.addEventListener("blur", evaluatePerformanceMode);
+
+    return () => {
+      media.removeEventListener("change", evaluatePerformanceMode);
+      document.removeEventListener("visibilitychange", evaluatePerformanceMode);
+      window.removeEventListener("focus", evaluatePerformanceMode);
+      window.removeEventListener("blur", evaluatePerformanceMode);
+    };
+  }, []);
+
+  useEffect(() => {
     let index = 0;
     let direction = 1;
     let timeout: ReturnType<typeof setTimeout>;
@@ -146,13 +176,18 @@ export function About() {
     };
   }, [supportMessage]);
 
+  const cardSurfaceClass = perfMode
+    ? "border-2 bg-background/20 dark:bg-background/20"
+    : "border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25";
+
   // Background slideshow
   useEffect(() => {
+    if (perfMode) return;
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % propertyImages.length);
     }, 8000); // Change image every 8 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [perfMode, propertyImages.length]);
 
   // Tenant Portal slideshow (only if more than 1 image)
   useEffect(() => {
@@ -267,14 +302,16 @@ export function About() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 8, ease: [0.25, 0.1, 0.25, 1] }}
+            transition={{ duration: perfMode ? 0 : 8, ease: [0.25, 0.1, 0.25, 1] }}
           >
             <img
               src={propertyImages[currentImageIndex]}
               alt="Property background"
               className="absolute inset-0 w-full h-full object-cover"
               style={{ 
-                filter: 'brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)',
+                filter: perfMode
+                  ? 'brightness(0.5) contrast(0.9) saturate(0.8)'
+                  : 'brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)',
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
@@ -303,56 +340,34 @@ export function About() {
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
         <motion.div
-          className="absolute top-20 left-10 w-72 h-72 bg-blue-200/20 rounded-full blur-3xl"
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
+          className={`absolute top-20 left-10 w-72 h-72 rounded-full ${perfMode ? "bg-blue-200/10 blur-2xl" : "bg-blue-200/20 blur-3xl"}`}
+          animate={perfMode ? { x: 0, y: 0 } : { x: [0, 100, 0], y: [0, -50, 0] }}
+          transition={perfMode ? { duration: 0 } : { duration: 20, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
-          className="absolute bottom-20 right-10 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl"
-          animate={{
-            x: [0, -80, 0],
-            y: [0, 60, 0],
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 0.5
-          }}
+          className={`absolute bottom-20 right-10 w-96 h-96 rounded-full ${perfMode ? "bg-indigo-200/10 blur-2xl" : "bg-indigo-200/20 blur-3xl"}`}
+          animate={perfMode ? { x: 0, y: 0 } : { x: [0, -80, 0], y: [0, 60, 0] }}
+          transition={perfMode ? { duration: 0 } : { duration: 25, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
         />
-        <motion.div
-          className="absolute top-1/2 left-1/2 w-64 h-64 bg-purple-200/20 rounded-full blur-3xl"
-          animate={{
-            x: [0, 60, 0],
-            y: [0, -40, 0],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{
-            duration: 30,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: 1
-          }}
-        />
-        
-        {/* Subtle grid pattern overlay */}
-        <div 
-          className="absolute inset-0 opacity-[0.02] dark:opacity-[0.05]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '50px 50px'
-          }}
-        />
+        {!perfMode && (
+          <motion.div
+            className="absolute top-1/2 left-1/2 w-64 h-64 bg-purple-200/20 rounded-full blur-3xl"
+            animate={{ x: [0, 60, 0], y: [0, -40, 0], scale: [1, 1.2, 1] }}
+            transition={{ duration: 30, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          />
+        )}
+        {!perfMode && (
+          <div
+            className="absolute inset-0 opacity-[0.02] dark:opacity-[0.05]"
+            style={{
+              backgroundImage: `
+                linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px)
+              `,
+              backgroundSize: "50px 50px",
+            }}
+          />
+        )}
       </div>
 
       {/* Back to Homepage Button */}
@@ -383,7 +398,7 @@ export function About() {
           transition={{ duration: 0.6 }}
           className="max-w-4xl mx-auto mb-16"
         >
-          <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+          <Card className={cardSurfaceClass}>
             <CardContent className="p-12">
               <div className="flex items-center gap-4 mb-6">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary">
@@ -438,7 +453,7 @@ export function About() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6 text-center">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary w-fit mx-auto mb-4">
                   <TrendingUp className="h-8 w-8" />
@@ -452,7 +467,7 @@ export function About() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6 text-center">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary w-fit mx-auto mb-4">
                   <DollarSign className="h-8 w-8" />
@@ -466,7 +481,7 @@ export function About() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6 text-center">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary w-fit mx-auto mb-4">
                   <Users className="h-8 w-8" />
@@ -480,7 +495,7 @@ export function About() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6 text-center">
                 <div className="p-3 rounded-lg bg-primary/10 text-primary w-fit mx-auto mb-4">
                   <BarChart3 className="h-8 w-8" />
@@ -513,7 +528,7 @@ export function About() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6">
                 <Building2 className="h-8 w-8 text-primary mb-4" />
                 <h3 className={`text-xl font-semibold mb-2 ${getTextContrastClass()}`}>
@@ -525,7 +540,7 @@ export function About() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6">
                 <Users className="h-8 w-8 text-primary mb-4" />
                 <h3 className={`text-xl font-semibold mb-2 ${getTextContrastClass()}`}>
@@ -537,7 +552,7 @@ export function About() {
               </CardContent>
             </Card>
 
-            <Card className="border-2 backdrop-blur-lg bg-background/25 dark:bg-background/25">
+            <Card className={cardSurfaceClass}>
               <CardContent className="p-6">
                 <DollarSign className="h-8 w-8 text-primary mb-4" />
                 <h3 className={`text-xl font-semibold mb-2 ${getTextContrastClass()}`}>
