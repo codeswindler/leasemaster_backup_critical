@@ -119,6 +119,15 @@ export function Invoices() {
     })
   }
 
+  const getImageDimensions = async (dataUrl: string) => {
+    return await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+      image.onerror = () => reject(new Error("Failed to load logo dimensions"))
+      image.src = dataUrl
+    })
+  }
+
   const updateInvoiceStatus = async (invoiceId: string, status: string) => {
     await apiRequest("PUT", `/api/invoices/${invoiceId}`, { status })
   }
@@ -687,7 +696,13 @@ export function Invoices() {
         try {
           const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
-          doc.addImage(logoDataUrl, format, leftColX, 12, 24, 18)
+          const { width: logoW, height: logoH } = await getImageDimensions(logoDataUrl)
+          const maxLogoW = 40
+          const maxLogoH = 22
+          const logoScale = Math.min(maxLogoW / logoW, maxLogoH / logoH, 1)
+          const drawW = logoW * logoScale
+          const drawH = logoH * logoScale
+          doc.addImage(logoDataUrl, format, leftColX, 12, drawW, drawH)
         } catch {
         }
       }
@@ -718,11 +733,11 @@ export function Invoices() {
       doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
       doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, headerRightX, dateY + 5)
 
-      const lineY = dateY + 9
+      const lineY = dateY + 8
       doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
-      const billToY = lineY + 12
+      const billToY = lineY + 10
       doc.text("BILL TO", leftColX, billToY)
       doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, leftColX, billToY + 6)
       if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, leftColX, billToY + 11)
@@ -743,9 +758,9 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: billToY + 20,
+        startY: billToY + 18,
         theme: "grid",
-        headStyles: { fillColor: [56, 78, 84], textColor: 255 },
+        headStyles: { fillColor: [0, 105, 80], textColor: 255 },
         styles: { fontSize: 9 }
       })
 
