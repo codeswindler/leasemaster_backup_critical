@@ -423,7 +423,7 @@ export function ClientLogin() {
   };
 
   return (
-    <div className="min-h-[calc(100vh/var(--ui-zoom))] h-[calc(100vh/var(--ui-zoom))] flex flex-col relative overflow-hidden" style={{ pointerEvents: 'auto' }}>
+    <div className="min-h-[calc(100vh/var(--ui-zoom))] h-auto lg:h-[calc(100vh/var(--ui-zoom))] flex flex-col relative overflow-y-auto lg:overflow-hidden" style={{ pointerEvents: 'auto' }}>
       {/* Theme Toggle - Top Right */}
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
