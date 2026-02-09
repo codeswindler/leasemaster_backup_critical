@@ -136,28 +136,15 @@ export function Landing() {
 
   useEffect(() => {
     let index = 0;
-    let direction = 1;
     let timeout: ReturnType<typeof setTimeout>;
     let active = true;
 
     const tick = () => {
       if (!active) return;
       setTypedSupportMessage(supportMessage.slice(0, index));
-
-      if (direction === 1 && index >= supportMessage.length) {
-        direction = -1;
-        timeout = setTimeout(tick, 1400);
-        return;
-      }
-
-      if (direction === -1 && index <= 0) {
-        direction = 1;
-        timeout = setTimeout(tick, 500);
-        return;
-      }
-
-      index += direction;
-      timeout = setTimeout(tick, 45);
+      if (index >= supportMessage.length) return;
+      index += 1;
+      timeout = setTimeout(tick, 30);
     };
 
     tick();
@@ -397,20 +384,23 @@ export function Landing() {
   // Calculate text contrast based on image brightness and theme
   const getTextContrastClass = (baseClass: string = '') => {
     const effectiveBrightness = imageBrightness * 0.35; // Account for dimming/blur filters
+    const transitionClass = "transition-colors duration-300";
     
     let textClass = '';
     
     if (effectiveBrightness > 0.45) {
-      textClass = isDarkTheme ? 'text-slate-100' : 'text-slate-900';
-      return `${baseClass} ${textClass} drop-shadow-lg`;
+      textClass = isDarkTheme ? 'text-slate-100' : 'text-slate-950';
+      return `${baseClass} ${transitionClass} ${textClass} drop-shadow-lg`;
     } else if (effectiveBrightness > 0.3) {
       textClass = isDarkTheme ? 'text-slate-100' : 'text-slate-800';
-      return `${baseClass} ${textClass} drop-shadow-md`;
+      return `${baseClass} ${transitionClass} ${textClass} drop-shadow-md`;
     } else {
       textClass = 'text-white';
-      return `${baseClass} ${textClass} drop-shadow-lg`;
+      return `${baseClass} ${transitionClass} ${textClass} drop-shadow-lg`;
     }
   };
+
+  const lightOverlayOpacity = Math.min(0.7, Math.max(0.4, 0.35 + imageBrightness * 0.35));
 
   const getButtonContrastClass = () => {
     const effectiveBrightness = imageBrightness * 0.35;
@@ -589,7 +579,14 @@ export function Landing() {
             />
 
             {/* Dimmed overlay for better text readability */}
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/50" style={{ zIndex: 1 }} />
+            <div
+              className="absolute inset-0"
+              style={{
+                zIndex: 1,
+                backgroundColor: `rgba(0, 0, 0, ${isDarkTheme ? 0.5 : lightOverlayOpacity})`,
+                transition: "background-color 300ms ease",
+              }}
+            />
           </motion.div>
         </AnimatePresence>
       </div>
@@ -1613,7 +1610,7 @@ export function Landing() {
                     Working Hours
                   </h3>
                   <p className={`text-base ${getTextContrastClass()}`}>24/7 Available</p>
-                  <p className={`text-sm text-muted-foreground ${getTextContrastClass()}`}>
+                  <p className={`text-sm text-muted-foreground leading-relaxed min-h-[2.5rem] ${getTextContrastClass()}`}>
                     {typedSupportMessage}
                   </p>
                 </div>
