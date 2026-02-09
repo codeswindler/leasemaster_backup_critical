@@ -789,7 +789,7 @@ export function Invoices() {
       const marginX = 20
       const rightX = pageWidth - marginX
       const leftColX = marginX
-      const rightColX = pageWidth / 2 + 15
+      const rightColX = pageWidth / 2 + 22
 
       if (resolvedLogoUrl) {
         const tryDrawLogo = async (url: string) => {
