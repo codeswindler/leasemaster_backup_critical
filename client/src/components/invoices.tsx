@@ -657,16 +657,18 @@ export function Invoices() {
       const unitLabel = invoice.unit ? String(invoice.unit).replace(/\s+/g, "-") : "unit"
       const invoiceNumber = invoice.invoiceNumber ?? invoice.invoice_number ?? invoice.id
       const invoiceSettings = invoiceSettingsQuery.data || {}
-      const logoUrl = invoiceSettings.logo_url || "/leasemaster-c2-svg.svg"
+      const resolveSetting = (snakeKey: string, camelKey: string, fallback = "") =>
+        invoiceSettings[snakeKey] ?? invoiceSettings[camelKey] ?? fallback
+      const logoUrl = resolveSetting("logo_url", "logoUrl", "/leasemaster-c2-svg.svg")
       const resolvedLogoUrl =
         logoUrl && logoUrl.startsWith("/")
           ? `${window.location.origin}${logoUrl}`
           : logoUrl
-      const companyName = invoiceSettings.company_name || "Company"
-      const companyPhone = invoiceSettings.company_phone || ""
-      const companyEmail = invoiceSettings.company_email || ""
-      const companyAddress = invoiceSettings.company_address || ""
-      const paymentOptions = String(invoiceSettings.payment_options || "")
+      const companyName = resolveSetting("company_name", "companyName", "Company")
+      const companyPhone = resolveSetting("company_phone", "companyPhone")
+      const companyEmail = resolveSetting("company_email", "companyEmail")
+      const companyAddress = resolveSetting("company_address", "companyAddress")
+      const paymentOptions = String(resolveSetting("payment_options", "paymentOptions"))
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean)
@@ -714,7 +716,7 @@ export function Invoices() {
       doc.line(20, lineY, 190, lineY)
 
       doc.setFontSize(10)
-      const billToY = lineY + 20
+      const billToY = lineY + 26
       doc.text("BILL TO", 20, billToY)
       doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, 20, billToY + 6)
       if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, 20, billToY + 11)
@@ -735,7 +737,7 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: billToY + 28,
+        startY: billToY + 30,
         theme: "grid",
         headStyles: { fillColor: [56, 78, 84], textColor: 255 },
         styles: { fontSize: 9 }
@@ -744,10 +746,15 @@ export function Invoices() {
       const finalY = (doc as any).lastAutoTable?.finalY || 140
       const paid = Number(invoice.paidAmount || 0)
       const balance = Number(invoice.balance || 0)
+      const totalsX = 120
+      const totalsY = finalY + 10
+      const totalsW = 70
+      const totalsH = 24
       doc.setFontSize(10)
-      doc.text(`Sub - Total: KES ${Number(invoice.amount || 0).toLocaleString()}`, 120, finalY + 12)
-      doc.text(`Paid: KES ${paid.toLocaleString()}`, 120, finalY + 18)
-      doc.text(`Balance: KES ${balance.toLocaleString()}`, 120, finalY + 24)
+      doc.rect(totalsX - 2, totalsY - 4, totalsW + 4, totalsH + 8)
+      doc.text(`Sub - Total: KES ${Number(invoice.amount || 0).toLocaleString()}`, totalsX, totalsY + 4)
+      doc.text(`Paid: KES ${paid.toLocaleString()}`, totalsX, totalsY + 10)
+      doc.text(`Balance: KES ${balance.toLocaleString()}`, totalsX, totalsY + 16)
 
       if (paymentOptions.length) {
         doc.text("Payment Options:", 20, finalY + 12)

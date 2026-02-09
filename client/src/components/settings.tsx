@@ -229,6 +229,8 @@ export function Settings() {
       })
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [])
+  const displayLogoUrl = logoPreviewUrl || logoPendingUrl || invoiceSettings.logo_url
+  const showLogoPreview = Boolean(displayLogoUrl) && !logoLoadFailed
   const fixedOffsetOptions = useMemo(
     () => timezoneOffsets.map((offset) => ({ value: offset, label: `${offset} (Fixed offset)` })),
     []
@@ -332,6 +334,8 @@ export function Settings() {
   const [balanceInfo, setBalanceInfo] = useState<string>("")
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string>("")
+  const [logoPendingUrl, setLogoPendingUrl] = useState<string>("")
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false)
 
   useEffect(() => {
     if (smsData && typeof smsData === "object") {
@@ -384,6 +388,7 @@ export function Settings() {
   useEffect(() => {
     if (invoiceData && typeof invoiceData === "object" && !Array.isArray(invoiceData)) {
       setInvoiceSettings(normalizeInvoiceSettings(invoiceData))
+      setLogoLoadFailed(false)
     }
   }, [invoiceData])
 
@@ -536,6 +541,7 @@ export function Settings() {
       })
       return
     }
+    setLogoLoadFailed(false)
     setLogoPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
       return URL.createObjectURL(file)
@@ -553,11 +559,9 @@ export function Settings() {
       if (!response.ok) {
         throw new Error(data?.error || "Logo upload failed")
       }
-      setInvoiceSettings((prev) => ({ ...prev, logo_url: data.logo_url || "" }))
-      setLogoPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev)
-        return ""
-      })
+      const nextLogoUrl = data.logo_url || data.logoUrl || ""
+      setInvoiceSettings((prev) => ({ ...prev, logo_url: nextLogoUrl }))
+      setLogoPendingUrl(nextLogoUrl)
       toast({ title: "Logo uploaded" })
     } catch (error: any) {
       toast({
@@ -583,10 +587,12 @@ export function Settings() {
         throw new Error(data?.error || "Logo removal failed")
       }
       setInvoiceSettings((prev) => ({ ...prev, logo_url: "" }))
+      setLogoPendingUrl("")
       setLogoPreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)
         return ""
       })
+      setLogoLoadFailed(false)
       toast({ title: "Logo removed" })
     } catch (error: any) {
       toast({
@@ -1107,11 +1113,33 @@ export function Settings() {
                 </div>
                 <div className="rounded-lg border p-3">
                   <Label className="text-sm text-muted-foreground">Preview</Label>
-                  {logoPreviewUrl || invoiceSettings.logo_url ? (
+                  {showLogoPreview ? (
                     <img
-                      src={logoPreviewUrl || invoiceSettings.logo_url}
+                      src={displayLogoUrl}
                       alt="Invoice logo"
                       className="mt-2 h-16 w-auto object-contain"
+                      onLoad={(event) => {
+                        const currentSrc = event.currentTarget.currentSrc || event.currentTarget.src
+                        if (logoPendingUrl && currentSrc.includes(logoPendingUrl)) {
+                          setLogoPreviewUrl((prev) => {
+                            if (prev) URL.revokeObjectURL(prev)
+                            return ""
+                          })
+                          setLogoPendingUrl("")
+                        }
+                      }}
+                      onError={() => {
+                        if (logoPreviewUrl) return
+                        if (logoPendingUrl || invoiceSettings.logo_url) {
+                          setLogoPendingUrl("")
+                          setLogoLoadFailed(true)
+                          toast({
+                            title: "Logo failed to load",
+                            description: "The uploaded logo could not be loaded from the server.",
+                            variant: "destructive",
+                          })
+                        }
+                      }}
                     />
                   ) : (
                     <p className="mt-2 text-sm text-muted-foreground">No logo uploaded.</p>
