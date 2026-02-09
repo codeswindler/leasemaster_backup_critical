@@ -204,7 +204,7 @@ export function Landing() {
     },
     exit: {
       opacity: 0,
-      y: -10,
+      y: 0,
       transition: { duration: 0.45, ease: "easeIn" },
     },
   };
@@ -221,7 +221,7 @@ export function Landing() {
     },
     exit: {
       opacity: 0,
-      y: -8,
+      y: 0,
       transition: { duration: 0.45, ease: "easeIn" },
     },
   };
