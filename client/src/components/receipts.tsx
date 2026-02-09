@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/table"
 
 export function Receipts() {
+  const defaultLogoUrl = "/leasemaster-c2-svg.svg"
   const receiptCardVariants = [
     "bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-blue-900/50",
     "bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-100/70 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-emerald-900/50",
@@ -75,6 +76,50 @@ export function Receipts() {
   const { timezoneOffsetMinutes } = usePropertyTimezoneOffset()
   const isLandlordSelected = !!selectedLandlordId && selectedLandlordId !== "all"
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
+
+  const loadImageAsDataUrl = async (url: string) => {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    if (blob.type === "image/svg+xml") {
+      const svgText = await blob.text()
+      const svgBlob = new Blob([svgText], { type: "image/svg+xml" })
+      const svgUrl = URL.createObjectURL(svgBlob)
+      try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => resolve(img)
+          img.onerror = () => reject(new Error("Failed to load SVG logo"))
+          img.src = svgUrl
+        })
+        const canvas = document.createElement("canvas")
+        canvas.width = image.naturalWidth || 400
+        canvas.height = image.naturalHeight || 200
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          throw new Error("Failed to render SVG logo")
+        }
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+        return canvas.toDataURL("image/png")
+      } finally {
+        URL.revokeObjectURL(svgUrl)
+      }
+    }
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error("Failed to read logo"))
+      reader.readAsDataURL(blob)
+    })
+  }
+
+  const getImageDimensions = async (dataUrl: string) => {
+    return await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+      image.onerror = () => reject(new Error("Failed to load logo dimensions"))
+      image.src = dataUrl
+    })
+  }
 
   // Fetch all required data with complete status tracking
   const paymentsQuery = useQuery({ 
@@ -282,9 +327,22 @@ export function Receipts() {
     invoicesQuery.error
   ].some(Boolean)
 
+  const normalizedPayments = Array.isArray(paymentsData)
+    ? paymentsData.map((payment: any) => ({
+        ...payment,
+        invoiceId: payment.invoiceId ?? payment.invoice_id,
+        amount: parseFloat(payment.amount ?? 0),
+      }))
+    : []
+  const paymentsByInvoice = normalizedPayments.reduce((acc: Record<string, number>, payment: any) => {
+    if (!payment.invoiceId) return acc
+    acc[payment.invoiceId] = (acc[payment.invoiceId] || 0) + (payment.amount || 0)
+    return acc
+  }, {})
+
   // Enrich payments with related data to create receipts
   // Data is now guaranteed to be loaded due to combined loading state above
-  const receipts = paymentsData.map((payment: any) => {
+  const receipts = normalizedPayments.map((payment: any) => {
     // Find lease associated with this payment
     const lease = leasesData.find((l: any) => String(l.id) === String(payment.leaseId ?? payment.lease_id))
     
@@ -304,9 +362,16 @@ export function Receipts() {
       propertiesData.find((p: any) => String(p.id) === String(unit.propertyId)) : null
     
     // Find associated invoice
-    const invoice = (payment.invoiceId ?? payment.invoice_id)
-      ? invoicesData.find((i: any) => String(i.id) === String(payment.invoiceId ?? payment.invoice_id))
+    const invoiceId = payment.invoiceId ?? payment.invoice_id
+    const invoice = invoiceId
+      ? invoicesData.find((i: any) => String(i.id) === String(invoiceId))
       : null
+    const invoiceAmount = invoice ? Number(invoice.amount ?? 0) : null
+    const invoicePaid = invoiceId ? Number(paymentsByInvoice[invoiceId] ?? 0) : null
+    const invoiceBalance =
+      invoiceAmount !== null && invoicePaid !== null
+        ? Math.max(0, invoiceAmount - invoicePaid)
+        : null
     const allocationStatus = (payment.allocation_status ?? payment.allocationStatus ?? 'allocated').toLowerCase()
     const paymentTimestamp = payment.created_at ?? payment.createdAt ?? payment.paymentDate ?? payment.payment_date
     
@@ -332,7 +397,10 @@ export function Receipts() {
       leaseId: payment.leaseId ?? payment.lease_id ?? null,
       invoiceId: payment.invoiceId ?? payment.invoice_id ?? null,
       invoiceNumber: invoice?.invoiceNumber || '',
-      description: payment.description || 'Payment received'
+      description: payment.description || 'Payment received',
+      invoiceAmount,
+      invoicePaid,
+      invoiceBalance,
     }
   })
 
@@ -455,56 +523,121 @@ export function Receipts() {
       const formattedDate = new Date(paymentDate).toISOString().slice(0, 10)
       const unitLabel = receipt.unit ? String(receipt.unit).replace(/\s+/g, "-") : "unit"
       const invoiceSettings = invoiceSettingsQuery.data || {}
-      const companyName = invoiceSettings.company_name || "Company"
-      const companyPhone = invoiceSettings.company_phone || ""
-      const companyEmail = invoiceSettings.company_email || ""
-      const companyAddress = invoiceSettings.company_address || ""
+      const resolveSetting = (snakeKey: string, camelKey: string, fallback = "") =>
+        invoiceSettings[snakeKey] ?? invoiceSettings[camelKey] ?? fallback
+      const logoUrl = resolveSetting("logo_url", "logoUrl") || defaultLogoUrl
+      const resolvedLogoUrl =
+        logoUrl && logoUrl.startsWith("/")
+          ? `${window.location.origin}${logoUrl}`
+          : logoUrl
+      const companyName = resolveSetting("company_name", "companyName", "Company")
+      const companyPhone = resolveSetting("company_phone", "companyPhone")
+      const companyEmail = resolveSetting("company_email", "companyEmail")
+      const companyAddress = resolveSetting("company_address", "companyAddress")
       const properties = Array.isArray(propertiesQuery.data) ? propertiesQuery.data : []
       const propertyMatch = properties.find((property: any) => property.id === receipt.propertyId || property.name === receipt.property)
       const accountPrefix = propertyMatch?.accountPrefix ?? propertyMatch?.account_prefix ?? ""
       const accountNumber = accountPrefix && receipt.unit ? `${accountPrefix}${receipt.unit}` : ""
 
-      doc.setFontSize(14)
-      doc.text(companyName.toUpperCase(), 20, 20)
-      doc.setFontSize(9)
-      if (companyAddress) doc.text(companyAddress, 20, 26)
-      if (companyPhone) doc.text(`Tel: ${companyPhone}`, 20, 31)
-      if (companyEmail) doc.text(`Email: ${companyEmail}`, 20, 36)
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const marginX = 20
+      const rightX = pageWidth - marginX
+      const leftColX = marginX
+      const rightColX = pageWidth / 2 + 15
+      const headerRightX = rightColX + 10
+
+      if (resolvedLogoUrl) {
+        const tryDrawLogo = async (url: string) => {
+          const logoDataUrl = await loadImageAsDataUrl(url)
+          const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
+          const { width: logoW, height: logoH } = await getImageDimensions(logoDataUrl)
+          const maxLogoW = 56
+          const maxLogoH = 32
+          const logoScale = Math.min(maxLogoW / logoW, maxLogoH / logoH, 1)
+          const drawW = logoW * logoScale
+          const drawH = logoH * logoScale
+          doc.addImage(logoDataUrl, format, leftColX, 20, drawW, drawH)
+        }
+        try {
+          await tryDrawLogo(resolvedLogoUrl)
+        } catch {
+          try {
+            const fallbackUrl = `${window.location.origin}${defaultLogoUrl}`
+            if (fallbackUrl !== resolvedLogoUrl) {
+              await tryDrawLogo(fallbackUrl)
+            }
+          } catch {
+          }
+        }
+      }
 
       doc.setFontSize(11)
-      doc.text("RECEIPT", 150, 20)
+      doc.text("RECEIPT", headerRightX, 20)
       doc.setFontSize(9)
-      doc.text(`Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, 150, 26)
-      doc.text(`Receipt No: ${receipt.reference || receipt.id}`, 150, 31)
+      let detailsY = 26
+      if (companyName) {
+        doc.text(companyName, headerRightX, detailsY)
+        detailsY += 5
+      }
+      if (companyAddress) {
+        doc.text(companyAddress, headerRightX, detailsY)
+        detailsY += 5
+      }
+      if (companyPhone) {
+        doc.text(`Tel: ${companyPhone}`, headerRightX, detailsY)
+        detailsY += 5
+      }
+      if (companyEmail) {
+        doc.text(`Email: ${companyEmail}`, headerRightX, detailsY)
+        detailsY += 5
+      }
+      const dateY = Math.max(detailsY + 3, 42)
+      doc.text(`Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
+      doc.text(`Receipt No: ${receipt.reference || receipt.id}`, headerRightX, dateY + 5)
 
-      doc.line(20, 42, 190, 42)
+      const lineY = dateY + 7
+      doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
-      doc.text("RECEIVED FROM", 20, 52)
-      doc.text(String(receipt.tenant || "Tenant"), 20, 58)
-      if (receipt.tenantEmail) doc.text(String(receipt.tenantEmail), 20, 63)
-      if (receipt.tenantPhone) doc.text(String(receipt.tenantPhone), 20, 68)
+      const receivedY = lineY + 8
+      doc.text("RECEIVED FROM", leftColX, receivedY)
+      doc.text(String(receipt.tenant || "Tenant"), leftColX, receivedY + 6)
+      if (receipt.tenantEmail) doc.text(String(receipt.tenantEmail), leftColX, receivedY + 11)
+      if (receipt.tenantPhone) doc.text(String(receipt.tenantPhone), leftColX, receivedY + 16)
 
-      doc.text("PROPERTY", 120, 52)
-      doc.text(String(receipt.property || "—"), 120, 58)
-      doc.text(`House: ${receipt.unit || "—"}`, 120, 63)
-      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, 68)
+      doc.text("PROPERTY", headerRightX, receivedY)
+      doc.text(String(receipt.property || "—"), headerRightX, receivedY + 6)
+      doc.text(`House: ${receipt.unit || "—"}`, headerRightX, receivedY + 11)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, headerRightX, receivedY + 16)
 
       autoTable(doc, {
         head: [["Description", "Amount"]],
         body: [[receipt.description || "Payment", `KES ${Number(receipt.amount || 0).toLocaleString()}`]],
-        startY: 78,
+        startY: receivedY + 18,
         theme: "grid",
-        headStyles: { fillColor: [56, 78, 84], textColor: 255 },
+        headStyles: { fillColor: [0, 105, 80], textColor: 255 },
         styles: { fontSize: 9 }
       })
 
       const finalY = (doc as any).lastAutoTable?.finalY || 110
+      const summaryX = rightX - 70
+      const summaryY = finalY + 8
       doc.setFontSize(10)
-      doc.text(`Amount Received: KES ${Number(receipt.amount || 0).toLocaleString()}`, 120, finalY + 12)
-      if (receipt.balance !== undefined) {
-        doc.text(`Current Balance: KES ${Number(receipt.balance || 0).toLocaleString()}`, 120, finalY + 18)
+      doc.setDrawColor(140, 140, 140)
+      doc.rect(summaryX - 2, summaryY - 4, 74, 32)
+      doc.setDrawColor(0, 0, 0)
+      doc.setTextColor(0, 105, 80)
+      doc.text(`Amount Received: KES ${Number(receipt.amount || 0).toLocaleString()}`, summaryX, summaryY + 4)
+      if (receipt.invoiceAmount !== null && receipt.invoiceAmount !== undefined) {
+        doc.text(`Invoice Total: KES ${Number(receipt.invoiceAmount || 0).toLocaleString()}`, summaryX, summaryY + 10)
       }
+      if (receipt.invoicePaid !== null && receipt.invoicePaid !== undefined) {
+        doc.text(`Paid To Date: KES ${Number(receipt.invoicePaid || 0).toLocaleString()}`, summaryX, summaryY + 16)
+      }
+      if (receipt.invoiceBalance !== null && receipt.invoiceBalance !== undefined) {
+        doc.text(`Balance: KES ${Number(receipt.invoiceBalance || 0).toLocaleString()}`, summaryX, summaryY + 22)
+      }
+      doc.setTextColor(0, 0, 0)
 
       const fileName = `${unitLabel}-${formattedDate}-receipt.pdf`
       doc.save(fileName)
