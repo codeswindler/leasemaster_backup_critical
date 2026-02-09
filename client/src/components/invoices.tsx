@@ -658,6 +658,10 @@ export function Invoices() {
       const invoiceNumber = invoice.invoiceNumber ?? invoice.invoice_number ?? invoice.id
       const invoiceSettings = invoiceSettingsQuery.data || {}
       const logoUrl = invoiceSettings.logo_url || "/leasemaster-c2-svg.svg"
+      const resolvedLogoUrl =
+        logoUrl && logoUrl.startsWith("/")
+          ? `${window.location.origin}${logoUrl}`
+          : logoUrl
       const companyName = invoiceSettings.company_name || "Company"
       const companyPhone = invoiceSettings.company_phone || ""
       const companyEmail = invoiceSettings.company_email || ""
@@ -672,9 +676,9 @@ export function Invoices() {
       const accountNumber = accountPrefix && invoice.unit ? `${accountPrefix}${invoice.unit}` : ""
 
       let headerStartX = 20
-      if (logoUrl) {
+      if (resolvedLogoUrl) {
         try {
-          const logoDataUrl = await loadImageAsDataUrl(logoUrl)
+          const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
           doc.addImage(logoDataUrl, format, 20, 12, 24, 18)
           headerStartX = 50
