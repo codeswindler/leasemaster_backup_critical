@@ -2148,6 +2148,8 @@ try {
             $landlordId = getQuery('landlordId');
             $agentIdFilter = getQuery('agentId');
             $billId = getQuery('billId');
+            $from = getQuery('from');
+            $to = getQuery('to');
             $user = null;
             $userRole = null;
 
@@ -2166,19 +2168,26 @@ try {
                     'adminId' => $adminScopeId,
                     'landlordId' => $landlordId,
                     'propertyId' => $propertyId,
-                    'billId' => $billId
+                    'billId' => $billId,
+                    'from' => $from,
+                    'to' => $to
                 ];
                 $payments = $storage->getBillPaymentsByScope($filters);
             } elseif (isLandlordRole($userRole)) {
                 $filters = [
                     'landlordId' => $user['id'] ?? null,
                     'propertyId' => $propertyId,
-                    'billId' => $billId
+                    'billId' => $billId,
+                    'from' => $from,
+                    'to' => $to
                 ];
                 $payments = $storage->getBillPaymentsByScope($filters);
             } else {
                 $propertyIds = $storage->getUserPropertyIds($user['id']);
-                $payments = $storage->getBillPaymentsByPropertyIds($propertyIds);
+                $payments = $storage->getBillPaymentsByPropertyIds($propertyIds, [
+                    'from' => $from,
+                    'to' => $to
+                ]);
             }
 
             sendJson($payments);

@@ -8,11 +8,13 @@ import {
   CreditCard,
   Calendar,
   Search,
-  Wallet
+  Wallet,
+  Download
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -42,6 +44,8 @@ type BillPayment = {
   propertyName?: string
   billStatus?: string
   billAmount?: number
+  totalPaid?: number
+  balance?: number
 }
 
 export function BillPayments() {
@@ -61,14 +65,18 @@ export function BillPayments() {
   const actionsDisabled = !selectedPropertyId || !isLandlordSelected
   const [searchTerm, setSearchTerm] = useState("")
   const [methodFilter, setMethodFilter] = useState("all")
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
 
   const { data: payments = [], isLoading, error } = useQuery<BillPayment[]>({
-    queryKey: ["/api/bill-payments", selectedPropertyId, selectedLandlordId, selectedAgentId],
+    queryKey: ["/api/bill-payments", selectedPropertyId, selectedLandlordId, selectedAgentId, fromDate, toDate],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (selectedAgentId) params.append("agentId", selectedAgentId)
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      if (fromDate) params.append("from", fromDate)
+      if (toDate) params.append("to", toDate)
       const url = `/api/bill-payments${params.toString() ? `?${params}` : ""}`
       const response = await apiRequest("GET", url)
       const data = await response.json()
@@ -91,6 +99,8 @@ export function BillPayments() {
         propertyName: payment.property_name ?? payment.propertyName,
         billStatus: payment.bill_status ?? payment.billStatus,
         billAmount: Number(payment.bill_amount ?? payment.billAmount ?? 0),
+        totalPaid: Number(payment.total_paid ?? payment.totalPaid ?? 0),
+        balance: Number(payment.balance ?? (Number(payment.bill_amount ?? payment.billAmount ?? 0) - Number(payment.total_paid ?? payment.totalPaid ?? 0))),
       }))
     : []
 
@@ -103,8 +113,37 @@ export function BillPayments() {
       payment.billId?.toLowerCase().includes(searchLower)
     )
     const matchesMethod = methodFilter === "all" || payment.method === methodFilter
-    return matchesSearch && matchesMethod
+    const matchesFrom = !fromDate || (payment.paymentDate && payment.paymentDate >= fromDate)
+    const matchesTo = !toDate || (payment.paymentDate && payment.paymentDate <= toDate)
+    return matchesSearch && matchesMethod && matchesFrom && matchesTo
   })
+
+  const handleDownloadCsv = () => {
+    const header = ["Bill ID", "Vendor", "Property", "Method", "Amount", "Bill Amount", "Balance", "Reference", "Payment Date"]
+    const rows = filteredPayments.map((payment) => ([
+      payment.billId ?? "",
+      payment.vendorName ?? "",
+      payment.propertyName ?? "",
+      payment.method ?? "",
+      payment.amount ?? 0,
+      payment.billAmount ?? 0,
+      payment.balance ?? 0,
+      payment.reference ?? "",
+      payment.paymentDate ?? ""
+    ]))
+    const csv = [header, ...rows]
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "bill-payments.csv"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   const totalPayments = filteredPayments.length
   const totalAmount = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0)
@@ -255,20 +294,38 @@ export function BillPayments() {
                 className="pl-9"
               />
             </div>
-            <div className="w-full md:max-w-[200px]">
-              <Select value={methodFilter} onValueChange={setMethodFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All methods" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All methods</SelectItem>
-                  {methods.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {method.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(event) => setFromDate(event.target.value)}
+                className="md:w-[150px]"
+              />
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(event) => setToDate(event.target.value)}
+                className="md:w-[150px]"
+              />
+              <div className="w-full md:w-[200px]">
+                <Select value={methodFilter} onValueChange={setMethodFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All methods" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All methods</SelectItem>
+                    {methods.map((method) => (
+                      <SelectItem key={method} value={method}>
+                        {method.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" onClick={handleDownloadCsv}>
+                <Download className="mr-2 h-4 w-4" />
+                Download CSV
+              </Button>
             </div>
           </div>
 
@@ -281,6 +338,8 @@ export function BillPayments() {
                   <TableHead>Property</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Amount</TableHead>
+                  <TableHead>Bill Amount</TableHead>
+                  <TableHead>Balance</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead>Payment Date</TableHead>
                 </TableRow>
@@ -288,13 +347,13 @@ export function BillPayments() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       Loading payments...
                     </TableCell>
                   </TableRow>
                 ) : filteredPayments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                       No bill payments found.
                     </TableCell>
                   </TableRow>
@@ -308,6 +367,8 @@ export function BillPayments() {
                         <Badge variant="outline">{payment.method?.toUpperCase() || "N/A"}</Badge>
                       </TableCell>
                       <TableCell>KSh {payment.amount.toLocaleString()}</TableCell>
+                      <TableCell>KSh {Number(payment.billAmount ?? 0).toLocaleString()}</TableCell>
+                      <TableCell>KSh {Number(payment.balance ?? 0).toLocaleString()}</TableCell>
                       <TableCell>{payment.reference || "—"}</TableCell>
                       <TableCell>
                         {payment.paymentDate

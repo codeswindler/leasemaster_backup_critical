@@ -2614,9 +2614,17 @@ class Storage {
         $hasAdminId = $this->columnExists('users', 'admin_id');
 
         $sql = "
-            SELECT b.*
+            SELECT
+                b.*,
+                COALESCE(bp_sum.total_paid, 0) AS total_paid,
+                (b.amount - COALESCE(bp_sum.total_paid, 0)) AS balance
             FROM bills b
             LEFT JOIN properties p ON b.property_id = p.id
+            LEFT JOIN (
+                SELECT bill_id, SUM(amount) AS total_paid
+                FROM bill_payments
+                GROUP BY bill_id
+            ) bp_sum ON bp_sum.bill_id = b.id
         ";
         $params = [];
         $where = [];
@@ -2652,8 +2660,16 @@ class Storage {
         if (empty($propertyIds)) return [];
         $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
         $sql = "
-            SELECT b.*
+            SELECT
+                b.*,
+                COALESCE(bp_sum.total_paid, 0) AS total_paid,
+                (b.amount - COALESCE(bp_sum.total_paid, 0)) AS balance
             FROM bills b
+            LEFT JOIN (
+                SELECT bill_id, SUM(amount) AS total_paid
+                FROM bill_payments
+                GROUP BY bill_id
+            ) bp_sum ON bp_sum.bill_id = b.id
             WHERE b.property_id IN ({$placeholders})
             ORDER BY b.created_at DESC
         ";
@@ -2663,7 +2679,19 @@ class Storage {
     }
 
     public function getBill($id) {
-        $stmt = $this->pdo->prepare("SELECT * FROM bills WHERE id = ?");
+        $stmt = $this->pdo->prepare("
+            SELECT
+                b.*,
+                COALESCE(bp_sum.total_paid, 0) AS total_paid,
+                (b.amount - COALESCE(bp_sum.total_paid, 0)) AS balance
+            FROM bills b
+            LEFT JOIN (
+                SELECT bill_id, SUM(amount) AS total_paid
+                FROM bill_payments
+                GROUP BY bill_id
+            ) bp_sum ON bp_sum.bill_id = b.id
+            WHERE b.id = ?
+        ");
         $stmt->execute([$id]);
         return $stmt->fetch();
     }
@@ -2769,10 +2797,17 @@ class Storage {
                 b.due_date,
                 b.issue_date,
                 b.account_number,
-                p.name AS property_name
+                p.name AS property_name,
+                COALESCE(bp_sum.total_paid, 0) AS total_paid,
+                (b.amount - COALESCE(bp_sum.total_paid, 0)) AS balance
             FROM bill_payments bp
             LEFT JOIN bills b ON bp.bill_id = b.id
             LEFT JOIN properties p ON b.property_id = p.id
+            LEFT JOIN (
+                SELECT bill_id, SUM(amount) AS total_paid
+                FROM bill_payments
+                GROUP BY bill_id
+            ) bp_sum ON bp_sum.bill_id = b.id
         ";
         $params = [];
         $where = [];
@@ -2797,6 +2832,14 @@ class Storage {
             $where[] = "bp.bill_id = ?";
             $params[] = $filters['billId'];
         }
+        if (!empty($filters['from'])) {
+            $where[] = "bp.payment_date >= ?";
+            $params[] = $filters['from'];
+        }
+        if (!empty($filters['to'])) {
+            $where[] = "bp.payment_date <= ?";
+            $params[] = $filters['to'];
+        }
 
         if (!empty($where)) {
             $sql .= " WHERE " . implode(" AND ", $where);
@@ -2809,7 +2852,7 @@ class Storage {
         return $stmt->fetchAll();
     }
 
-    public function getBillPaymentsByPropertyIds($propertyIds = []) {
+    public function getBillPaymentsByPropertyIds($propertyIds = [], $filters = []) {
         if (empty($propertyIds)) return [];
         $placeholders = implode(',', array_fill(0, count($propertyIds), '?'));
         $sql = "
@@ -2824,16 +2867,64 @@ class Storage {
                 b.due_date,
                 b.issue_date,
                 b.account_number,
-                p.name AS property_name
+                p.name AS property_name,
+                COALESCE(bp_sum.total_paid, 0) AS total_paid,
+                (b.amount - COALESCE(bp_sum.total_paid, 0)) AS balance
             FROM bill_payments bp
             LEFT JOIN bills b ON bp.bill_id = b.id
             LEFT JOIN properties p ON b.property_id = p.id
+            LEFT JOIN (
+                SELECT bill_id, SUM(amount) AS total_paid
+                FROM bill_payments
+                GROUP BY bill_id
+            ) bp_sum ON bp_sum.bill_id = b.id
             WHERE b.property_id IN ({$placeholders})
+        ";
+        $params = array_values($propertyIds);
+        if (!empty($filters['from'])) {
+            $sql .= " AND bp.payment_date >= ?";
+            $params[] = $filters['from'];
+        }
+        if (!empty($filters['to'])) {
+            $sql .= " AND bp.payment_date <= ?";
+            $params[] = $filters['to'];
+        }
+        $sql .= "
             ORDER BY bp.payment_date DESC, bp.created_at DESC
         ";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute(array_values($propertyIds));
+        $stmt->execute($params);
         return $stmt->fetchAll();
+    }
+
+    public function getBillPayment($paymentId) {
+        $stmt = $this->pdo->prepare("
+            SELECT
+                bp.*,
+                b.vendor_name,
+                b.category,
+                b.amount AS bill_amount,
+                b.status AS bill_status,
+                b.property_id,
+                b.landlord_id,
+                b.due_date,
+                b.issue_date,
+                b.account_number,
+                p.name AS property_name,
+                COALESCE(bp_sum.total_paid, 0) AS total_paid,
+                (b.amount - COALESCE(bp_sum.total_paid, 0)) AS balance
+            FROM bill_payments bp
+            LEFT JOIN bills b ON bp.bill_id = b.id
+            LEFT JOIN properties p ON b.property_id = p.id
+            LEFT JOIN (
+                SELECT bill_id, SUM(amount) AS total_paid
+                FROM bill_payments
+                GROUP BY bill_id
+            ) bp_sum ON bp_sum.bill_id = b.id
+            WHERE bp.id = ?
+        ");
+        $stmt->execute([$paymentId]);
+        return $stmt->fetch();
     }
 
     private function updateBillStatusAfterPayment($billId) {
@@ -2872,8 +2963,9 @@ class Storage {
             INSERT INTO bill_payments (id, bill_id, amount, payment_date, method, reference)
             VALUES (?, ?, ?, ?, ?, ?)
         ");
+        $paymentId = $this->generateUUID();
         $stmt->execute([
-            $this->generateUUID(),
+            $paymentId,
             $billId,
             $amount,
             $paymentDate,
@@ -2881,7 +2973,7 @@ class Storage {
             $data['reference'] ?? null
         ]);
         $this->updateBillStatusAfterPayment($billId);
-        return $this->getBill($billId);
+        return $this->getBillPayment($paymentId) ?: $this->getBill($billId);
     }
 
     // Helper: Update invoice status after payment

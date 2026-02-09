@@ -4,10 +4,11 @@ import { apiRequest, queryClient } from "@/lib/queryClient"
 import { useToast } from "@/hooks/use-toast"
 import { useFilter } from "@/contexts/FilterContext"
 import { formatDateWithOffset, usePropertyTimezoneOffset } from "@/lib/timezone"
-import { 
-  FileText, 
-  Plus, 
+import {
+  FileText,
+  Plus,
   Eye,
+  Download,
   Edit,
   Trash,
   AlertTriangle,
@@ -15,6 +16,8 @@ import {
   Clock,
   Loader2
 } from "lucide-react"
+import { jsPDF } from "jspdf"
+import autoTable from "jspdf-autotable"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +55,8 @@ type Bill = {
   propertyId?: string
   category: string
   amount: number
+  totalPaid?: number
+  balance?: number
   dueDate: string
   issueDate: string
   status: "draft" | "pending" | "paid" | "overdue"
@@ -130,6 +135,19 @@ export function Bills() {
     enabled: isLandlordSelected,
   })
 
+  const { data: invoiceSettings } = useQuery({
+    queryKey: ["/api/settings/invoice", selectedPropertyId, selectedLandlordId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/settings/invoice${params.toString() ? `?${params}` : ""}`
+      const response = await apiRequest("GET", url)
+      return await response.json()
+    },
+    enabled: isLandlordSelected,
+  })
+
   const createBillMutation = useMutation({
     mutationFn: async (payload: any) => {
       if (actionsDisabled) {
@@ -180,13 +198,15 @@ export function Bills() {
       return await response.json()
     },
     onSuccess: (payment) => {
+      const paidAmount = Number(payment?.amount ?? paymentData.amount ?? 0)
       toast({
         title: "Payment Successful",
-        description: `Payment of KSh ${payment.amount.toLocaleString()} has been processed successfully.`,
+        description: `Payment of KSh ${paidAmount.toLocaleString()} has been processed successfully.`,
       })
       setIsPaymentDialogOpen(false)
       setPaymentData({ billId: "", amount: "", method: "mpesa", reference: "" })
       queryClient.invalidateQueries({ queryKey: ["/api/bills"] })
+      queryClient.invalidateQueries({ queryKey: ["/api/bill-payments"] })
     },
     onError: (error: any) => {
       toast({
@@ -245,11 +265,75 @@ export function Bills() {
     setSelectedBill(bill)
     setPaymentData({
       billId: bill.id,
-      amount: bill.amount.toString(),
+      amount: String(bill.balance ?? bill.amount),
       method: "mpesa",
       reference: ""
     })
     setIsPaymentDialogOpen(true)
+  }
+
+  const { data: billPayments = [] } = useQuery({
+    queryKey: ["/api/bill-payments", selectedBill?.id],
+    queryFn: async () => {
+      if (!selectedBill?.id) return []
+      const response = await apiRequest("GET", `/api/bill-payments?billId=${selectedBill.id}`)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    },
+    enabled: Boolean(selectedBill?.id) && isViewDialogOpen,
+  })
+
+  const handleDownloadBillReceipt = (bill: any) => {
+    const doc = new jsPDF()
+    const companyName = invoiceSettings?.company_name ?? invoiceSettings?.companyName ?? "Company"
+    const companyEmail = invoiceSettings?.company_email ?? invoiceSettings?.companyEmail ?? ""
+    const companyPhone = invoiceSettings?.company_phone ?? invoiceSettings?.companyPhone ?? ""
+    const companyAddress = invoiceSettings?.company_address ?? invoiceSettings?.companyAddress ?? ""
+    const billTotalPaid = Number(bill.totalPaid ?? 0)
+    const billBalance = Number(bill.balance ?? (bill.amount - billTotalPaid))
+
+    doc.setFontSize(16)
+    doc.text("Bill Receipt", 14, 18)
+    doc.setFontSize(10)
+    doc.text(companyName, 14, 26)
+    if (companyAddress) doc.text(companyAddress, 14, 31)
+    if (companyEmail) doc.text(companyEmail, 14, 36)
+    if (companyPhone) doc.text(companyPhone, 14, 41)
+
+    doc.setFontSize(11)
+    doc.text(`Bill ID: ${bill.id}`, 14, 52)
+    doc.text(`Vendor: ${bill.vendor}`, 14, 58)
+    doc.text(`Property: ${bill.property ?? "-"}`, 14, 64)
+    doc.text(`Category: ${bill.category}`, 14, 70)
+    doc.text(`Issue Date: ${bill.issueDate}`, 14, 76)
+    doc.text(`Due Date: ${bill.dueDate}`, 14, 82)
+
+    autoTable(doc, {
+      startY: 88,
+      head: [["Amount", "Total Paid", "Balance"]],
+      body: [[
+        `KSh ${bill.amount.toLocaleString()}`,
+        `KSh ${billTotalPaid.toLocaleString()}`,
+        `KSh ${billBalance.toLocaleString()}`
+      ]]
+    })
+
+    const paymentRows = billPayments.map((payment: any) => ([
+      payment.payment_date ?? payment.paymentDate ?? "",
+      (payment.method ?? "").toUpperCase(),
+      `KSh ${Number(payment.amount ?? 0).toLocaleString()}`,
+      payment.reference ?? ""
+    ]))
+
+    if (paymentRows.length > 0) {
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 8,
+        head: [["Payment Date", "Method", "Amount", "Reference"]],
+        body: paymentRows
+      })
+    }
+
+    doc.save(`bill-${bill.id}.pdf`)
   }
 
   const propertyMap = Array.isArray(propertiesData)
@@ -260,19 +344,25 @@ export function Bills() {
     : {}
 
   const normalizedBills = Array.isArray(bills)
-    ? bills.map((bill: any) => ({
-        ...bill,
-        vendor: bill.vendor ?? bill.vendor_name ?? "",
-        propertyId: bill.propertyId ?? bill.property_id ?? "",
-        property: bill.property ?? propertyMap[String(bill.propertyId ?? bill.property_id)]?.name ?? "No property",
-        category: bill.category ?? "",
-        amount: Number(bill.amount ?? 0),
-        dueDate: bill.dueDate ?? bill.due_date ?? "",
-        issueDate: bill.issueDate ?? bill.issue_date ?? "",
-        status: (bill.status ?? "draft").toLowerCase(),
-        accountNumber: bill.accountNumber ?? bill.account_number ?? "",
-        description: bill.description ?? "",
-      }))
+    ? bills.map((bill: any) => {
+        const amount = Number(bill.amount ?? 0)
+        const totalPaid = Number(bill.total_paid ?? bill.totalPaid ?? 0)
+        return {
+          ...bill,
+          vendor: bill.vendor ?? bill.vendor_name ?? "",
+          propertyId: bill.propertyId ?? bill.property_id ?? "",
+          property: bill.property ?? propertyMap[String(bill.propertyId ?? bill.property_id)]?.name ?? "No property",
+          category: bill.category ?? "",
+          amount,
+          totalPaid,
+          balance: Number(bill.balance ?? (amount - totalPaid)),
+          dueDate: bill.dueDate ?? bill.due_date ?? "",
+          issueDate: bill.issueDate ?? bill.issue_date ?? "",
+          status: (bill.status ?? "draft").toLowerCase(),
+          accountNumber: bill.accountNumber ?? bill.account_number ?? "",
+          description: bill.description ?? "",
+        }
+      })
     : []
 
   const handleConfirmDraft = (bill: any) => {
@@ -596,9 +686,10 @@ export function Bills() {
                 <TableHead>Bill ID</TableHead>
                 <TableHead>Vendor</TableHead>
                 <TableHead>Property</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Due Date</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead>Balance</TableHead>
+              <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -609,9 +700,10 @@ export function Bills() {
                   <TableCell className="font-mono text-sm">{bill.id}</TableCell>
                   <TableCell className="font-medium">{bill.vendor}</TableCell>
                   <TableCell>{bill.property}</TableCell>
-                  <TableCell>{bill.category}</TableCell>
-                  <TableCell className="font-mono">KSh {bill.amount.toLocaleString()}</TableCell>
-                  <TableCell>{formatDateWithOffset(bill.dueDate, timezoneOffsetMinutes)}</TableCell>
+                <TableCell>{bill.category}</TableCell>
+                <TableCell className="font-mono">KSh {bill.amount.toLocaleString()}</TableCell>
+                <TableCell className="font-mono">KSh {Number(bill.balance ?? 0).toLocaleString()}</TableCell>
+                <TableCell>{formatDateWithOffset(bill.dueDate, timezoneOffsetMinutes)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {getStatusIcon(bill.status)}
@@ -628,6 +720,14 @@ export function Bills() {
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid={`button-download-${bill.id}`}
+                      onClick={() => handleDownloadBillReceipt(bill)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
                       {bill.status === "draft" && (
                         <>
                           <Button 
@@ -701,7 +801,7 @@ export function Bills() {
                     <SelectContent>
                       {normalizedBills.filter(bill => bill.status === "pending").map((bill) => (
                         <SelectItem key={bill.id} value={bill.id}>
-                          {bill.id} - {bill.vendor} - KSh {bill.amount.toLocaleString()}
+                          {bill.id} - {bill.vendor} - KSh {Number(bill.balance ?? bill.amount).toLocaleString()}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -723,6 +823,17 @@ export function Bills() {
                       <SelectItem value="cheque">Cheque</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <Label htmlFor="payment-amount">Payment Amount</Label>
+                  <Input
+                    id="payment-amount"
+                    type="number"
+                    min="0"
+                    placeholder="Enter amount to pay"
+                    value={paymentData.amount}
+                    onChange={(e) => setPaymentData((prev) => ({ ...prev, amount: e.target.value }))}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="payment-reference">Payment Reference</Label>
@@ -752,13 +863,19 @@ export function Bills() {
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                   <span className="text-sm font-medium">Total Outstanding Bills</span>
                   <span className="font-mono font-semibold">
-                    KSh {normalizedBills.filter(bill => bill.status === "pending").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
+                    KSh {normalizedBills
+                      .filter(bill => bill.status === "pending")
+                      .reduce((sum, bill) => sum + Number(bill.balance ?? 0), 0)
+                      .toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                   <span className="text-sm font-medium">Overdue Bills</span>
                   <span className="font-mono font-semibold text-destructive">
-                    KSh {normalizedBills.filter(bill => bill.status === "overdue").reduce((sum, bill) => sum + bill.amount, 0).toLocaleString()}
+                    KSh {normalizedBills
+                      .filter(bill => bill.status === "overdue")
+                      .reduce((sum, bill) => sum + Number(bill.balance ?? 0), 0)
+                      .toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
@@ -781,6 +898,101 @@ export function Bills() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className={`sm:max-w-[600px] vibrant-card ${billsCardVariants[(billsCardSeed + 4) % billsCardVariants.length]}`}>
+          <DialogHeader>
+            <DialogTitle>Bill Details</DialogTitle>
+            <DialogDescription>View bill details and download a receipt.</DialogDescription>
+          </DialogHeader>
+          {selectedBill && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-muted-foreground">Bill ID</div>
+                  <div className="font-mono">{selectedBill.id}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Vendor</div>
+                  <div className="font-medium">{selectedBill.vendor}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Property</div>
+                  <div>{selectedBill.property}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Category</div>
+                  <div>{selectedBill.category}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Amount</div>
+                  <div className="font-mono">KSh {selectedBill.amount.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Balance</div>
+                  <div className="font-mono">KSh {Number(selectedBill.balance ?? 0).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Issue Date</div>
+                  <div>{formatDateWithOffset(selectedBill.issueDate, timezoneOffsetMinutes)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Due Date</div>
+                  <div>{formatDateWithOffset(selectedBill.dueDate, timezoneOffsetMinutes)}</div>
+                </div>
+                {selectedBill.accountNumber && (
+                  <div className="col-span-2">
+                    <div className="text-muted-foreground">Account Number</div>
+                    <div>{selectedBill.accountNumber}</div>
+                  </div>
+                )}
+              </div>
+              {selectedBill.description && (
+                <div className="text-sm">
+                  <div className="text-muted-foreground">Description</div>
+                  <div>{selectedBill.description}</div>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button onClick={() => handleDownloadBillReceipt(selectedBill)}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Receipt
+                </Button>
+              </div>
+              <div>
+                <div className="text-sm font-semibold mb-2">Payments</div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Reference</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {billPayments.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                          No payments recorded for this bill.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {billPayments.map((payment: any) => (
+                      <TableRow key={payment.id}>
+                        <TableCell>{formatDateWithOffset(payment.payment_date ?? payment.paymentDate ?? "", timezoneOffsetMinutes)}</TableCell>
+                        <TableCell>{(payment.method ?? "").toUpperCase()}</TableCell>
+                        <TableCell>KSh {Number(payment.amount ?? 0).toLocaleString()}</TableCell>
+                        <TableCell>{payment.reference ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
