@@ -334,7 +334,8 @@ export function Settings() {
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string>("")
   const [logoPendingUrl, setLogoPendingUrl] = useState<string>("")
   const [logoLoadFailed, setLogoLoadFailed] = useState(false)
-  const displayLogoUrl = logoPreviewUrl || logoPendingUrl || invoiceSettings.logo_url
+  const defaultLogoUrl = "/leasemaster-c2-svg.svg"
+  const displayLogoUrl = logoPreviewUrl || logoPendingUrl || invoiceSettings.logo_url || defaultLogoUrl
   const resolvedLogoUrl =
     displayLogoUrl && displayLogoUrl.startsWith("/")
       ? `${window.location.origin}${displayLogoUrl}`
@@ -1147,6 +1148,9 @@ export function Settings() {
                     />
                   ) : (
                     <p className="mt-2 text-sm text-muted-foreground">No logo uploaded.</p>
+                  )}
+                  {!logoPreviewUrl && !logoPendingUrl && !invoiceSettings.logo_url && (
+                    <p className="mt-2 text-xs text-muted-foreground">Showing default LeaseMaster logo.</p>
                   )}
                 </div>
               </div>
