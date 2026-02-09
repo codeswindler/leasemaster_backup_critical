@@ -190,7 +190,7 @@ export function Landing() {
   }, heroMessages[0]);
   const [heroIndex, setHeroIndex] = useState(0);
   const heroTitleDurationMs = 600;
-  const heroPitchDelayMs = 200;
+  const heroPitchDelayMs = 3000;
   const heroPitchDurationMs = 500;
   const heroHoldMs = 5000;
   const heroCycleMs =
