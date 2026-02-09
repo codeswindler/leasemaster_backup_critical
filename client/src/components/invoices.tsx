@@ -654,6 +654,9 @@ export function Invoices() {
     const charges = invoiceItemsData.filter((item: any) => item.invoiceId === invoice.id)
     const amount = parseFloat(invoice.amount ?? 0)
     const paidAmount = paymentsByInvoice[invoice.id] || 0
+    const bfItem = charges.find((item: any) => (item.chargeCode ?? item.charge_code) === "balance_bf")
+    const bfAmount = bfItem ? parseFloat(bfItem.amount ?? 0) : 0
+    const currentAmount = Math.max(0, amount - bfAmount)
     const balance = Math.max(0, amount - paidAmount)
     const paymentStatus = balance <= 0 && amount > 0
       ? "paid"
@@ -706,6 +709,7 @@ export function Invoices() {
       propertyData: property,
       leaseData: lease,
       amount,
+      currentAmount,
       paidAmount,
       balance,
       paymentStatus,
@@ -1562,7 +1566,7 @@ export function Invoices() {
                   </TableCell>
                   <TableCell>{invoice.unit}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{invoice.property}</TableCell>
-                  <TableCell className="font-mono">KSh {invoice.amount.toLocaleString()}</TableCell>
+                  <TableCell className="font-mono">KSh {Number(invoice.currentAmount ?? invoice.amount).toLocaleString()}</TableCell>
                   <TableCell className={`font-mono ${invoice.isOverdue ? "text-red-600" : ""}`}>
                     KSh {invoice.balance.toLocaleString()}
                   </TableCell>
