@@ -146,7 +146,7 @@ export function Landing() {
 
       if (direction === 1 && index >= supportMessage.length) {
         direction = -1;
-        timeout = setTimeout(tick, 500);
+        timeout = setTimeout(tick, 15000);
         return;
       }
 
