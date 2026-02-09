@@ -508,7 +508,7 @@ export function Receipts() {
     allocationLeaseId ? String(invoice.leaseId ?? invoice.lease_id) === allocationLeaseId : false
   )
 
-  const downloadReceipt = (receipt: any) => {
+  const downloadReceipt = async (receipt: any) => {
     if (actionsDisabled) {
       toast({
         title: "Client Required",
