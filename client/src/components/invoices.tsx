@@ -722,16 +722,16 @@ export function Invoices() {
       doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
-      const billToY = lineY + 16
+      const billToY = lineY + 12
       doc.text("BILL TO", leftColX, billToY)
       doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, leftColX, billToY + 6)
       if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, leftColX, billToY + 11)
       if (invoice.tenantData?.phone) doc.text(`Phone: ${String(invoice.tenantData.phone)}`, leftColX, billToY + 16)
 
-      doc.text("PROPERTY", rightColX, billToY)
-      doc.text(String(invoice.property || "—"), rightColX, billToY + 6)
-      doc.text(`House: ${invoice.unit || "—"}`, rightColX, billToY + 11)
-      if (accountNumber) doc.text(`Account: ${accountNumber}`, rightColX, billToY + 16)
+      doc.text("PROPERTY", headerRightX, billToY)
+      doc.text(String(invoice.property || "—"), headerRightX, billToY + 6)
+      doc.text(`House: ${invoice.unit || "—"}`, headerRightX, billToY + 11)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, headerRightX, billToY + 16)
 
       const tableData = invoice.charges.map((charge: any, index: number) => [
         String(index + 1),
@@ -743,7 +743,7 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: billToY + 22,
+        startY: billToY + 20,
         theme: "grid",
         headStyles: { fillColor: [56, 78, 84], textColor: 255 },
         styles: { fontSize: 9 }

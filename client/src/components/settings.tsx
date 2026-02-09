@@ -335,7 +335,11 @@ export function Settings() {
   const [logoPendingUrl, setLogoPendingUrl] = useState<string>("")
   const [logoLoadFailed, setLogoLoadFailed] = useState(false)
   const displayLogoUrl = logoPreviewUrl || logoPendingUrl || invoiceSettings.logo_url
-  const showLogoPreview = Boolean(displayLogoUrl) && !logoLoadFailed
+  const resolvedLogoUrl =
+    displayLogoUrl && displayLogoUrl.startsWith("/")
+      ? `${window.location.origin}${displayLogoUrl}`
+      : displayLogoUrl
+  const showLogoPreview = Boolean(resolvedLogoUrl) && !logoLoadFailed
 
   useEffect(() => {
     if (smsData && typeof smsData === "object") {
@@ -1115,7 +1119,7 @@ export function Settings() {
                   <Label className="text-sm text-muted-foreground">Preview</Label>
                   {showLogoPreview ? (
                     <img
-                      src={displayLogoUrl}
+                      src={resolvedLogoUrl}
                       alt="Invoice logo"
                       className="mt-2 h-16 w-auto object-contain"
                       onLoad={(event) => {
