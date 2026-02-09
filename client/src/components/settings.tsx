@@ -229,8 +229,6 @@ export function Settings() {
       })
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [])
-  const displayLogoUrl = logoPreviewUrl || logoPendingUrl || invoiceSettings.logo_url
-  const showLogoPreview = Boolean(displayLogoUrl) && !logoLoadFailed
   const fixedOffsetOptions = useMemo(
     () => timezoneOffsets.map((offset) => ({ value: offset, label: `${offset} (Fixed offset)` })),
     []
@@ -336,6 +334,8 @@ export function Settings() {
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string>("")
   const [logoPendingUrl, setLogoPendingUrl] = useState<string>("")
   const [logoLoadFailed, setLogoLoadFailed] = useState(false)
+  const displayLogoUrl = logoPreviewUrl || logoPendingUrl || invoiceSettings.logo_url
+  const showLogoPreview = Boolean(displayLogoUrl) && !logoLoadFailed
 
   useEffect(() => {
     if (smsData && typeof smsData === "object") {
