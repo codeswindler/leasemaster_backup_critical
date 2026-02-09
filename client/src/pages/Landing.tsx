@@ -196,15 +196,13 @@ export function Landing() {
   const heroCycleMs =
     heroTitleDurationMs + heroPitchDelayMs + heroPitchDurationMs + heroHoldMs;
   const heroTitleVariants = {
-    hidden: { opacity: 0, y: 0 },
+    hidden: { opacity: 0 },
     visible: {
       opacity: 1,
-      y: 0,
       transition: { duration: heroTitleDurationMs / 1000, ease: "easeOut" },
     },
     exit: {
       opacity: 0,
-      y: 0,
       transition: { duration: 0.45, ease: "easeIn" },
     },
   };
