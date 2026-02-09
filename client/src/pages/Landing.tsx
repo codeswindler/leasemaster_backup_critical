@@ -192,7 +192,7 @@ export function Landing() {
   const heroTitleDurationMs = 600;
   const heroPitchDelayMs = 3000;
   const heroPitchDurationMs = 500;
-  const heroHoldMs = 5000;
+  const heroHoldMs = 6000;
   const heroCycleMs =
     heroTitleDurationMs + heroPitchDelayMs + heroPitchDurationMs + heroHoldMs;
 
