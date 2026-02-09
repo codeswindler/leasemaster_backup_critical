@@ -166,13 +166,14 @@ export function SingleInvoicing() {
 
   const isInvoiceSettingsConfigured = useMemo(() => {
     const settings = invoiceSettingsQuery.data || {}
+    const hasValue = (value: any) => typeof value === "string" ? value.trim().length > 0 : !!value
     return Boolean(
-      settings.company_name &&
-      settings.company_phone &&
-      settings.company_email &&
-      settings.company_address &&
-      settings.payment_options &&
-      settings.timezone_offset
+      hasValue(settings.company_name ?? settings.companyName) &&
+      hasValue(settings.company_phone ?? settings.companyPhone) &&
+      hasValue(settings.company_email ?? settings.companyEmail) &&
+      hasValue(settings.company_address ?? settings.companyAddress) &&
+      hasValue(settings.payment_options ?? settings.paymentOptions) &&
+      hasValue(settings.timezone_offset ?? settings.timezoneOffset)
     )
   }, [invoiceSettingsQuery.data])
 

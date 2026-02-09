@@ -331,6 +331,7 @@ export function Settings() {
   const [alertRules, setAlertRules] = useState<AlertRule[]>(defaultAlertRules)
   const [balanceInfo, setBalanceInfo] = useState<string>("")
   const [logoUploading, setLogoUploading] = useState(false)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string>("")
 
   useEffect(() => {
     if (smsData && typeof smsData === "object") {
@@ -385,6 +386,14 @@ export function Settings() {
       setInvoiceSettings(normalizeInvoiceSettings(invoiceData))
     }
   }, [invoiceData])
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl)
+      }
+    }
+  }, [logoPreviewUrl])
 
   const toggleFieldVisibility = (key: string) => {
     setShowFields((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -527,6 +536,10 @@ export function Settings() {
       })
       return
     }
+    setLogoPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
     const formData = new FormData()
     formData.append("logo", file)
     setLogoUploading(true)
@@ -541,12 +554,20 @@ export function Settings() {
         throw new Error(data?.error || "Logo upload failed")
       }
       setInvoiceSettings((prev) => ({ ...prev, logo_url: data.logo_url || "" }))
+      setLogoPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return ""
+      })
       toast({ title: "Logo uploaded" })
     } catch (error: any) {
       toast({
         title: "Logo upload failed",
         description: error?.message || "Unable to upload logo.",
         variant: "destructive"
+      })
+      setLogoPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return ""
       })
     } finally {
       setLogoUploading(false)
@@ -566,6 +587,10 @@ export function Settings() {
         throw new Error(data?.error || "Logo removal failed")
       }
       setInvoiceSettings((prev) => ({ ...prev, logo_url: "" }))
+      setLogoPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return ""
+      })
       toast({ title: "Logo removed" })
     } catch (error: any) {
       toast({
@@ -1086,9 +1111,9 @@ export function Settings() {
                 </div>
                 <div className="rounded-lg border p-3">
                   <Label className="text-sm text-muted-foreground">Preview</Label>
-                  {invoiceSettings.logo_url ? (
+                  {logoPreviewUrl || invoiceSettings.logo_url ? (
                     <img
-                      src={invoiceSettings.logo_url}
+                      src={logoPreviewUrl || invoiceSettings.logo_url}
                       alt="Invoice logo"
                       className="mt-2 h-16 w-auto object-contain"
                     />
