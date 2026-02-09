@@ -181,13 +181,27 @@ export function Landing() {
         "Transform your service and exponentially scale your business. Command every landlord relationship and property detail from your unified, powerful dashboard — your central hub for growth, control, and unparalleled client service.",
     },
   ];
+  const heroSizerMessage = heroMessages.reduce((longest, current) => {
+    const longestScore =
+      longest.titleLine1.length + longest.titleLine2.length + longest.pitch.length;
+    const currentScore =
+      current.titleLine1.length + current.titleLine2.length + current.pitch.length;
+    return currentScore > longestScore ? current : longest;
+  }, heroMessages[0]);
   const [heroIndex, setHeroIndex] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % heroMessages.length);
-    }, 15000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const startDelay = 2000;
+    const timeout = setTimeout(() => {
+      interval = setInterval(() => {
+        setHeroIndex((prev) => (prev + 1) % heroMessages.length);
+      }, 15000);
+    }, startDelay);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
   }, [heroMessages.length]);
 
 
@@ -849,36 +863,52 @@ export function Landing() {
               </div>
             </motion.div>
             
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -18 }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-              >
+            <div className="relative">
+              <div className="invisible">
                 <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
-                  {heroMessages[heroIndex].titleLine1}
+                  {heroSizerMessage.titleLine1}
                   <br />
                   <span className="text-blue-500 dark:text-blue-300">
-                    {heroMessages[heroIndex].titleLine2}
+                    {heroSizerMessage.titleLine2}
                   </span>
                 </h1>
-              </motion.div>
-            </AnimatePresence>
+                <p className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}>
+                  {heroSizerMessage.pitch}
+                </p>
+              </div>
+              <div className="absolute inset-0 flex flex-col items-center">
+                <AnimatePresence mode="sync" initial={false}>
+                  <motion.div
+                    key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -18 }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  >
+                    <h1 className={`text-5xl md:text-7xl font-bold mb-6 ${getTextContrastClass()}`}>
+                      {heroMessages[heroIndex].titleLine1}
+                      <br />
+                      <span className="text-blue-500 dark:text-blue-300">
+                        {heroMessages[heroIndex].titleLine2}
+                      </span>
+                    </h1>
+                  </motion.div>
+                </AnimatePresence>
 
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={heroMessages[heroIndex].pitch}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -18 }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
-                className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
-              >
-                {heroMessages[heroIndex].pitch}
-              </motion.p>
-            </AnimatePresence>
+                <AnimatePresence mode="sync" initial={false}>
+                  <motion.p
+                    key={heroMessages[heroIndex].pitch}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -18 }}
+                    transition={{ duration: 0.5, ease: "easeOut", delay: 0.05 }}
+                    className={`text-xl md:text-2xl mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
+                  >
+                    {heroMessages[heroIndex].pitch}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            </div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
