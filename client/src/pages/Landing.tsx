@@ -564,8 +564,6 @@ export function Landing() {
               src={propertyImages[currentImageIndex]}
               alt={`Luxury Property ${currentImageIndex + 1}`}
               className="absolute inset-0 w-full h-full object-cover"
-              loading={currentImageIndex === 0 ? "eager" : "lazy"}
-              decoding="async"
               style={{
                 filter: "brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)",
                 width: "100%",
