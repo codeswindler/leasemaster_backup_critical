@@ -139,10 +139,22 @@ export function Landing() {
     let timeout: ReturnType<typeof setTimeout>;
     let active = true;
 
+    const stored = sessionStorage.getItem("landingSupportTypedOnce");
+    if (stored === "true") {
+      setTypedSupportMessage(supportMessage);
+      return () => {
+        active = false;
+        clearTimeout(timeout);
+      };
+    }
+
     const tick = () => {
       if (!active) return;
       setTypedSupportMessage(supportMessage.slice(0, index));
-      if (index >= supportMessage.length) return;
+      if (index >= supportMessage.length) {
+        sessionStorage.setItem("landingSupportTypedOnce", "true");
+        return;
+      }
       index += 1;
       timeout = setTimeout(tick, 30);
     };
@@ -1610,9 +1622,14 @@ export function Landing() {
                     Working Hours
                   </h3>
                   <p className={`text-base ${getTextContrastClass()}`}>24/7 Available</p>
-                  <p className={`text-sm text-muted-foreground leading-relaxed min-h-[2.5rem] ${getTextContrastClass()}`}>
-                    {typedSupportMessage}
-                  </p>
+                  <div className={`text-sm text-muted-foreground leading-relaxed ${getTextContrastClass()} relative`}>
+                    <span className="invisible block" aria-hidden="true">
+                      {supportMessage}
+                    </span>
+                    <span className="absolute inset-0">
+                      {typedSupportMessage}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
