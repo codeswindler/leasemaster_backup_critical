@@ -189,20 +189,19 @@ export function Landing() {
     return currentScore > longestScore ? current : longest;
   }, heroMessages[0]);
   const [heroIndex, setHeroIndex] = useState(0);
+  const heroTitleDurationMs = 600;
+  const heroPitchDelayMs = 200;
+  const heroPitchDurationMs = 500;
+  const heroHoldMs = 5000;
+  const heroCycleMs =
+    heroTitleDurationMs + heroPitchDelayMs + heroPitchDurationMs + heroHoldMs;
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    const startDelay = 2000;
     const timeout = setTimeout(() => {
-      interval = setInterval(() => {
-        setHeroIndex((prev) => (prev + 1) % heroMessages.length);
-      }, 15000);
-    }, startDelay);
-    return () => {
-      clearTimeout(timeout);
-      if (interval) clearInterval(interval);
-    };
-  }, [heroMessages.length]);
+      setHeroIndex((prev) => (prev + 1) % heroMessages.length);
+    }, heroCycleMs);
+    return () => clearTimeout(timeout);
+  }, [heroCycleMs, heroIndex, heroMessages.length]);
 
 
   useEffect(() => {
@@ -891,10 +890,14 @@ export function Landing() {
                 <AnimatePresence mode="sync" initial={false}>
                   <motion.div
                     key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.7, ease: "easeOut", type: "tween" }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{
+                      duration: heroTitleDurationMs / 1000,
+                      ease: "easeOut",
+                      type: "tween",
+                    }}
                     style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                   >
                     <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
@@ -910,10 +913,15 @@ export function Landing() {
                 <AnimatePresence mode="sync" initial={false}>
                   <motion.p
                     key={heroMessages[heroIndex].pitch}
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.7, ease: "easeOut", type: "tween", delay: 0.05 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{
+                      duration: heroPitchDurationMs / 1000,
+                      ease: "easeOut",
+                      type: "tween",
+                      delay: heroPitchDelayMs / 1000,
+                    }}
                     className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
                     style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                   >
