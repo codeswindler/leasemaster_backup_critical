@@ -136,26 +136,27 @@ export function Landing() {
 
   useEffect(() => {
     let index = 0;
+    let direction = 1;
     let timeout: ReturnType<typeof setTimeout>;
     let active = true;
-
-    const stored = sessionStorage.getItem("landingSupportTypedOnce");
-    if (stored === "true") {
-      setTypedSupportMessage(supportMessage);
-      return () => {
-        active = false;
-        clearTimeout(timeout);
-      };
-    }
 
     const tick = () => {
       if (!active) return;
       setTypedSupportMessage(supportMessage.slice(0, index));
-      if (index >= supportMessage.length) {
-        sessionStorage.setItem("landingSupportTypedOnce", "true");
+
+      if (direction === 1 && index >= supportMessage.length) {
+        direction = -1;
+        timeout = setTimeout(tick, 900);
         return;
       }
-      index += 1;
+
+      if (direction === -1 && index <= 0) {
+        direction = 1;
+        timeout = setTimeout(tick, 350);
+        return;
+      }
+
+      index += direction;
       timeout = setTimeout(tick, 30);
     };
 
