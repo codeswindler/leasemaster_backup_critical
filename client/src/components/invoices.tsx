@@ -675,48 +675,55 @@ export function Invoices() {
       const accountPrefix = propertyMatch?.accountPrefix ?? propertyMatch?.account_prefix ?? ""
       const accountNumber = accountPrefix && invoice.unit ? `${accountPrefix}${invoice.unit}` : ""
 
-      let headerStartX = 20
       if (resolvedLogoUrl) {
         try {
           const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
           doc.addImage(logoDataUrl, format, 20, 12, 24, 18)
-          headerStartX = 50
         } catch {
-          headerStartX = 20
         }
       }
-
-      doc.setFontSize(14)
-      doc.text(companyName.toUpperCase(), headerStartX, 20)
-      doc.setFontSize(9)
-      if (companyAddress) doc.text(companyAddress, headerStartX, 26)
-      if (companyPhone) doc.text(`Tel: ${companyPhone}`, headerStartX, 31)
-      if (companyEmail) doc.text(`Email: ${companyEmail}`, headerStartX, 36)
-
       const headerRightX = 150
       doc.setFontSize(11)
       doc.text(`Invoice #${invoiceNumber}`, headerRightX, 20)
-      doc.setFontSize(9)
-      if (companyName) doc.text(companyName, headerRightX, 26)
-      if (companyAddress) doc.text(companyAddress, headerRightX, 31)
-      if (companyPhone) doc.text(`Tel: ${companyPhone}`, headerRightX, 36)
-      if (companyEmail) doc.text(`Email: ${companyEmail}`, headerRightX, 41)
-      doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, headerRightX, 47)
-      doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, headerRightX, 52)
 
-      doc.line(20, 42, 190, 42)
+      doc.setFontSize(9)
+      let detailsY = 26
+      if (companyName) {
+        doc.text(companyName, headerRightX, detailsY)
+        detailsY += 5
+      }
+      if (companyAddress) {
+        doc.text(companyAddress, headerRightX, detailsY)
+        detailsY += 5
+      }
+      if (companyPhone) {
+        doc.text(`Tel: ${companyPhone}`, headerRightX, detailsY)
+        detailsY += 5
+      }
+      if (companyEmail) {
+        doc.text(`Email: ${companyEmail}`, headerRightX, detailsY)
+        detailsY += 5
+      }
+
+      const dateY = Math.max(detailsY + 4, 47)
+      doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
+      doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, headerRightX, dateY + 5)
+
+      const lineY = dateY + 13
+      doc.line(20, lineY, 190, lineY)
 
       doc.setFontSize(10)
-      doc.text("BILL TO", 20, 62)
-      doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, 20, 68)
-      if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, 20, 73)
-      if (invoice.tenantData?.phone) doc.text(`Phone: ${String(invoice.tenantData.phone)}`, 20, 78)
+      const billToY = lineY + 20
+      doc.text("BILL TO", 20, billToY)
+      doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, 20, billToY + 6)
+      if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, 20, billToY + 11)
+      if (invoice.tenantData?.phone) doc.text(`Phone: ${String(invoice.tenantData.phone)}`, 20, billToY + 16)
 
-      doc.text("PROPERTY", 120, 62)
-      doc.text(String(invoice.property || "—"), 120, 68)
-      doc.text(`House: ${invoice.unit || "—"}`, 120, 73)
-      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, 78)
+      doc.text("PROPERTY", 120, billToY)
+      doc.text(String(invoice.property || "—"), 120, billToY + 6)
+      doc.text(`House: ${invoice.unit || "—"}`, 120, billToY + 11)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, billToY + 16)
 
       const tableData = invoice.charges.map((charge: any, index: number) => [
         String(index + 1),
@@ -728,7 +735,7 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: 90,
+        startY: billToY + 28,
         theme: "grid",
         headStyles: { fillColor: [56, 78, 84], textColor: 255 },
         styles: { fontSize: 9 }
