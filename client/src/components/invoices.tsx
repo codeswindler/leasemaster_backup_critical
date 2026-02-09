@@ -690,24 +690,29 @@ export function Invoices() {
       if (companyPhone) doc.text(`Tel: ${companyPhone}`, headerStartX, 31)
       if (companyEmail) doc.text(`Email: ${companyEmail}`, headerStartX, 36)
 
+      const headerRightX = 150
       doc.setFontSize(11)
-      doc.text(`Invoice #${invoiceNumber}`, 150, 20)
+      doc.text(`Invoice #${invoiceNumber}`, headerRightX, 20)
       doc.setFontSize(9)
-      doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, 150, 26)
-      doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, 150, 31)
+      if (companyName) doc.text(companyName, headerRightX, 26)
+      if (companyAddress) doc.text(companyAddress, headerRightX, 31)
+      if (companyPhone) doc.text(`Tel: ${companyPhone}`, headerRightX, 36)
+      if (companyEmail) doc.text(`Email: ${companyEmail}`, headerRightX, 41)
+      doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, headerRightX, 47)
+      doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, headerRightX, 52)
 
       doc.line(20, 42, 190, 42)
 
       doc.setFontSize(10)
-      doc.text("BILL TO", 20, 52)
-      doc.text(String(invoice.tenant || "Tenant"), 20, 58)
-      if (invoice.tenantData?.email) doc.text(String(invoice.tenantData.email), 20, 63)
-      if (invoice.tenantData?.phone) doc.text(String(invoice.tenantData.phone), 20, 68)
+      doc.text("BILL TO", 20, 62)
+      doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, 20, 68)
+      if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, 20, 73)
+      if (invoice.tenantData?.phone) doc.text(`Phone: ${String(invoice.tenantData.phone)}`, 20, 78)
 
-      doc.text("PROPERTY", 120, 52)
-      doc.text(String(invoice.property || "—"), 120, 58)
-      doc.text(`House: ${invoice.unit || "—"}`, 120, 63)
-      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, 68)
+      doc.text("PROPERTY", 120, 62)
+      doc.text(String(invoice.property || "—"), 120, 68)
+      doc.text(`House: ${invoice.unit || "—"}`, 120, 73)
+      if (accountNumber) doc.text(`Account: ${accountNumber}`, 120, 78)
 
       const tableData = invoice.charges.map((charge: any, index: number) => [
         String(index + 1),
@@ -719,7 +724,7 @@ export function Invoices() {
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: 78,
+        startY: 90,
         theme: "grid",
         headStyles: { fillColor: [56, 78, 84], textColor: 255 },
         styles: { fontSize: 9 }

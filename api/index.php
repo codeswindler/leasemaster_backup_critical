@@ -2485,8 +2485,11 @@ try {
                 $extension = $mimeType === 'image/png' ? 'png' : 'jpg';
                 $publicRoot = realpath(__DIR__ . '/../public') ?: (__DIR__ . '/../public');
                 $uploadDir = $publicRoot . '/uploads/invoice-logos';
-                if (!is_dir($uploadDir) && !mkdir($uploadDir, 0777, true)) {
+                if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true)) {
                     sendJson(['error' => 'Failed to create logo directory'], 500);
+                }
+                if (!is_writable($uploadDir) && !@chmod($uploadDir, 0775)) {
+                    sendJson(['error' => 'Logo directory is not writable'], 500);
                 }
                 $existingSettings = $storage->getInvoiceSettings($scopePropertyId, $scopeLandlordId);
                 if (!empty($existingSettings['logo_url'])) {
@@ -2500,6 +2503,7 @@ try {
                 if (!move_uploaded_file($file['tmp_name'], $destination)) {
                     sendJson(['error' => 'Failed to save logo'], 500);
                 }
+                @chmod($destination, 0644);
                 $logoUrl = '/uploads/invoice-logos/' . $fileName;
                 $storage->saveInvoiceSettings($scopePropertyId, $scopeLandlordId, [
                     'logo_url' => $logoUrl
