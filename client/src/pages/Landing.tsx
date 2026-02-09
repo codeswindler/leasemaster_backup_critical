@@ -891,10 +891,10 @@ export function Landing() {
                 <AnimatePresence mode="sync" initial={false}>
                   <motion.div
                     key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -16 }}
-                    transition={{ duration: 0.65, ease: "easeOut" }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.7, ease: "easeOut", type: "tween" }}
                     style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                   >
                     <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
@@ -910,10 +910,10 @@ export function Landing() {
                 <AnimatePresence mode="sync" initial={false}>
                   <motion.p
                     key={heroMessages[heroIndex].pitch}
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -16 }}
-                    transition={{ duration: 0.65, ease: "easeOut", delay: 0.05 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.7, ease: "easeOut", type: "tween", delay: 0.05 }}
                     className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
                     style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                   >
