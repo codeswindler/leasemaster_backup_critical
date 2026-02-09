@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getPaletteByKey, getSessionSeed } from "@/lib/palette";
 
 type ResetPasswordDialogProps = {
   isOpen: boolean;
@@ -30,11 +29,10 @@ export function ResetPasswordDialog({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const hasToken = Boolean(token);
-  const dialogPaletteSeed = useMemo(() => getSessionSeed("reset-password-dialog"), []);
-  const palette = useMemo(
-    () => getPaletteByKey(`${accountType}-reset-dialog`, dialogPaletteSeed),
-    [accountType, dialogPaletteSeed]
-  );
+  const dialogClassName =
+    accountType === "agent"
+      ? "max-w-md border-2 shadow-2xl backdrop-blur-2xl bg-white/80 dark:bg-background/20"
+      : "max-w-md border-2 shadow-2xl backdrop-blur-2xl bg-background/20 dark:bg-background/20";
 
   useEffect(() => {
     if (!isOpen) {
@@ -139,9 +137,7 @@ export function ResetPasswordDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogChange}>
-      <DialogContent
-        className={`max-w-md bg-background/85 backdrop-blur-md border border-border/40 shadow-2xl ${palette.card} ${palette.border}`}
-      >
+      <DialogContent className={dialogClassName}>
         <DialogHeader>
           <DialogTitle>{hasToken ? "Set New Password" : "Reset Password"}</DialogTitle>
           <DialogDescription>
@@ -175,11 +171,7 @@ export function ResetPasswordDialog({
                 required
               />
             </div>
-            <Button
-              type="submit"
-              className={`w-full ${palette.accentBg} ${palette.accentText} hover:opacity-90`}
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -202,11 +194,7 @@ export function ResetPasswordDialog({
                 required
               />
             </div>
-            <Button
-              type="submit"
-              className={`w-full ${palette.accentBg} ${palette.accentText} hover:opacity-90`}
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
