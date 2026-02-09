@@ -742,7 +742,8 @@ export function Invoices() {
       const invoiceSettings = invoiceSettingsQuery.data || {}
       const resolveSetting = (snakeKey: string, camelKey: string, fallback = "") =>
         invoiceSettings[snakeKey] ?? invoiceSettings[camelKey] ?? fallback
-      const logoUrl = resolveSetting("logo_url", "logoUrl", "/leasemaster-c2-svg.svg")
+      const defaultLogoUrl = "/leasemaster-c2-svg.svg"
+      const logoUrl = resolveSetting("logo_url", "logoUrl") || defaultLogoUrl
       const resolvedLogoUrl =
         logoUrl && logoUrl.startsWith("/")
           ? `${window.location.origin}${logoUrl}`
@@ -767,8 +768,8 @@ export function Invoices() {
       const rightColX = pageWidth / 2 + 15
 
       if (resolvedLogoUrl) {
-        try {
-          const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl)
+        const tryDrawLogo = async (url: string) => {
+          const logoDataUrl = await loadImageAsDataUrl(url)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
           const { width: logoW, height: logoH } = await getImageDimensions(logoDataUrl)
           const maxLogoW = 50
@@ -777,7 +778,16 @@ export function Invoices() {
           const drawW = logoW * logoScale
           const drawH = logoH * logoScale
           doc.addImage(logoDataUrl, format, leftColX, 16, drawW, drawH)
+        }
+        try {
+          await tryDrawLogo(resolvedLogoUrl)
         } catch {
+          if (logoUrl !== defaultLogoUrl) {
+            try {
+              await tryDrawLogo(`${window.location.origin}${defaultLogoUrl}`)
+            } catch {
+            }
+          }
         }
       }
       const headerRightX = rightColX + 10
