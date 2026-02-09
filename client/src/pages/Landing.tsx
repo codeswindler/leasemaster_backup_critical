@@ -567,7 +567,7 @@ export function Landing() {
               loading={currentImageIndex === 0 ? "eager" : "lazy"}
               decoding="async"
               style={{
-                filter: "brightness(0.5) contrast(0.9) saturate(0.8) blur(2px)",
+                filter: "brightness(0.5) contrast(0.9) saturate(0.8)",
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
@@ -592,8 +592,11 @@ export function Landing() {
               }}
             />
 
-            {/* Dimmed overlay for better text readability */}
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/50" style={{ zIndex: 1 }} />
+            {/* Dimmed/blurred overlay for better text readability */}
+            <div
+              className="absolute inset-0 bg-black/40 dark:bg-black/50"
+              style={{ zIndex: 1, backdropFilter: "blur(2px)" }}
+            />
           </motion.div>
         </AnimatePresence>
       </div>
@@ -889,6 +892,7 @@ export function Landing() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -16 }}
                     transition={{ duration: 0.65, ease: "easeOut" }}
+                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                   >
                     <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
                       {heroMessages[heroIndex].titleLine1}
@@ -908,6 +912,7 @@ export function Landing() {
                     exit={{ opacity: 0, y: -16 }}
                     transition={{ duration: 0.65, ease: "easeOut", delay: 0.05 }}
                     className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
+                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                   >
                     {heroMessages[heroIndex].pitch}
                   </motion.p>
