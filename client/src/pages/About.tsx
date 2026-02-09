@@ -125,18 +125,18 @@ export function About() {
 
       if (direction === 1 && index >= supportMessage.length) {
         direction = -1;
-        timeout = setTimeout(tick, 1400);
+        timeout = setTimeout(tick, 500);
         return;
       }
 
       if (direction === -1 && index <= 0) {
         direction = 1;
-        timeout = setTimeout(tick, 500);
+        timeout = setTimeout(tick, 200);
         return;
       }
 
       index += direction;
-      timeout = setTimeout(tick, 45);
+      timeout = setTimeout(tick, 25);
     };
 
     tick();
@@ -1186,9 +1186,14 @@ export function About() {
                       Working Hours
                     </h3>
                     <p className={`text-lg ${getTextContrastClass()}`}>24/7 Available</p>
-                    <p className={`text-sm text-muted-foreground ${getTextContrastClass()}`}>
-                      {typedSupportMessage}
-                    </p>
+                    <div className={`text-sm text-muted-foreground leading-relaxed ${getTextContrastClass()} relative`}>
+                      <span className="invisible block" aria-hidden="true">
+                        {supportMessage}
+                      </span>
+                      <span className="absolute inset-0">
+                        {typedSupportMessage}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
