@@ -128,6 +128,39 @@ export function Invoices() {
     })
   }
 
+  const getConsumptionMonthKey = (dateValue: string) => {
+    if (!dateValue) return ""
+    const date = new Date(dateValue)
+    if (Number.isNaN(date.getTime())) return ""
+    const consumptionDate = new Date(date.getFullYear(), date.getMonth() - 1, 1)
+    return `${consumptionDate.getFullYear()}-${String(consumptionDate.getMonth() + 1).padStart(2, "0")}`
+  }
+
+  const getReadingTimestamp = (reading: any) => {
+    const timestampValue =
+      reading.lastModifiedAt ||
+      reading.createdAt ||
+      reading.last_modified_at ||
+      reading.created_at ||
+      reading.readingDate ||
+      reading.reading_date
+    const timestamp = timestampValue ? new Date(timestampValue).getTime() : 0
+    return Number.isFinite(timestamp) ? timestamp : 0
+  }
+
+  const getReadingValues = (reading: any) => {
+    const currentValue = Number(reading?.current_reading ?? reading?.currentReading ?? 0)
+    const previousValue = Number(reading?.previous_reading ?? reading?.previousReading ?? 0)
+    const consumption = Number(
+      reading?.consumption ?? (Number.isFinite(currentValue) ? currentValue - previousValue : 0)
+    )
+    return {
+      previous: Number.isFinite(previousValue) ? previousValue : 0,
+      current: Number.isFinite(currentValue) ? currentValue : 0,
+      consumption: Number.isFinite(consumption) ? consumption : 0,
+    }
+  }
+
   const updateInvoiceStatus = async (invoiceId: string, status: string) => {
     await apiRequest("PUT", `/api/invoices/${invoiceId}`, { status })
   }
@@ -239,6 +272,20 @@ export function Invoices() {
       if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
       if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
       const url = `/api/invoice-items${params.toString() ? `?${params}` : ''}`
+      const response = await apiRequest("GET", url)
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    },
+    enabled: isLandlordSelected,
+  })
+  const waterReadingsQuery = useQuery<any[]>({
+    queryKey: ['/api/water-readings', selectedPropertyId, selectedLandlordId, selectedAgentId],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (selectedAgentId) params.append("agentId", selectedAgentId)
+      if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
+      if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+      const url = `/api/water-readings${params.toString() ? `?${params}` : ''}`
       const response = await apiRequest("GET", url)
       const data = await response.json()
       return Array.isArray(data) ? data : []
@@ -400,6 +447,7 @@ export function Invoices() {
   // Extract data with fallbacks
   const invoicesData = invoicesQuery.data || []
   const invoiceItemsData = invoiceItemsQuery.data || []
+  const waterReadings = waterReadingsQuery.data || []
   const tenantsData = tenantsQuery.data || []
   const unitsData = unitsQuery.data || []
   const propertiesData = propertiesQuery.data || []
@@ -600,6 +648,30 @@ export function Invoices() {
       dueEndLocalMs < nowInAccountMs &&
       balance > 0
 
+    const issueDateValue = invoice.issueDate || invoice.createdAt || invoice.issue_date || invoice.created_at
+    const consumptionMonthKey = getConsumptionMonthKey(issueDateValue)
+    const waterReading = (() => {
+      if (!unitId || !consumptionMonthKey) return null
+      let selected = null
+      let selectedTs = 0
+      waterReadings.forEach((reading: any) => {
+        const readingUnitId = reading.unitId ?? reading.unit_id
+        if (String(readingUnitId) !== String(unitId)) return
+        const readingDateValue = reading.readingDate ?? reading.reading_date ?? reading.createdAt ?? reading.created_at
+        const readingDate = new Date(readingDateValue)
+        if (Number.isNaN(readingDate.getTime())) return
+        const monthKey = `${readingDate.getFullYear()}-${String(readingDate.getMonth() + 1).padStart(2, "0")}`
+        if (monthKey !== consumptionMonthKey) return
+        const ts = getReadingTimestamp(reading)
+        if (!selected || ts > selectedTs) {
+          selected = reading
+          selectedTs = ts
+        }
+      })
+      return selected
+    })()
+    const waterSummary = waterReading ? getReadingValues(waterReading) : null
+
     return {
       ...invoice,
       tenant: tenant?.fullName || 'Direct Billing',
@@ -617,8 +689,10 @@ export function Invoices() {
       workflowStatus: invoice.status,
       charges: charges.map((charge: any) => ({
         name: charge.description,
-        amount: parseFloat(charge.amount)
-      }))
+        amount: parseFloat(charge.amount),
+        chargeCode: charge.chargeCode ?? charge.charge_code,
+      })),
+      waterSummary,
     }
   })
 
@@ -697,12 +771,12 @@ export function Invoices() {
           const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl)
           const format = logoDataUrl.includes("image/png") ? "PNG" : "JPEG"
           const { width: logoW, height: logoH } = await getImageDimensions(logoDataUrl)
-          const maxLogoW = 40
-          const maxLogoH = 22
+          const maxLogoW = 50
+          const maxLogoH = 28
           const logoScale = Math.min(maxLogoW / logoW, maxLogoH / logoH, 1)
           const drawW = logoW * logoScale
           const drawH = logoH * logoScale
-          doc.addImage(logoDataUrl, format, leftColX, 12, drawW, drawH)
+          doc.addImage(logoDataUrl, format, leftColX, 16, drawW, drawH)
         } catch {
         }
       }
@@ -733,11 +807,11 @@ export function Invoices() {
       doc.text(`Date: ${formatDateWithOffset(invoiceDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
       doc.text(`Due: ${formatDateWithOffset(invoice.dueDate, timezoneOffsetMinutes)}`, headerRightX, dateY + 5)
 
-      const lineY = dateY + 8
+      const lineY = dateY + 7
       doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
-      const billToY = lineY + 10
+      const billToY = lineY + 8
       doc.text("BILL TO", leftColX, billToY)
       doc.text(`Name: ${String(invoice.tenant || "Tenant")}`, leftColX, billToY + 6)
       if (invoice.tenantData?.email) doc.text(`Email: ${String(invoice.tenantData.email)}`, leftColX, billToY + 11)
@@ -748,17 +822,24 @@ export function Invoices() {
       doc.text(`House: ${invoice.unit || "—"}`, headerRightX, billToY + 11)
       if (accountNumber) doc.text(`Account: ${accountNumber}`, headerRightX, billToY + 16)
 
-      const tableData = invoice.charges.map((charge: any, index: number) => [
-        String(index + 1),
-        charge.name,
-        charge.description || "",
-        `KES ${Number(charge.amount || 0).toLocaleString()}`
-      ])
+      const tableData = invoice.charges.map((charge: any, index: number) => {
+        const isWater = String(charge.chargeCode || "").toLowerCase() === "water" ||
+          String(charge.name || "").toLowerCase().includes("water")
+        const waterSummary = isWater && invoice.waterSummary
+          ? `Prev: ${invoice.waterSummary.previous} | Curr: ${invoice.waterSummary.current} | Used: ${invoice.waterSummary.consumption}`
+          : ""
+        return [
+          String(index + 1),
+          charge.name,
+          waterSummary,
+          `KES ${Number(charge.amount || 0).toLocaleString()}`
+        ]
+      })
 
       autoTable(doc, {
         head: [["#", "Item", "Description", "Total"]],
         body: tableData,
-        startY: billToY + 18,
+        startY: billToY + 16,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
         styles: { fontSize: 9 }
@@ -773,6 +854,7 @@ export function Invoices() {
       const totalsH = 24
       doc.setFontSize(10)
       doc.rect(totalsX - 2, totalsY - 4, totalsW + 4, totalsH + 8)
+      doc.setTextColor(0, 105, 80)
       doc.text(`Sub - Total: KES ${Number(invoice.amount || 0).toLocaleString()}`, totalsX, totalsY + 4)
       doc.text(`Paid: KES ${paid.toLocaleString()}`, totalsX, totalsY + 10)
       doc.text(`Balance: KES ${balance.toLocaleString()}`, totalsX, totalsY + 16)
@@ -783,6 +865,7 @@ export function Invoices() {
           doc.text(`- ${line}`, leftColX, finalY + 16 + idx * 5)
         })
       }
+      doc.setTextColor(0, 0, 0)
 
       doc.save(`${unitLabel}-${formattedDate}-invoice.pdf`)
       
