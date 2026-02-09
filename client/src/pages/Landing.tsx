@@ -196,7 +196,7 @@ export function Landing() {
   const heroCycleMs =
     heroTitleDurationMs + heroPitchDelayMs + heroPitchDurationMs + heroHoldMs;
   const heroTitleVariants = {
-    hidden: { opacity: 0, y: 14 },
+    hidden: { opacity: 0, y: 0 },
     visible: {
       opacity: 1,
       y: 0,
