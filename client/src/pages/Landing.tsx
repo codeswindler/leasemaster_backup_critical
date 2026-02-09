@@ -886,7 +886,7 @@ export function Landing() {
                   {heroSizerMessage.pitch}
                 </p>
               </div>
-              <div className="absolute inset-0 flex flex-col items-center">
+              <div className="absolute inset-0">
                 <AnimatePresence mode="sync" initial={false}>
                   <motion.div
                     key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
@@ -897,6 +897,7 @@ export function Landing() {
                       duration: heroTitleDurationMs / 1000,
                       ease: "easeOut",
                     }}
+                    className="absolute inset-0 flex flex-col items-center"
                     style={{ willChange: "opacity" }}
                   >
                     <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
