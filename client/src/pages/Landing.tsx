@@ -933,10 +933,11 @@ export function Landing() {
             >
               <Button 
                 size="lg" 
+                variant="outline"
                 className={`text-sm px-5 py-3 gap-2 group border-2 ${getButtonContrastClass()}`}
                 onClick={handleAgentLogin}
               >
-                <Play className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                <Play className="h-5 w-5 animated-login-arrow" />
                 Agent Sign In
               </Button>
               <Button 
