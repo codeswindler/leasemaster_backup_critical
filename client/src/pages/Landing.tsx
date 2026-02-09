@@ -195,34 +195,6 @@ export function Landing() {
   const heroHoldMs = 5000;
   const heroCycleMs =
     heroTitleDurationMs + heroPitchDelayMs + heroPitchDurationMs + heroHoldMs;
-  const heroTitleVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { duration: heroTitleDurationMs / 1000, ease: "easeOut" },
-    },
-    exit: {
-      opacity: 0,
-      transition: { duration: 0.45, ease: "easeIn" },
-    },
-  };
-  const heroPitchVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: heroPitchDurationMs / 1000,
-        ease: "easeOut",
-        delay: heroPitchDelayMs / 1000,
-      },
-    },
-    exit: {
-      opacity: 0,
-      y: 0,
-      transition: { duration: 0.45, ease: "easeIn" },
-    },
-  };
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -918,11 +890,14 @@ export function Landing() {
                 <AnimatePresence mode="sync" initial={false}>
                   <motion.div
                     key={`${heroMessages[heroIndex].titleLine1}-${heroMessages[heroIndex].titleLine2}`}
-                    variants={heroTitleVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{
+                      duration: heroTitleDurationMs / 1000,
+                      ease: "easeOut",
+                    }}
+                    style={{ willChange: "opacity" }}
                   >
                     <h1 className={`text-4xl md:text-6xl leading-tight font-bold mb-6 ${getTextContrastClass()}`}>
                       {heroMessages[heroIndex].titleLine1}
@@ -931,21 +906,20 @@ export function Landing() {
                         {heroMessages[heroIndex].titleLine2}
                       </span>
                     </h1>
+                    <motion.p
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: heroPitchDurationMs / 1000,
+                        ease: "easeOut",
+                        delay: heroPitchDelayMs / 1000,
+                      }}
+                      className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
+                      style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
+                    >
+                      {heroMessages[heroIndex].pitch}
+                    </motion.p>
                   </motion.div>
-                </AnimatePresence>
-
-                <AnimatePresence mode="sync" initial={false}>
-                  <motion.p
-                    key={heroMessages[heroIndex].pitch}
-                    variants={heroPitchVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    className={`text-lg md:text-xl leading-relaxed mb-8 max-w-2xl mx-auto ${getTextContrastClass()}`}
-                    style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
-                  >
-                    {heroMessages[heroIndex].pitch}
-                  </motion.p>
                 </AnimatePresence>
               </div>
             </div>
