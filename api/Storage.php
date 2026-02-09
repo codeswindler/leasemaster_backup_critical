@@ -1928,6 +1928,7 @@ class Storage {
             $invoiceNumber = "INV-TEMP-$invoiceUuid";
         }
         
+        $newInvoiceId = null;
         if ($hasInvoiceUuid) {
             $stmt = $this->pdo->prepare("
                 INSERT INTO invoices (invoice_uuid, lease_id, invoice_number, description, amount, due_date, issue_date, status) 
@@ -1943,6 +1944,7 @@ class Storage {
                 $data['issueDate'],
                 $data['status'] ?? 'pending'
             ]);
+            $newInvoiceId = $this->pdo->lastInsertId();
         } else {
             $id = $this->generateUUID();
             $stmt = $this->pdo->prepare("
@@ -1959,21 +1961,19 @@ class Storage {
                 $data['issueDate'],
                 $data['status'] ?? 'pending'
             ]);
+            $newInvoiceId = $id;
         }
         
-        if (empty($data['invoiceNumber']) && $hasInvoiceUuid) {
-            $invoiceId = $this->pdo->lastInsertId();
-            if ($invoiceId) {
-                $finalNumber = "INV-" . str_pad($invoiceId, 6, '0', STR_PAD_LEFT);
-                $this->updateInvoice($invoiceId, ['invoiceNumber' => $finalNumber]);
-                return $this->getInvoice($invoiceId);
-            }
+        if (empty($data['invoiceNumber']) && $hasInvoiceUuid && $newInvoiceId) {
+            $finalNumber = "INV-" . str_pad($newInvoiceId, 6, '0', STR_PAD_LEFT);
+            $this->updateInvoice($newInvoiceId, ['invoiceNumber' => $finalNumber]);
         }
-        
-        if (!empty($id ?? null)) {
-            return $this->getInvoice($id);
+
+        if ($newInvoiceId) {
+            $this->syncBalanceBroughtForward($newInvoiceId);
         }
-        return $this->getInvoice($this->pdo->lastInsertId());
+
+        return $newInvoiceId ? $this->getInvoice($newInvoiceId) : $this->getInvoice($this->pdo->lastInsertId());
     }
 
     public function updateInvoice($id, $data) {
@@ -3662,6 +3662,63 @@ class Storage {
         $items = $this->getInvoiceItemsByInvoice($invoiceId);
         $totalAmount = array_sum(array_column($items, 'amount'));
         $this->updateInvoice($invoiceId, ['amount' => number_format($totalAmount, 2, '.', '')]);
+    }
+
+    private function getOutstandingBalanceForLease($leaseId, $excludeInvoiceId = null) {
+        $params = [$leaseId];
+        $excludeSql = "";
+        if (!empty($excludeInvoiceId)) {
+            $excludeSql = " AND i.id != ?";
+            $params[] = $excludeInvoiceId;
+        }
+        $stmt = $this->pdo->prepare("
+            SELECT COALESCE(SUM(i.amount - COALESCE(p.paid, 0)), 0) AS balance
+            FROM invoices i
+            LEFT JOIN (
+                SELECT invoice_id, SUM(amount) AS paid
+                FROM payments
+                WHERE status = 'verified' AND allocation_status = 'allocated'
+                GROUP BY invoice_id
+            ) p ON p.invoice_id = i.id
+            WHERE i.lease_id = ?{$excludeSql}
+              AND i.status != 'paid'
+        ");
+        $stmt->execute($params);
+        $row = $stmt->fetch();
+        return $row ? floatval($row['balance']) : 0;
+    }
+
+    public function syncBalanceBroughtForward($invoiceId) {
+        $invoice = $this->getInvoice($invoiceId);
+        if (!$invoice) return;
+        $balance = $this->getOutstandingBalanceForLease($invoice['lease_id'], $invoiceId);
+        $items = $this->getInvoiceItemsByInvoice($invoiceId);
+        $existing = null;
+        foreach ($items as $item) {
+            if (($item['charge_code'] ?? '') === 'balance_bf') {
+                $existing = $item;
+                break;
+            }
+        }
+        if ($balance > 0) {
+            if ($existing) {
+                $this->updateInvoiceItem($existing['id'], [
+                    'unitPrice' => $balance,
+                    'amount' => $balance,
+                    'description' => 'Balance Brought Forward'
+                ]);
+            } else {
+                $this->createInvoiceItem([
+                    'invoiceId' => $invoiceId,
+                    'chargeCode' => 'balance_bf',
+                    'description' => 'Balance Brought Forward',
+                    'quantity' => 1,
+                    'unitPrice' => $balance
+                ]);
+            }
+        } elseif ($existing) {
+            $this->deleteInvoiceItem($existing['id']);
+        }
     }
 
     // ========== WATER READINGS ==========

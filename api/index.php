@@ -2108,6 +2108,7 @@ try {
                     $status = strtolower($body['status']);
                     if ($status === 'approved') {
                         $actionLabel = 'Invoice Approved';
+                        $storage->syncBalanceBroughtForward($id);
                     } elseif ($status === 'sent') {
                         $actionLabel = 'Invoice Sent';
                     } elseif ($status === 'paid') {
