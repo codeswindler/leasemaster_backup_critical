@@ -1969,10 +1969,6 @@ class Storage {
             $this->updateInvoice($newInvoiceId, ['invoiceNumber' => $finalNumber]);
         }
 
-        if ($newInvoiceId) {
-            $this->syncBalanceBroughtForward($newInvoiceId);
-        }
-
         return $newInvoiceId ? $this->getInvoice($newInvoiceId) : $this->getInvoice($this->pdo->lastInsertId());
     }
 

@@ -883,18 +883,11 @@ export function Invoices() {
 
       const finalY = (doc as any).lastAutoTable?.finalY || 140
       const bfItem = invoice.charges.find((charge: any) => String(charge.chargeCode || "").toLowerCase() === "balance_bf")
-      if (bfItem) {
-        const bfLabel = Number(bfItem.amount) < 0 ? "Credit Brought Forward" : "Balance Brought Forward"
-        doc.setFontSize(9)
-        doc.setTextColor(0, 105, 80)
-        doc.text(`${bfLabel}: KES ${Number(bfItem.amount || 0).toLocaleString()}`, marginX, finalY + 6)
-        doc.setTextColor(0, 0, 0)
-      }
       const paid = Number(invoice.paidAmount || 0)
       const balance = Number(invoice.balance || 0)
       const totalsW = 70
       const totalsX = rightX - totalsW
-      const totalsY = finalY + 8
+      const totalsY = finalY + (bfItem ? 12 : 8)
       const totalsH = 24
       doc.setFontSize(10)
       doc.setDrawColor(140, 140, 140)

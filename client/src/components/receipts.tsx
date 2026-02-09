@@ -612,8 +612,13 @@ export function Receipts() {
       if (accountNumber) doc.text(`Account: ${accountNumber}`, headerRightX, receivedY + 16)
 
       autoTable(doc, {
-        head: [["Description", "Amount"]],
-        body: [[receipt.description || "Payment", `KES ${Number(receipt.amount || 0).toLocaleString()}`]],
+        head: [["Description", "Method", "Time", "Amount"]],
+        body: [[
+          receipt.description || "Payment",
+          String(receipt.paymentMethod || "N/A"),
+          formatWithOffset(paymentDate, timezoneOffsetMinutes),
+          `KES ${Number(receipt.amount || 0).toLocaleString()}`
+        ]],
         startY: receivedY + 18,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
