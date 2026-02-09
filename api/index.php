@@ -2071,12 +2071,16 @@ try {
                 $property = $propertyId ? $storage->getProperty($propertyId) : null;
                 $landlordId = $property['landlord_id'] ?? null;
                 $invoiceSettings = $storage->getInvoiceSettings($propertyId, $landlordId);
+                if (empty($invoiceSettings) && $propertyId) {
+                    $invoiceSettings = $storage->getInvoiceSettings($propertyId, null);
+                }
+                $requiresTimezone = is_array($invoiceSettings) && array_key_exists('timezone_offset', $invoiceSettings);
                 $missingInvoiceSettings = empty($invoiceSettings['company_name'])
                     || empty($invoiceSettings['company_phone'])
                     || empty($invoiceSettings['company_email'])
                     || empty($invoiceSettings['company_address'])
                     || empty($invoiceSettings['payment_options'])
-                    || empty($invoiceSettings['timezone_offset']);
+                    || ($requiresTimezone && empty($invoiceSettings['timezone_offset']));
                 if ($missingInvoiceSettings) {
                     sendJson(['error' => 'Configure invoice settings for this property before creating invoices.'], 400);
                 }

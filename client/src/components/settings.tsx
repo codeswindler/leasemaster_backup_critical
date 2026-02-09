@@ -236,9 +236,9 @@ export function Settings() {
 
   const scopeParams = useMemo(() => {
     const params = new URLSearchParams()
-    if (selectedAgentId) params.append("agentId", selectedAgentId)
-    if (selectedPropertyId) params.append("propertyId", selectedPropertyId)
-    if (selectedLandlordId) params.append("landlordId", selectedLandlordId)
+    if (selectedAgentId && selectedAgentId !== "all") params.append("agentId", selectedAgentId)
+    if (selectedPropertyId && selectedPropertyId !== "all") params.append("propertyId", selectedPropertyId)
+    if (selectedLandlordId && selectedLandlordId !== "all") params.append("landlordId", selectedLandlordId)
     return params.toString() ? `?${params}` : ""
   }, [selectedAgentId, selectedPropertyId, selectedLandlordId])
 
@@ -564,10 +564,6 @@ export function Settings() {
         title: "Logo upload failed",
         description: error?.message || "Unable to upload logo.",
         variant: "destructive"
-      })
-      setLogoPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev)
-        return ""
       })
     } finally {
       setLogoUploading(false)
