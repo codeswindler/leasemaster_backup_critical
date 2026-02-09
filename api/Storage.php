@@ -3672,7 +3672,7 @@ class Storage {
             $params[] = $excludeInvoiceId;
         }
         $stmt = $this->pdo->prepare("
-            SELECT COALESCE(SUM(i.amount - COALESCE(p.paid, 0)), 0) AS balance
+            SELECT COALESCE(SUM(i.amount), 0) - COALESCE(SUM(p.paid), 0) AS balance
             FROM invoices i
             LEFT JOIN (
                 SELECT invoice_id, SUM(amount) AS paid
@@ -3681,7 +3681,6 @@ class Storage {
                 GROUP BY invoice_id
             ) p ON p.invoice_id = i.id
             WHERE i.lease_id = ?{$excludeSql}
-              AND i.status != 'paid'
         ");
         $stmt->execute($params);
         $row = $stmt->fetch();
@@ -3700,20 +3699,22 @@ class Storage {
                 break;
             }
         }
-        if ($balance > 0) {
+        if (abs($balance) > 0.0001) {
+            $label = $balance < 0 ? 'Credit Brought Forward' : 'Balance Brought Forward';
+            $amount = number_format($balance, 2, '.', '');
             if ($existing) {
                 $this->updateInvoiceItem($existing['id'], [
-                    'unitPrice' => $balance,
-                    'amount' => $balance,
-                    'description' => 'Balance Brought Forward'
+                    'unitPrice' => $amount,
+                    'amount' => $amount,
+                    'description' => $label
                 ]);
             } else {
                 $this->createInvoiceItem([
                     'invoiceId' => $invoiceId,
                     'chargeCode' => 'balance_bf',
-                    'description' => 'Balance Brought Forward',
+                    'description' => $label,
                     'quantity' => 1,
-                    'unitPrice' => $balance
+                    'unitPrice' => $amount
                 ]);
             }
         } elseif ($existing) {

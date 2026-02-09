@@ -594,8 +594,9 @@ export function Receipts() {
       const dateY = Math.max(detailsY + 2, 40)
       doc.text(`Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, headerRightX, dateY)
       doc.text(`Receipt No: ${receipt.reference || receipt.id}`, headerRightX, dateY + 5)
+      doc.text(`Payment Date: ${formatDateWithOffset(paymentDate, timezoneOffsetMinutes)}`, headerRightX, dateY + 10)
 
-      const lineY = dateY + 6
+      const lineY = dateY + 9
       doc.line(marginX, lineY, rightX, lineY)
 
       doc.setFontSize(10)
@@ -613,15 +614,16 @@ export function Receipts() {
       autoTable(doc, {
         head: [["Description", "Amount"]],
         body: [[receipt.description || "Payment", `KES ${Number(receipt.amount || 0).toLocaleString()}`]],
-        startY: receivedY + 16,
+        startY: receivedY + 18,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
-        styles: { fontSize: 9 }
+        styles: { fontSize: 9 },
+        margin: { left: marginX, right: marginX },
       })
 
       const finalY = (doc as any).lastAutoTable?.finalY || 110
       const summaryX = rightX - 70
-      const summaryY = finalY + 8
+      const summaryY = finalY + 10
       doc.setFontSize(10)
       doc.setDrawColor(140, 140, 140)
       doc.rect(summaryX - 2, summaryY - 4, 74, 32)

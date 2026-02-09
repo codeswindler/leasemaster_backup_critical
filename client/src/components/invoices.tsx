@@ -877,10 +877,19 @@ export function Invoices() {
         startY: billToY + 20,
         theme: "grid",
         headStyles: { fillColor: [0, 105, 80], textColor: 255 },
-        styles: { fontSize: 9 }
+        styles: { fontSize: 9 },
+        margin: { left: marginX, right: marginX },
       })
 
       const finalY = (doc as any).lastAutoTable?.finalY || 140
+      const bfItem = invoice.charges.find((charge: any) => String(charge.chargeCode || "").toLowerCase() === "balance_bf")
+      if (bfItem) {
+        const bfLabel = Number(bfItem.amount) < 0 ? "Credit Brought Forward" : "Balance Brought Forward"
+        doc.setFontSize(9)
+        doc.setTextColor(0, 105, 80)
+        doc.text(`${bfLabel}: KES ${Number(bfItem.amount || 0).toLocaleString()}`, marginX, finalY + 6)
+        doc.setTextColor(0, 0, 0)
+      }
       const paid = Number(invoice.paidAmount || 0)
       const balance = Number(invoice.balance || 0)
       const totalsW = 70
@@ -897,9 +906,10 @@ export function Invoices() {
       doc.text(`Balance: KES ${balance.toLocaleString()}`, totalsX, totalsY + 16)
 
       if (paymentOptions.length) {
-        doc.text("Payment Options:", leftColX, finalY + 10)
+        const paymentBlockY = finalY + (bfItem ? 12 : 10)
+        doc.text("Payment Options:", leftColX, paymentBlockY)
         paymentOptions.forEach((line, idx) => {
-          doc.text(`- ${line}`, leftColX, finalY + 16 + idx * 5)
+          doc.text(`- ${line}`, leftColX, paymentBlockY + 6 + idx * 5)
         })
       }
       doc.setTextColor(0, 0, 0)
