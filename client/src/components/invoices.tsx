@@ -111,6 +111,30 @@ export function Invoices() {
   const loadImageAsDataUrl = async (url: string) => {
     const response = await fetch(url)
     const blob = await response.blob()
+    if (blob.type === "image/svg+xml") {
+      const svgText = await blob.text()
+      const svgBlob = new Blob([svgText], { type: "image/svg+xml" })
+      const svgUrl = URL.createObjectURL(svgBlob)
+      try {
+        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => resolve(img)
+          img.onerror = () => reject(new Error("Failed to load SVG logo"))
+          img.src = svgUrl
+        })
+        const canvas = document.createElement("canvas")
+        canvas.width = image.naturalWidth || 400
+        canvas.height = image.naturalHeight || 200
+        const ctx = canvas.getContext("2d")
+        if (!ctx) {
+          throw new Error("Failed to render SVG logo")
+        }
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
+        return canvas.toDataURL("image/png")
+      } finally {
+        URL.revokeObjectURL(svgUrl)
+      }
+    }
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result as string)
