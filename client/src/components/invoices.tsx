@@ -861,7 +861,25 @@ export function Invoices() {
       doc.text(`House: ${invoice.unit || "—"}`, headerRightX, billToY + 11)
       if (accountNumber) doc.text(`Account: ${accountNumber}`, headerRightX, billToY + 16)
 
-      const tableData = invoice.charges.map((charge: any, index: number) => {
+      const sortedCharges = invoice.charges
+        .map((charge: any, index: number) => ({ charge, index }))
+        .sort((a: any, b: any) => {
+          const getRank = (entry: any) => {
+            const code = String(entry.charge.chargeCode || entry.charge.charge_code || "").toLowerCase()
+            const name = String(entry.charge.name || "").toLowerCase()
+            if (code === "balance_bf" || name.includes("balance brought forward")) return 4
+            if (code === "deposit" || name.includes("deposit")) return 0
+            if (code === "rent" || name.includes("rent")) return 1
+            if (code === "water" || name.includes("water")) return 2
+            return 3
+          }
+          const rankDiff = getRank(a) - getRank(b)
+          if (rankDiff !== 0) return rankDiff
+          return a.index - b.index
+        })
+
+      const tableData = sortedCharges.map((entry: any, index: number) => {
+        const charge = entry.charge
         const isWater = String(charge.chargeCode || "").toLowerCase() === "water" ||
           String(charge.name || "").toLowerCase().includes("water")
         const waterSummary = isWater && invoice.waterSummary
